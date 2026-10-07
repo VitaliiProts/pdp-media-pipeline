@@ -9,7 +9,7 @@
     "build": "pnpm -r build",
     "build:libs": "pnpm --filter \"./libs/**\" build",
     "typecheck": "pnpm build:libs && pnpm -r typecheck",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "pnpm build:libs && eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -1,1 +1,1 @@
-pnpm exec lint-staged
+pnpm build:libs && pnpm exec lint-staged
