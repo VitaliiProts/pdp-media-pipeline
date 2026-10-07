@@ -1,0 +1,142 @@
+name: pdp
+
+# Host ports are shifted (5xxxx / 1808x) to avoid clashes with other local stacks.
+# Override any of them via .env, e.g. POSTGRES_HOST_PORT=5432.
+
+x-app: &app
+  restart: unless-stopped
+  environment: &app-env
+    NODE_ENV: production
+    LOG_LEVEL: info
+    PORT: 3000
+  healthcheck:
+    test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/health/ready >/dev/null || exit 1']
+    interval: 5s
+    timeout: 3s
+    retries: 12
+    start_period: 10s
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pdp
+      POSTGRES_PASSWORD: pdp
+      POSTGRES_DB: metadata
+    ports: ['${POSTGRES_HOST_PORT:-55432}:5432']
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pdp -d metadata']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports: ['${REDIS_HOST_PORT:-56379}:6379']
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  nats:
+    image: nats:2.10-alpine
+    command: ['-js', '-sd', '/data', '-m', '8222']
+    ports:
+      - '${NATS_HOST_PORT:-54222}:4222'
+      - '${NATS_MONITOR_HOST_PORT:-58222}:8222'
+    volumes: [nats-data:/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8222/healthz?js-enabled-only=true || exit 1']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # minio/minio is no longer published on Docker Hub; pgsty/minio is a drop-in community build.
+  minio:
+    image: pgsty/minio:latest
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '${MINIO_HOST_PORT:-59000}:9000'
+      - '${MINIO_CONSOLE_HOST_PORT:-59001}:9001'
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: pgsty/mc:latest
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint:
+      - sh
+      - -c
+      - mc alias set local http://minio:9000 minioadmin minioadmin && mc mb --ignore-existing local/media
+    restart: 'no'
+
+  metadata:
+    <<: *app
+    build: { context: ., dockerfile: apps/metadata/Dockerfile }
+    image: pdp/metadata:dev
+    environment:
+      <<: *app-env
+      DATABASE_URL: postgres://pdp:pdp@postgres:5432/metadata
+    ports: ['${METADATA_HOST_PORT:-18081}:3000']
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api-gateway:
+    <<: *app
+    build: { context: ., dockerfile: apps/api-gateway/Dockerfile }
+    image: pdp/api-gateway:dev
+    environment:
+      <<: *app-env
+      REDIS_URL: redis://redis:6379
+      NATS_URL: nats://nats:4222
+      METADATA_URL: http://metadata:3000
+    ports: ['${GATEWAY_HOST_PORT:-18080}:3000']
+    depends_on:
+      redis: { condition: service_healthy }
+      nats: { condition: service_healthy }
+      metadata: { condition: service_healthy }
+
+  scheduler:
+    <<: *app
+    build: { context: ., dockerfile: apps/scheduler/Dockerfile }
+    image: pdp/scheduler:dev
+    environment:
+      <<: *app-env
+      NATS_URL: nats://nats:4222
+    ports: ['${SCHEDULER_HOST_PORT:-18082}:3000']
+    depends_on:
+      nats: { condition: service_healthy }
+
+  worker:
+    <<: *app
+    build: { context: ., dockerfile: apps/worker/Dockerfile }
+    image: pdp/worker:dev
+    environment:
+      <<: *app-env
+      NATS_URL: nats://nats:4222
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: media
+    ports: ['${WORKER_HOST_PORT:-18083}:3000']
+    depends_on:
+      nats: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+
+volumes:
+  postgres-data:
+  redis-data:
+  nats-data:
+  minio-data:

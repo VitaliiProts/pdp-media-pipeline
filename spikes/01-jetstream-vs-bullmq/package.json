@@ -1,0 +1,21 @@
+{
+  "name": "spike-jetstream-vs-bullmq",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "node seed.mjs",
+    "js:produce": "node js-producer.mjs",
+    "js:consume": "node js-consumer.mjs",
+    "js:advisories": "node js-advisories.mjs",
+    "js:info": "node js-info.mjs",
+    "bull:produce": "node bull-producer.mjs",
+    "bull:consume": "node bull-consumer.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@nats-io/jetstream": "^3.0.0",
+    "@nats-io/transport-node": "^3.0.0",
+    "bullmq": "^5.30.0",
+    "sharp": "^0.33.5"
+  }
+}

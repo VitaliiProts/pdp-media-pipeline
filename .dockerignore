@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.git
+.github
+.husky
+spikes
+docs
+perf
+deploy
+coverage
+.env

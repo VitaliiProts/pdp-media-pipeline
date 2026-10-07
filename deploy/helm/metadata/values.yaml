@@ -1,0 +1,14 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/pdp/metadata
+  tag: ''
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+  containerPort: 3000
+
+env: {}
+
+resources: {}
