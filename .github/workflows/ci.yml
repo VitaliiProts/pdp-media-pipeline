@@ -29,6 +29,26 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm depcruise
 
+  # Report only: findings show up in the job summary and as warnings, the job never fails.
+  # Blocking on CRITICAL is enabled in Stage 7.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: pnpm audit (report only)
+        run: |
+          set +e
+          pnpm audit > audit.txt 2>&1
+          code=$?
+          { echo "## pnpm audit"; echo '```'; cat audit.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -ne 0 ]; then
+            echo "::warning title=pnpm audit::vulnerabilities found, see job summary"
+          fi
+
   helm:
     runs-on: ubuntu-latest
     steps:
@@ -50,5 +70,20 @@ jobs:
           context: .
           file: apps/${{ matrix.app }}/Dockerfile
           push: false
+          load: true
+          tags: pdp/${{ matrix.app }}:ci
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      # Official image pinned by version instead of aquasecurity/trivy-action (past tag hijacking).
+      - name: Trivy image scan (report only)
+        run: |
+          set +e
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.75.0 image --quiet --scanners vuln \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            --format table pdp/${{ matrix.app }}:ci > trivy.txt 2>&1
+          code=$?
+          { echo "## Trivy: ${{ matrix.app }}"; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -ne 0 ]; then
+            echo "::warning title=Trivy ${{ matrix.app }}::HIGH/CRITICAL vulnerabilities found, see job summary"
+          fi
