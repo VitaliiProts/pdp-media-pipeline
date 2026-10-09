@@ -29,6 +29,62 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm depcruise
 
+  # Coverage is reported, not enforced.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:cov
+      - name: Coverage summary
+        if: always() && hashFiles('coverage/coverage-summary.json') != ''
+        run: |
+          node -e '
+            const t = require("./coverage/coverage-summary.json").total;
+            const row = (k) => `| ${k} | ${t[k].pct}% | ${t[k].covered}/${t[k].total} |`;
+            console.log(["## Unit test coverage", "", "| Metric | % | Covered |", "| --- | --- | --- |",
+              ...["lines", "statements", "functions", "branches"].map(row)].join("\n"));
+          ' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
+
+  # Testcontainers: Postgres, NATS, Redis and MinIO on the runner's Docker.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:int --coverage
+      - name: Coverage summary
+        if: always() && hashFiles('coverage-int/coverage-summary.json') != ''
+        run: |
+          node -e '
+            const t = require("./coverage-int/coverage-summary.json").total;
+            const row = (k) => `| ${k} | ${t[k].pct}% | ${t[k].covered}/${t[k].total} |`;
+            console.log(["## Integration test coverage (apps)", "", "| Metric | % | Covered |", "| --- | --- | --- |",
+              ...["lines", "statements", "functions", "branches"].map(row)].join("\n"));
+          ' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-int
+          path: coverage-int/
+          if-no-files-found: ignore
+
   # Report only: findings show up in the job summary and as warnings, the job never fails.
   # Blocking on CRITICAL is enabled in Stage 7.
   audit:

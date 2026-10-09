@@ -21,7 +21,8 @@ libs/
   contracts/     # події й енуми на zod, з версією (job.created v1, job.status_changed v1)
   config/        # zod-схеми env + @nestjs/config з fail-fast валідацією
   observability/ # Pino-логер, /health/live і /health/ready (terminus); далі OTel
-  messaging/     # підключення до NATS і JetStream; далі publish/consume
+  messaging/     # NATS і JetStream: стріми, консюмери, pull-воркер із семафором
+  metadata-client/ # типізований HTTP-клієнт internal API Metadata
 deploy/helm/     # по чарту на сервіс
 docs/adr/  docs/spikes/
 perf/k6/
@@ -42,6 +43,10 @@ spikes/          # одноразовий код спайків, поза worksp
 
 `libs/messaging` не було в початковому плані: підключення до NATS однакове для трьох сервісів
 (gateway, scheduler, worker), і дублювати його з першого дня немає сенсу.
+
+`libs/metadata-client` додано на Етапі 1: gateway, scheduler і worker викликають той самий
+internal API Metadata. У lib лише транспорт (таймаут, розбір відповіді, `MetadataError`); реакція
+на коди відповіді лишається в сервісах.
 
 ## Альтернативи
 

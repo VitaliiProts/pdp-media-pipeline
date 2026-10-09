@@ -27,4 +27,17 @@ export const s3EnvSchema = z.object({
   S3_FORCE_PATH_STYLE: z.stringbool().default(true),
 });
 
+export const metadataClientEnvSchema = z.object({
+  METADATA_URL: z.url(),
+  METADATA_TIMEOUT_MS: z.coerce.number().int().min(100).default(2000),
+});
+
+export const uploadLimitsEnvSchema = z.object({
+  MAX_UPLOAD_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .default(20 * 1024 * 1024),
+});
+
 export type BaseEnv = z.infer<typeof baseEnvSchema>;
