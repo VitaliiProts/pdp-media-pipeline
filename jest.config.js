@@ -7,6 +7,7 @@ module.exports = {
     '!**/*.spec.ts',
     '!**/main.ts',
     '!**/index.ts',
+    '!apps/web/**',
   ],
   coverageDirectory: '<rootDir>/coverage',
   coverageReporters: ['text', 'text-summary', 'json-summary', 'lcov'],

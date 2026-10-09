@@ -78,7 +78,7 @@ export class JobsController {
   ): Promise<ListJobsResponseDto> {
     const page = await this.metadata.listJobs({ userId, ...query });
     return {
-      items: await Promise.all(page.items.map((job) => this.toResponse(job, false))),
+      items: await Promise.all(page.items.map((job) => this.toResponse(job))),
       nextCursor: page.nextCursor,
     };
   }
@@ -95,10 +95,11 @@ export class JobsController {
       throw err;
     });
     if (!job || job.userId !== userId) throw new NotFoundException(`job ${id} not found`);
-    return this.toResponse(job, true);
+    return this.toResponse(job);
   }
 
-  private async toResponse(job: JobDto, withUrls: boolean): Promise<JobResponseDto> {
+  /** Presigning is a local HMAC, so result URLs are cheap enough to include in lists too. */
+  private async toResponse(job: JobDto): Promise<JobResponseDto> {
     const response: JobResponseDto = {
       id: job.id,
       type: job.type,
@@ -111,7 +112,7 @@ export class JobsController {
       updatedAt: job.updatedAt,
       finishedAt: job.finishedAt,
     };
-    if (!withUrls || job.status !== 'succeeded') return response;
+    if (job.status !== 'succeeded') return response;
 
     const output = ImageResizeOutputV1.safeParse(job.output);
     if (!output.success) return response;

@@ -1,11 +1,12 @@
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', 'spikes/**'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', 'coverage-int/**', 'spikes/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -21,6 +22,15 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
     },
+  },
+  {
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    ...reactHooks.configs.flat['recommended-latest'],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+  {
+    files: ['apps/web/src/**/*.test.{ts,tsx}', 'apps/web/src/test/**'],
+    languageOptions: { globals: { ...globals.vitest } },
   },
   {
     files: ['**/*.{js,mjs,cjs}'],

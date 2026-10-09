@@ -158,6 +158,16 @@ services:
       metadata: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
 
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    image: pdp/web:dev
+    restart: unless-stopped
+    environment:
+      GATEWAY_URL: http://api-gateway:3000
+    ports: ['${WEB_HOST_PORT:-18090}:8080']
+    depends_on:
+      api-gateway: { condition: service_healthy }
+
 volumes:
   postgres-data:
   redis-data:

@@ -1,0 +1,35 @@
+{
+  "title": "Media pipeline",
+  "subtitle": "Every image becomes a resize job: the scheduler queues it, a worker processes it, results land in storage.",
+  "apiDocs": "API docs",
+  "changeKey": "Change key",
+  "language": "Language",
+  "sheet": {
+    "title": "Jobs",
+    "loading": "Loading jobs…",
+    "error": "Could not load jobs. Is the gateway running?",
+    "retry": "Try again",
+    "empty": "No jobs yet. Drop an image above to start one.",
+    "emptyFiltered": "No jobs with this status."
+  },
+  "stage": {
+    "uploading": "Uploading",
+    "creating": "Creating job",
+    "failed": "Not submitted"
+  },
+  "problem": {
+    "type": "This file type is not supported.",
+    "size": "The file is larger than the limit.",
+    "empty": "The file is empty.",
+    "unauthorized": "The API key was rejected.",
+    "network": "Network error, check the connection to the gateway.",
+    "rejected": "The gateway refused the request.",
+    "processing": "Last error"
+  },
+  "untitled": "Job {{id}}",
+  "attempt_one": "Attempt {{count}}",
+  "attempt_other": "Attempt {{count}}",
+  "results": "Results",
+  "dimensions": "{{width}} × {{height}}",
+  "dismiss": "Remove"
+}

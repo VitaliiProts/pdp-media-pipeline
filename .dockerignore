@@ -10,3 +10,4 @@ perf
 deploy
 coverage
 .env
+coverage-int
