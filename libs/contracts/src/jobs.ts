@@ -25,4 +25,5 @@ export const isTerminalStatus = (status: JobStatus): boolean =>
   TERMINAL_JOB_STATUSES.includes(status);
 
 export const JobPrioritySchema = z.number().int().min(0).max(9);
+export type JobPriority = z.infer<typeof JobPrioritySchema>;
 export const DEFAULT_JOB_PRIORITY = 5;
