@@ -17,6 +17,7 @@
     "@nestjs/common": "^11",
     "@nestjs/config": "^4",
     "@nestjs/core": "^11",
+    "@pdp/contracts": "workspace:^",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   }

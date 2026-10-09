@@ -19,6 +19,7 @@
     "@pdp/config": "workspace:^",
     "@pdp/contracts": "workspace:^",
     "@pdp/messaging": "workspace:^",
+    "@pdp/metadata-client": "workspace:^",
     "@pdp/observability": "workspace:^",
     "nestjs-pino": "^5.3.1",
     "reflect-metadata": "^0.2.2",

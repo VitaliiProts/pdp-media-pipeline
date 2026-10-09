@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineEvent, type EventOf } from './envelope';
-import { JobClassSchema, JobStatusSchema, JobTypeSchema } from './jobs';
+import { JobClassSchema, JobPrioritySchema, JobStatusSchema, JobTypeSchema } from './jobs';
 
 export const JobCreatedV1 = defineEvent(
   'job.created',
@@ -9,7 +9,7 @@ export const JobCreatedV1 = defineEvent(
     jobId: z.uuid(),
     userId: z.uuid(),
     type: JobTypeSchema,
-    priority: z.number().int().min(0).max(9),
+    priority: JobPrioritySchema,
     input: z.record(z.string(), z.unknown()),
   }),
 );
@@ -20,9 +20,11 @@ export const JobStatusChangedV1 = defineEvent(
   1,
   z.object({
     jobId: z.uuid(),
+    userId: z.uuid(),
+    type: JobTypeSchema,
     from: JobStatusSchema,
     to: JobStatusSchema,
-    class: JobClassSchema.optional(),
+    class: JobClassSchema.nullable(),
     attempt: z.number().int().min(0),
     reason: z.string().optional(),
   }),
