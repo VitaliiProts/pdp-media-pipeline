@@ -3,6 +3,12 @@ name: pdp
 # Host ports are shifted (5xxxx / 1808x) to avoid clashes with other local stacks.
 # Override any of them via .env, e.g. POSTGRES_HOST_PORT=5432.
 
+x-s3-env: &s3-env
+  S3_ENDPOINT: http://minio:9000
+  S3_ACCESS_KEY: minioadmin
+  S3_SECRET_KEY: minioadmin
+  S3_BUCKET: media
+
 x-app: &app
   restart: unless-stopped
   environment: &app-env
@@ -82,31 +88,47 @@ services:
       - mc alias set local http://minio:9000 minioadmin minioadmin && mc mb --ignore-existing local/media
     restart: 'no'
 
+  # One-shot, like the Helm pre-install hook in Stage 5.
+  metadata-migrate:
+    build: { context: ., dockerfile: apps/metadata/Dockerfile }
+    image: pdp/metadata:dev
+    command: ['node', 'dist/migrate.js']
+    environment:
+      DATABASE_URL: postgres://pdp:pdp@postgres:5432/metadata
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
   metadata:
     <<: *app
-    build: { context: ., dockerfile: apps/metadata/Dockerfile }
     image: pdp/metadata:dev
     environment:
       <<: *app-env
       DATABASE_URL: postgres://pdp:pdp@postgres:5432/metadata
+      NATS_URL: nats://nats:4222
     ports: ['${METADATA_HOST_PORT:-18081}:3000']
     depends_on:
       postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+      metadata-migrate: { condition: service_completed_successfully }
 
   api-gateway:
     <<: *app
     build: { context: ., dockerfile: apps/api-gateway/Dockerfile }
     image: pdp/api-gateway:dev
     environment:
-      <<: *app-env
+      <<: [*app-env, *s3-env]
       REDIS_URL: redis://redis:6379
       NATS_URL: nats://nats:4222
       METADATA_URL: http://metadata:3000
+      # Presigned URLs are signed for the host the client uses, not for minio:9000.
+      S3_PUBLIC_ENDPOINT: http://localhost:${MINIO_HOST_PORT:-59000}
     ports: ['${GATEWAY_HOST_PORT:-18080}:3000']
     depends_on:
       redis: { condition: service_healthy }
       nats: { condition: service_healthy }
       metadata: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
 
   scheduler:
     <<: *app
@@ -115,24 +137,25 @@ services:
     environment:
       <<: *app-env
       NATS_URL: nats://nats:4222
+      METADATA_URL: http://metadata:3000
     ports: ['${SCHEDULER_HOST_PORT:-18082}:3000']
     depends_on:
       nats: { condition: service_healthy }
+      metadata: { condition: service_healthy }
 
   worker:
     <<: *app
     build: { context: ., dockerfile: apps/worker/Dockerfile }
     image: pdp/worker:dev
     environment:
-      <<: *app-env
+      <<: [*app-env, *s3-env]
       NATS_URL: nats://nats:4222
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin
-      S3_BUCKET: media
+      METADATA_URL: http://metadata:3000
+      WORKER_CONCURRENCY: 2
     ports: ['${WORKER_HOST_PORT:-18083}:3000']
     depends_on:
       nats: { condition: service_healthy }
+      metadata: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
 
 volumes:

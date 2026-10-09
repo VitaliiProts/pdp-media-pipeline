@@ -23,8 +23,8 @@ export interface PullWorkerOptions {
 }
 
 /**
- * Pulls only as many messages as there are free slots. Taking more would leave
- * them buffered client-side while their AckWait runs out, producing redeliveries.
+ * Pulls a message only when a slot is free. Taking more would leave them
+ * buffered client-side while their AckWait runs out, producing redeliveries.
  */
 export class PullWorker {
   private readonly logger: Logger;
@@ -54,16 +54,18 @@ export class PullWorker {
   private async run(): Promise<void> {
     const { consumer, semaphore } = this.options;
     while (!this.stopped) {
-      const reserved = await semaphore.reserveAll();
-      let received = 0;
+      // One slot per fetch: a consumer waiting on an empty stream holds at most one
+      // slot, so consumers sharing the semaphore (cpu and priority) never starve each other.
+      await semaphore.acquire();
+      let handedOff = false;
       try {
         if (this.stopped) break;
         const batch = await consumer.fetch({
-          max_messages: reserved,
+          max_messages: 1,
           expires: this.options.fetchExpiresMs ?? 5000,
         });
         for await (const msg of batch) {
-          received++;
+          handedOff = true;
           const task = this.process(msg).finally(() => {
             semaphore.release();
             this.inFlight.delete(task);
@@ -76,7 +78,7 @@ export class PullWorker {
           await new Promise((r) => setTimeout(r, 1000));
         }
       } finally {
-        semaphore.release(reserved - received);
+        if (!handedOff) semaphore.release();
       }
     }
   }

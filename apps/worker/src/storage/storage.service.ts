@@ -1,7 +1,14 @@
-import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  HeadBucketCommand,
+  NoSuchKey,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type Env } from '../config';
+import { PermanentError } from '../image/permanent-error';
 
 @Injectable()
 export class StorageService implements OnApplicationShutdown {
@@ -19,6 +26,31 @@ export class StorageService implements OnApplicationShutdown {
         secretAccessKey: config.get('S3_SECRET_KEY', { infer: true }),
       },
     });
+  }
+
+  /** A missing or oversized object is permanent; any other failure is worth a retry. */
+  async getObject(key: string, maxBytes: number): Promise<Buffer> {
+    let res;
+    try {
+      res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    } catch (err) {
+      if (err instanceof NoSuchKey) throw new PermanentError(`source ${key} not found`);
+      throw err;
+    }
+    if ((res.ContentLength ?? 0) > maxBytes) {
+      res.Body?.transformToWebStream()
+        .cancel()
+        .catch(() => undefined);
+      throw new PermanentError(`source is ${res.ContentLength} bytes, over ${maxBytes}`);
+    }
+    if (!res.Body) throw new Error(`empty body for ${key}`);
+    return Buffer.from(await res.Body.transformToByteArray());
+  }
+
+  async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
+    );
   }
 
   /** Fails when the storage is unreachable or the bucket does not exist. */

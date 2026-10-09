@@ -14,14 +14,12 @@ export class Semaphore {
     return this.inUse;
   }
 
-  /** Waits for at least one free slot, then reserves every free slot and returns how many. */
-  async reserveAll(): Promise<number> {
+  /** Waits for a free slot and takes it. */
+  async acquire(): Promise<void> {
     while (this.available <= 0) {
       await new Promise<void>((resolve) => this.waiters.push(resolve));
     }
-    const n = this.available;
-    this.inUse += n;
-    return n;
+    this.inUse++;
   }
 
   release(n = 1): void {

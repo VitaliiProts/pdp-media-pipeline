@@ -31,5 +31,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^4"
+  },
+  "devDependencies": {
+    "@types/express": "^5"
   }
 }
