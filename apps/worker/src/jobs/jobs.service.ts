@@ -19,8 +19,6 @@ import { resizeImage } from '../image/resize';
 import { StorageService } from '../storage/storage.service';
 import { ImageResizeHandler } from './image-resize.handler';
 
-const ACK_WAIT_MS = 30_000;
-
 const CONSUMERS: { stream: StreamName; durable: string; filterSubject: string }[] = [
   { stream: 'JOBS_PRIORITY', durable: 'worker-priority', filterSubject: 'jobs.priority.>' },
   { stream: 'JOBS_CPU', durable: 'worker-cpu', filterSubject: 'jobs.cpu.>' },
@@ -29,13 +27,16 @@ const CONSUMERS: { stream: StreamName; durable: string; filterSubject: string }[
 @Injectable()
 export class JobsService implements OnApplicationBootstrap, BeforeApplicationShutdown {
   private workers: PullWorker[] = [];
+  private readonly ackWaitMs: number;
 
   constructor(
     private readonly nats: NatsService,
     private readonly storage: StorageService,
     @Inject(MetadataClient) private readonly metadata: MetadataClient,
     private readonly config: ConfigService<Env, true>,
-  ) {}
+  ) {
+    this.ackWaitMs = config.get('WORKER_ACK_WAIT_MS', { infer: true });
+  }
 
   async onApplicationBootstrap(): Promise<void> {
     const concurrency = this.config.get('WORKER_CONCURRENCY', { infer: true });
@@ -62,7 +63,7 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
     for (const consumer of CONSUMERS) {
       await ensurePullConsumer(jsm, {
         ...consumer,
-        ackWaitMs: ACK_WAIT_MS,
+        ackWaitMs: this.ackWaitMs,
         maxDeliver: WORKER_MAX_DELIVER,
         maxAckPending: 2 * concurrency,
       });
@@ -73,7 +74,7 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
           handler: (msg) =>
             handler.handle({ data: msg.data, deliveryCount: msg.info.deliveryCount }),
           semaphore,
-          heartbeatMs: ACK_WAIT_MS / 3,
+          heartbeatMs: this.ackWaitMs / 3,
         }),
       );
     }
@@ -81,6 +82,6 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
   }
 
   async beforeApplicationShutdown(): Promise<void> {
-    await Promise.all(this.workers.map((w) => w.stop(ACK_WAIT_MS)));
+    await Promise.all(this.workers.map((w) => w.stop(this.ackWaitMs)));
   }
 }

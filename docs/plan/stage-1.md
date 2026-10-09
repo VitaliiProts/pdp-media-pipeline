@@ -36,6 +36,23 @@ Outbox у плані стоїть на Етапі 3. Тут він з'являє
 метрики відставання, chaos-тест «вбити Postgres посеред relay». Плюс усе інше з Етапу 3:
 `Idempotency-Key`, inbox, класифікація помилок, DLQ.
 
+### Рішення, прийняті під час реалізації
+
+- **`libs/metadata-client`.** Три сервіси викликають той самий internal API, тож типізований
+  клієнт (fetch з таймаутом, zod-розбір відповідей, `MetadataError` з `retryable`) живе в окремому
+  lib. Що робити з кожним кодом відповіді, вирішує сервіс: таблиця реакцій лишається у воркері та
+  scheduler, а не в lib.
+- **Один слот семафора на один fetch.** `worker-cpu` і `worker-priority` ділять семафор. Якби
+  консюмер резервував усі вільні слоти на час fetch, порожня черга `cpu` блокувала б `priority` до
+  `expires`. Тепер кожен консюмер тримає в очікуванні щонайбільше один слот; зайвий round-trip на
+  повідомлення для CPU-задач непомітний.
+- **`WORKER_ACK_WAIT_MS`** (за замовчуванням 30 с) винесено в env, щоб інтеграційний тест
+  повторної доставки не чекав 30 секунд.
+- **`class` записується і в переході `running`**, якщо його ще немає: коли воркер випереджає
+  scheduler, перехід `scheduled@0` стає no-op і клас інакше загубився б.
+- **Unit-покриття мале (~22%), інтеграційне по коду застосунків ~84%.** Сервіси в інтеграційних
+  тестах працюють у процесі Jest, тому обидва звіти йдуть у Job Summary.
+
 ## Потік задачі
 
 ```mermaid
@@ -347,42 +364,42 @@ coverage-звіт у Job Summary і як артефакт.
 
 ### Тиждень 1 (26.10–01.11): Metadata
 
-- [ ] Drizzle: схема всіх таблиць, `drizzle-kit generate`, перша міграція, `migrate.ts`
-- [ ] `metadata-migrate` у compose
-- [ ] Сід користувача з API-ключем
-- [ ] Машина станів як чиста функція `decide(job, request) → Decision` + unit-тести на кожен рядок
-- [ ] `transition()` у транзакції з `job_transitions`, `job_executions`, `outbox`, `audit_log`
-- [ ] Internal REST: створити job, отримати, список з keyset-пагінацією, transitions, auth/resolve
-- [ ] Outbox relay: цикл з `FOR UPDATE SKIP LOCKED`, publish з `Nats-Msg-Id`, graceful stop
-- [ ] Інтеграційний тест `transition` на паралельних викликах
+- [x] Drizzle: схема всіх таблиць, `drizzle-kit generate`, перша міграція, `migrate.ts`
+- [x] `metadata-migrate` у compose
+- [x] Сід користувача з API-ключем
+- [x] Машина станів як чиста функція `decide(job, request) → Decision` + unit-тести на кожен рядок
+- [x] `transition()` у транзакції з `job_transitions`, `job_executions`, `outbox`, `audit_log`
+- [x] Internal REST: створити job, отримати, список з keyset-пагінацією, transitions, auth/resolve
+- [x] Outbox relay: цикл з `FOR UPDATE SKIP LOCKED`, publish з `Nats-Msg-Id`, graceful stop
+- [x] Інтеграційний тест `transition` на паралельних викликах
 
 **Готово, коли** `curl` на `/internal/jobs` створює job, а подія видна в `EVENTS` через
 `nats stream view`.
 
 ### Тиждень 2 (02.11–08.11): шина, Gateway, Scheduler
 
-- [ ] `libs/messaging`: `ensureStream`, `ensureConsumer`, типізований publish з `Nats-Msg-Id`,
+- [x] `libs/messaging`: `ensureStream`, `ensureConsumer`, типізований publish з `Nats-Msg-Id`,
       pull-consume з heartbeat і graceful stop
-- [ ] `libs/contracts`: `JobDispatchV1`, `ImageResizeInputV1`, `ImageResizeOutputV1`, коди помилок
-- [ ] HTTP-клієнт до Metadata зі спільним таймаутом і розбором кодів (у `libs/contracts` типи,
+- [x] `libs/contracts`: `JobDispatchV1`, `ImageResizeInputV1`, `ImageResizeOutputV1`, коди помилок
+- [x] HTTP-клієнт до Metadata зі спільним таймаутом і розбором кодів (у `libs/contracts` типи,
       клієнт у кожному сервісі або в окремому lib)
-- [ ] Gateway: guard `X-API-Key`, `POST /v1/uploads`, `POST /v1/jobs`, `GET /v1/jobs/:id`,
+- [x] Gateway: guard `X-API-Key`, `POST /v1/uploads`, `POST /v1/jobs`, `GET /v1/jobs/:id`,
       `GET /v1/jobs`, Swagger
-- [ ] Scheduler: консюмер `job.created`, `selectClass` з unit-тестами, publish, `transition scheduled`
+- [x] Scheduler: консюмер `job.created`, `selectClass` з unit-тестами, publish, `transition scheduled`
 
 **Готово, коли** після `POST /v1/jobs` задача стає `scheduled`, а повідомлення лежить у `JOBS_CPU`.
 
 ### Тиждень 3 (09.11–15.11): Worker і наскрізний сценарій
 
-- [ ] Worker: консюмер `JOBS_CPU` і `JOBS_PRIORITY`, семафор concurrency, heartbeat
-- [ ] sharp-пайплайн з лімітами, запис результатів, `transition succeeded/failed/scheduled`
-- [ ] Обробка відповідей Metadata за таблицею, unit-тести на неї
-- [ ] Presigned GET URL у `GET /v1/jobs/:id`
-- [ ] Наскрізний інтеграційний тест і тест повторної доставки
-- [ ] CI: джоб `test`, coverage у Summary
-- [ ] Скрипт `scripts/e2e-smoke.sh`: завантажити картинку через API, дочекатися `succeeded`,
+- [x] Worker: консюмер `JOBS_CPU` і `JOBS_PRIORITY`, семафор concurrency, heartbeat
+- [x] sharp-пайплайн з лімітами, запис результатів, `transition succeeded/failed/scheduled`
+- [x] Обробка відповідей Metadata за таблицею, unit-тести на неї
+- [x] Presigned GET URL у `GET /v1/jobs/:id`
+- [x] Наскрізний інтеграційний тест і тест повторної доставки
+- [x] CI: джоб `test`, coverage у Summary
+- [x] Скрипт `scripts/e2e-smoke.sh`: завантажити картинку через API, дочекатися `succeeded`,
       скачати результати
-- [ ] Ручна перевірка: `docker compose kill worker` посеред обробки, задача доходить до `succeeded`
+- [x] Ручна перевірка: `docker compose kill worker` посеред обробки, задача доходить до `succeeded`
 
 **Готово, коли** виконано критерій етапу на початку документа.
 
@@ -398,8 +415,8 @@ coverage-звіт у Job Summary і як артефакт.
   Але `MaxDeliver: 3` вичерпається за хвилину простою. Варіанти: не рахувати спроби, коли Metadata
   недоступний (`nak` до старту обробки не має збільшувати `attempt` у БД, а лічильник NATS
   збільшиться все одно), або більший `MaxDeliver` з backoff. Рішення в ADR-007 на Етапі 3.
-- **Де живе HTTP-клієнт Metadata.** Три сервіси викликають той самий API. Окремий
-  `libs/metadata-client` зручний, але це спільний код з логікою. Варто вирішити на тижні 2.
+- **Де живе HTTP-клієнт Metadata.** Вирішено: `libs/metadata-client` (див. «Рішення, прийняті під
+  час реалізації»).
 - **Presigned PUT не обмежує розмір.** Клієнт може залити більше, ніж оголосив. Це ловить `HEAD` у
   `POST /v1/jobs` і повторно воркер. Альтернатива — presigned POST з `content-length-range`.
 

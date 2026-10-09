@@ -8,9 +8,30 @@ importers:
 
   .:
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1147.0
+        version: 3.1147.0
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.12.0)
+      '@nats-io/jetstream':
+        specifier: ^3.4
+        version: 3.4.0
+      '@nats-io/transport-node':
+        specifier: ^3.4
+        version: 3.4.0
+      '@nestjs/common':
+        specifier: ^11
+        version: 11.2.7(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: ^11
+        version: 11.2.7(@nestjs/common@11.2.7(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.2.7)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@pdp/contracts':
+        specifier: workspace:^
+        version: link:libs/contracts
+      '@pdp/metadata-client':
+        specifier: workspace:^
+        version: link:libs/metadata-client
       '@testcontainers/postgresql':
         specifier: ^12.2.0
         version: 12.2.0
@@ -20,6 +41,9 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.5
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       dependency-cruiser:
         specifier: ^18.5.0
         version: 18.5.0
@@ -41,6 +65,9 @@ importers:
       lint-staged:
         specifier: ^17.6.0
         version: 17.6.0
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
       prettier:
         specifier: ^3.9.9
         version: 3.9.9

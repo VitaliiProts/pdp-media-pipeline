@@ -16,5 +16,6 @@ export const envSchema = baseEnvSchema.extend({
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).default(os.availableParallelism()),
   WORKER_ID: z.string().min(1).default(os.hostname()),
   MAX_INPUT_PIXELS: z.coerce.number().int().min(1).default(50_000_000),
+  WORKER_ACK_WAIT_MS: z.coerce.number().int().min(1000).default(30_000),
 });
 export type Env = z.infer<typeof envSchema>;
