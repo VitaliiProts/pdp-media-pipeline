@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
-import { HealthModule, MetricsModule, ObservabilityModule } from '@pdp/observability';
+import { HealthModule, ObservabilityModule } from '@pdp/observability';
 import {
   egressClientProvider,
   ObjectStorage,
@@ -17,7 +17,6 @@ import { JobsService } from './jobs/jobs.service';
   imports: [
     createConfigModule(envSchema),
     ObservabilityModule.forRoot('worker'),
-    MetricsModule,
     NatsModule.forRoot('worker'),
     ObjectStorageModule,
     HealthModule.forRootAsync({

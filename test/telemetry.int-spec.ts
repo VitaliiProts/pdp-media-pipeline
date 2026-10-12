@@ -1,5 +1,10 @@
 import { SpanKind } from '@opentelemetry/api';
-import { startTestTracing, type TestTracing } from '@pdp/observability/testing';
+import {
+  startTestMetrics,
+  startTestTracing,
+  type TestMetrics,
+  type TestTracing,
+} from '@pdp/observability/testing';
 import { type Server } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { type Pool } from 'pg';
@@ -12,9 +17,11 @@ import { type Infra, startInfra } from './support/infra';
 /**
  * All services run in this process and export into one in-memory exporter, with the real
  * propagation: HTTP between services, NATS headers, and the context stored in the outbox.
+ * Metrics go to one in-memory reader.
  */
-describe('one trace per job', () => {
+describe('one trace per job, and its metrics', () => {
   let tracing: TestTracing;
+  let metrics: TestMetrics;
   let infra: Infra;
   let apps: RunningApps;
   let pool: Pool;
@@ -23,6 +30,8 @@ describe('one trace per job', () => {
   let receiverUrl: string;
 
   beforeAll(async () => {
+    // First, so the HTTP instrumentation records into it.
+    metrics = startTestMetrics();
     tracing = startTestTracing({ instrumentHttp: true });
     infra = await startInfra();
     ({ pool } = await prepareDatabase(infra));
@@ -45,6 +54,7 @@ describe('one trace per job', () => {
     await pool?.end();
     await infra?.stop();
     await tracing?.stop();
+    await metrics?.stop();
   });
 
   it('follows a job from POST /v1/jobs through scheduler and worker to its webhook', async () => {
@@ -126,5 +136,41 @@ describe('one trace per job', () => {
     const roots = trace.filter((s) => !s.parentSpanContext || !ids.has(s.parentSpanContext.spanId));
     expect(roots).toHaveLength(1);
     expect(roots[0]?.kind).toBe(SpanKind.SERVER);
+  });
+
+  it('records the SLI, queue wait, HTTP and NATS metrics of that job', async () => {
+    const image = { type: 'image.resize', class: 'cpu' };
+    expect(await metrics.value('jobs.created', { type: 'image.resize' })).toBe(1);
+    expect(await metrics.value('jobs.created', { type: 'webhook.deliver' })).toBe(1);
+    expect(await metrics.value('job.e2e.duration', { ...image, outcome: 'succeeded' })).toBe(1);
+    expect(await metrics.value('jobs.finished', { ...image, outcome: 'succeeded' })).toBe(1);
+    expect(await metrics.value('job.queue_wait', image)).toBe(1);
+    expect(
+      await metrics.value('job.attempt.duration', { type: 'image.resize', outcome: 'succeeded' }),
+    ).toBe(1);
+
+    expect(
+      await metrics.value('http.server.request.duration', {
+        'http.request.method': 'POST',
+        'http.route': '/v1/jobs',
+        'http.response.status_code': 202,
+      }),
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      await metrics.value('messaging.process.duration', {
+        'messaging.destination.name': 'events.job.created.v1',
+        'messaging.nats.outcome': 'ack',
+      }),
+    ).toBeGreaterThanOrEqual(1);
+
+    const depth = await metrics.points('nats.stream.messages');
+    expect(depth.map((p) => p.attributes.stream)).toEqual(
+      expect.arrayContaining(['EVENTS', 'JOBS_CPU', 'JOBS_IO', 'JOBS_PRIORITY']),
+    );
+    const backlog = await metrics.points('nats.consumer.pending');
+    expect(backlog).toContainEqual({
+      attributes: { stream: 'JOBS_CPU', consumer: expect.any(String) as string },
+      value: 0,
+    });
   });
 });

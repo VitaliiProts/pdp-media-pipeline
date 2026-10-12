@@ -1,0 +1,20 @@
+# Demo routing: every alert goes to webhook-receiver, which logs it and lists it at GET /alerts.
+# A real setup routes `severity: page` to on-call and `severity: ticket` to a queue.
+route:
+  receiver: webhook-receiver
+  group_by: [alertname, type]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+
+receivers:
+  - name: webhook-receiver
+    webhook_configs:
+      - url: http://webhook-receiver:3000/alerts
+        send_resolved: true
+
+# The fast burn already covers the slow one of the same type; other tickets still go out.
+inhibit_rules:
+  - source_matchers: [alertname="JobSloBurnRateFast"]
+    target_matchers: [alertname="JobSloBurnRateSlow"]
+    equal: [type]

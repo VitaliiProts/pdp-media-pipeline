@@ -1,4 +1,4 @@
-import { context, propagation, trace } from '@opentelemetry/api';
+import { type Attributes, context, metrics, propagation, trace } from '@opentelemetry/api';
 import { BaggageSpanProcessor } from '@opentelemetry/baggage-span-processor';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import {
@@ -9,6 +9,7 @@ import {
 import { isWrapped, registerInstrumentations } from '@opentelemetry/instrumentation';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici';
+import { type DataPoint, MeterProvider, MetricReader } from '@opentelemetry/sdk-metrics';
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -67,6 +68,61 @@ export function startTestTracing({ instrumentHttp = false } = {}): TestTracing {
       trace.disable();
       propagation.disable();
       context.disable();
+    },
+  };
+}
+
+export interface TestMetricPoint {
+  attributes: Attributes;
+  /** A counter's sum, a gauge's value or a histogram's count. */
+  value: number;
+}
+
+export interface TestMetrics {
+  points: (name: string) => Promise<TestMetricPoint[]>;
+  /** Point values added up over the points whose attributes include `attributes`. */
+  value: (name: string, attributes?: Attributes) => Promise<number>;
+  stop: () => Promise<void>;
+}
+
+class ManualReader extends MetricReader {
+  protected onForceFlush(): Promise<void> {
+    return Promise.resolve();
+  }
+  protected onShutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+/** A global meter provider read on demand. Start it before the apps under test. */
+export function startTestMetrics(): TestMetrics {
+  const reader = new ManualReader();
+  const provider = new MeterProvider({ readers: [reader] });
+  metrics.setGlobalMeterProvider(provider);
+
+  const points = async (name: string): Promise<TestMetricPoint[]> => {
+    const { resourceMetrics } = await reader.collect();
+    return resourceMetrics.scopeMetrics
+      .flatMap((scope) => scope.metrics)
+      .filter((metric) => metric.descriptor.name === name)
+      .flatMap((metric) => metric.dataPoints as DataPoint<number | { count: number }>[])
+      .map((point) => ({
+        attributes: point.attributes,
+        value: typeof point.value === 'number' ? point.value : point.value.count,
+      }));
+  };
+
+  return {
+    points,
+    value: async (name, attributes = {}) =>
+      (await points(name))
+        .filter((point) =>
+          Object.entries(attributes).every(([key, value]) => point.attributes[key] === value),
+        )
+        .reduce((total, point) => total + point.value, 0),
+    stop: async () => {
+      await provider.shutdown();
+      metrics.disable();
     },
   };
 }

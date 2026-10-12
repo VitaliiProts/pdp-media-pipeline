@@ -15,7 +15,7 @@ import {
   term,
 } from '@pdp/messaging';
 import { MetadataError } from '@pdp/metadata-client';
-import { traced, withJobContext } from '@pdp/observability';
+import { jobMetrics, traced, withJobContext } from '@pdp/observability';
 import { trace } from '@opentelemetry/api';
 import { type z } from 'zod';
 import { isPermanentError } from './permanent-error';
@@ -138,13 +138,17 @@ export class JobRunner {
     }
 
     let output: JobOutput;
+    const startedAt = performance.now();
+    const elapsed = () => (performance.now() - startedAt) / 1000;
     try {
       output = await traced(
         `job process ${dispatch.type}`,
         { attributes: { 'job.attempt': attempt } },
         () => processor.process({ jobId, attempt }, input),
       );
+      jobMetrics.attempt(dispatch.type, 'succeeded', elapsed());
     } catch (err) {
+      jobMetrics.attempt(dispatch.type, isPermanentError(err) ? 'failed' : 'retry', elapsed());
       return this.onProcessingError(err, jobId, attempt, inbox, retryDelay);
     }
 

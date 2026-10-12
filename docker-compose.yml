@@ -15,7 +15,7 @@ x-app: &app
     NODE_ENV: production
     LOG_LEVEL: info
     PORT: 3000
-    # Traces and logs go to the collector; logs are also written to stdout.
+    # Traces, logs and metrics go to the collector; logs are also written to stdout.
     OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     DEPLOYMENT_ENVIRONMENT: compose
     SERVICE_VERSION: dev
@@ -225,7 +225,7 @@ services:
     command: ['--config=/etc/otelcol/config.yaml']
     volumes: ['./deploy/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro']
     restart: unless-stopped
-    depends_on: [tempo, victorialogs]
+    depends_on: [tempo, victorialogs, victoriametrics]
 
   tempo:
     image: grafana/tempo:2.10.8
@@ -240,6 +240,44 @@ services:
     volumes: [victorialogs-data:/vlogs]
     ports: ['${VICTORIALOGS_HOST_PORT:-19428}:9428']
     restart: unless-stopped
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.154.0
+    command:
+      - -storageDataPath=/vm
+      - -retentionPeriod=30d
+      # job.e2e.duration (s) is stored as job_e2e_duration_seconds_bucket, and so on.
+      - -opentelemetry.usePrometheusNaming
+      # Grafana lists vmalert's rules and alerts through the VictoriaMetrics datasource.
+      - -vmalert.proxyURL=http://vmalert:8880
+    volumes: [victoriametrics-data:/vm]
+    ports: ['${VICTORIAMETRICS_HOST_PORT:-18428}:8428']
+    restart: unless-stopped
+
+  # Recording rules for the SLO and the alerts; their results are written back to VictoriaMetrics.
+  vmalert:
+    image: victoriametrics/vmalert:v1.154.0
+    command:
+      - -rule=/etc/vmalert/*.yml
+      - -datasource.url=http://victoriametrics:8428
+      - -remoteWrite.url=http://victoriametrics:8428
+      - -remoteRead.url=http://victoriametrics:8428
+      - -notifier.url=http://alertmanager:9093
+      - -evaluationInterval=15s
+      - -external.url=http://localhost:${GRAFANA_HOST_PORT:-13000}
+      - '-external.alert.source=d/pdp-slo/slo'
+    volumes: ['./deploy/observability/vmalert/rules:/etc/vmalert:ro']
+    ports: ['${VMALERT_HOST_PORT:-18880}:8880']
+    restart: unless-stopped
+    depends_on: [victoriametrics, alertmanager]
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager']
+    volumes: ['./deploy/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro']
+    ports: ['${ALERTMANAGER_HOST_PORT:-19093}:9093']
+    restart: unless-stopped
+    depends_on: [webhook-receiver]
 
   grafana:
     image: grafana/grafana:13.2.3
@@ -256,7 +294,7 @@ services:
       - grafana-data:/var/lib/grafana
     ports: ['${GRAFANA_HOST_PORT:-13000}:3000']
     restart: unless-stopped
-    depends_on: [tempo, victorialogs]
+    depends_on: [tempo, victorialogs, victoriametrics, alertmanager]
 
 volumes:
   postgres-data:
@@ -264,4 +302,5 @@ volumes:
   nats-data:
   minio-data:
   victorialogs-data:
+  victoriametrics-data:
   grafana-data:

@@ -15,8 +15,8 @@
 SLO бачити на дашборді. Стек задано планом: OpenTelemetry, VictoriaMetrics, Grafana,
 VictoriaLogs і Pino. Для трейсів — Jaeger або Tempo.
 
-Етап розбито на два PR. 4a: трейси і логи (цей ADR). 4b: метрики, дашборди, SLO і алерти
-(розділ про них допишеться разом з 4b).
+Етап розбито на два PR. 4a: трейси і логи. 4b: метрики, дашборди, SLO і алерти (розділи
+«Метрики» і далі).
 
 ## Рішення
 
@@ -25,7 +25,7 @@ VictoriaLogs і Pino. Для трейсів — Jaeger або Tempo.
 Кожен Node-сервіс стартує `NodeSDK` із `@pdp/observability/telemetry`. Це перший імпорт у
 `main.ts`, бо інструментації патчать `http`, `pg` і `pino` у момент їхнього першого `require`.
 Сервіси шлють OTLP/HTTP на OpenTelemetry Collector. Лише колектор знає про бекенди: трейси
-йдуть у Tempo, логи у VictoriaLogs, а в 4b метрики підуть у VictoriaMetrics.
+йдуть у Tempo, логи у VictoriaLogs, метрики у VictoriaMetrics.
 
 Інтеграційні тести SDK не стартують: API OpenTelemetry без SDK — no-op, тому код зі span'ами
 працює і без нього. Тест одного трейсу вмикає in-memory експортер явно
@@ -36,7 +36,7 @@ VictoriaLogs і Pino. Для трейсів — Jaeger або Tempo.
 Автоматично: вхідний і вихідний HTTP (`http`, `undici` для `fetch`), Postgres, Redis, S3 і
 Nest-обробники. Щоб фонові цикли не створювали кореневий трейс кожні 50 мс, вихідні запити, pg і
 redis пишуться лише всередині вже наявного span'а: polling outbox, readiness-перевірки і
-heartbeat'и трейсів не дають. Запити до `/health` і `/metrics` ігноруються.
+heartbeat'и трейсів не дають. Запити до `/health` ігноруються.
 
 Ручні span'и стоять там, де автоматика нічого не бачить або бачить не те:
 
@@ -106,11 +106,85 @@ VictoriaLogs ділимо за `service.name`, решта полів — зви�
 - У Grafana рядок логу посилається на свій трейс (derived field `trace_id` → Tempo), а span —
   на логи свого трейсу (trace-to-logs у VictoriaLogs).
 
+### Метрики
+
+`prom-client` і `/metrics` прибрано. Метрики пише той самий `NodeSDK`:
+`PeriodicExportingMetricReader` раз на 15 с шле OTLP у колектор, а той у VictoriaMetrics з
+`-opentelemetry.usePrometheusNaming`. Тому `job.e2e.duration` з одиницею `s` зберігається як
+`job_e2e_duration_seconds_*`, а лічильник `jobs.dlq` як `jobs_dlq_total`. Колектор лишає в
+ресурсі тільки `service.name`, `deployment.environment.name` і `host.name`: VictoriaMetrics
+робить мітку з кожного атрибута ресурсу, і з pid чи версією рантайму кожен рестарт починав би
+нові серії.
+
+Доменні метрики живуть в одному місці, `jobMetrics` у `@pdp/observability`:
+
+| Метрика у VictoriaMetrics                      | Де пишеться                                    |
+| ---------------------------------------------- | ---------------------------------------------- |
+| `job_e2e_duration_seconds{type,class,outcome}` | Metadata, після коміту `succeeded` чи `dead`   |
+| `job_queue_wait_seconds{type,class}`           | Metadata, на першому `running` покоління       |
+| `jobs_created_total`, `jobs_finished_total`    | Metadata                                       |
+| `jobs_retries_total`, `jobs_dlq_total`         | Metadata                                       |
+| `jobs_duplicates_total{source}`                | Metadata (inbox, outbox), Scheduler (dispatch) |
+| `job_attempt_duration_seconds{type,outcome}`   | воркери, `JobRunner`                           |
+| `messaging_process_duration_seconds`           | усі консюмери, `PullWorker`                    |
+| `nats_stream_messages`, `nats_consumer_*`      | Scheduler, observable gauges з JetStream API   |
+| `http_server_request_duration_seconds`         | `instrumentation-http`, мітка `http_route`     |
+
+Рішення, які не видно з назв:
+
+- **Час з годинника Metadata.** Обидві точки e2e і queue wait — рядки Metadata, тож розбіжність
+  годинників між подами на метрику не впливає.
+- **Redrive не в SLI.** Повторне покоління рахується в `jobs_finished_total`, але не в
+  `job_e2e_duration_seconds`: його вік включає час, коли задача лежала мертвою до рішення
+  оператора.
+- **Queue wait лише першої спроби.** Очікування повторних спроб — це backoff, а не черга.
+- **Межа 300 с у бакетах.** SLI рахує бакет `le="300"`, тому 5 хв — обовʼязкова межа гістограми.
+- **Глибину черг звітує Scheduler.** Він бачить усі стріми. Gauges читають JetStream на кожен
+  експорт; кілька реплік дають однакові значення, дашборди беруть `max`.
+- **`http_route` з Nest.** Інтерсептор з 4a кладе шаблон маршруту в RPC-метадані, і
+  `instrumentation-http` бере його і для span'а, і для мітки метрики. Без нього мітки не було б
+  взагалі або була б з конкретним id, тобто необмежена кардинальність.
+- **Без самошуму.** Експорт у колектор не потрапляє в метрики HTTP-клієнта.
+
+### SLO і алерти
+
+SLI для `image.resize` (99%) і `video.frames` (95%) з ADR-001 і ADR-008: частка задач, що
+успішно завершились не пізніше ніж за 5 хв від створення, серед завершених. `permanent`-відмови
+(биті файли, 404 за URL) не рахуються: їх не виправить ні ретрай, ні масштабування, і це не
+латентність конвеєра. `exhausted` і повільні успіхи — погані події.
+
+`vmalert` рахує recording-правила `job:slo_errors:ratio_rate{5m,30m,1h,6h}` і
+`job:slo_burn_rate:*`, а ціль лежить окремою серією `job:slo_objective:ratio`. Алерти за
+Google SRE workbook (multi-window, multi-burn-rate): `JobSloBurnRateFast` (1 год і 5 хв понад
+14.4, `page`) і `JobSloBurnRateSlow` (6 год і 30 хв понад 6, `ticket`). Довге вікно доводить,
+що горить суттєво, коротке — що горить досі, тож алерт знімається скоро після виправлення.
+Окремо `JobDeadLetterShareHigh` (понад 1% завершених задач за 15 хв, від 20 задач) і
+`JobQueueGrowing` (backlog консюмера понад 100 і росте 5 хв).
+
+Правила рахують `increase`, а не `rate`: VictoriaMetrics рахує серію, що зʼявилась усередині
+вікна, від нуля лише в `increase`, а серія `outcome="exhausted"` зʼявляється разом з першою
+такою задачею. Правила мають юніт-тести на `vmalert-tool` (`pnpm alerts:test`, і в CI).
+
+Alertmanager групує за `alertname` і `type`; поки горить `JobSloBurnRateFast`, `JobSloBurnRateSlow` того ж типу не надсилається. У compose
+обидва йдуть у `webhook-receiver` (`POST /alerts`), реальний маршрут — справа Stage 5.
+
+### Дашборди і заміна exemplars
+
+Дашборди лежать JSON'ами в `deploy/observability/grafana/dashboards` і провіжняться при старті:
+Overview, SLO, Queues, Per-service і Job з 4a.
+
+Exemplars у Prometheus зберігають `trace_id` окремих вимірів, і з точки на графіку латентності
+можна відкрити конкретний трейс. VictoriaMetrics exemplars не зберігає. Замість них панелі
+латентності мають data links: TraceQL-пошук у Tempo за міткою серії і вікном панелі
+(`{ span.job.type = "image.resize" && traceDuration > 5m }`, повільні трейси маршруту, трейси
+з помилкою) і логи у VictoriaLogs за `job_type`. Це не той самий вимір, що на точці графіка,
+а вибірка схожих: для питання «чому p95 виріс» цього зазвичай досить.
+
 ## Наслідки
 
 - Пошук за `jobId` — одне посилання з UI або запит `{ span.job.id = "<id>" }` у Tempo чи
   `job_id:="<id>"` у VictoriaLogs.
-- Тест `test/tracing.int-spec.ts` проганяє справжні сервіси в одному процесі і перевіряє, що
+- Тест `test/telemetry.int-spec.ts` проганяє справжні сервіси в одному процесі і перевіряє, що
   задача від `POST /v1/jobs` до доставки вебхука має один трейс з одним коренем.
 - Нова колонка `outbox.trace_context` (кілька сотень байт на подію) і `jobs.trace_id`.
 - Трейс задачі з вебхуком — понад сотню span'ів, більшість із них pg-запити. Локально це
@@ -119,7 +193,12 @@ VictoriaLogs ділимо за `service.name`, решта полів — зви�
 - Telemetry best effort: сервіси не чекають на колектор, а якщо він лежить, span'и і логи в
   OTLP губляться. stdout-логи лишаються.
 - Tempo локально зберігає блоки в контейнері, тож після його перестворення трейси зникають.
-  Логи у VictoriaLogs лежать у volume.
+  Логи у VictoriaLogs і метрики у VictoriaMetrics лежать у volume.
+- Метрики теж best effort: поки колектор лежить, 15-секундні експорти губляться, але лічильники
+  кумулятивні, тож після відновлення `increase` наздоганяє.
+- При малому трафіку SLI шумний: одна погана задача з десяти — це 10%. Burn-rate алерти
+  гасять це довгим вікном, а `JobDeadLetterShareHigh` має поріг у 20 задач.
+- Data links ведуть на схожі трейси, а не на той, що дав конкретну точку графіка.
 
 ## Альтернативи
 
@@ -135,6 +214,13 @@ VictoriaLogs ділимо за `service.name`, решта полів — зви�
   сервісами.
 - **Контекст у тілі події, а не в заголовках NATS.** Тоді контракт подій залежав би від
   трасування. Заголовки — стандартне місце для W3C-контексту, і воно не чіпає схему подій.
-- **Exemplars для переходу з метрик на трейси.** VictoriaMetrics exemplars не зберігає. У 4b
-  їх замінять data links з панелей латентності на TraceQL-пошук у Tempo і на логи у
-  VictoriaLogs.
+- **Exemplars для переходу з метрик на трейси.** VictoriaMetrics exemplars не зберігає.
+  Prometheus лише заради них — другий TSDB з тими самими даними. Замінено data links (див.
+  «Дашборди і заміна exemplars»).
+- **`prom-client` і scrape колектором.** Працювало б, але тоді метрики йдуть іншим шляхом,
+  ніж трейси і логи, і без спільного ресурсу (`service.name`, середовище). OTel SDK дає ще й
+  `http.server.request.duration`, runtime-метрики Node і метрики pg без власного коду.
+- **SLO-генератори (Sloth, Pyrra).** Генерують ті самі recording-правила з короткого опису.
+  Для двох SLO рукописні правила з тестами простіші, ніж ще один інструмент у збірці.
+- **Помилки і латентність як два окремі SLO.** Користувачу важливо одне: результат за 5 хв.
+  Один SLI, де погана подія — і збій, і запізнення, дає один бюджет і один набір алертів.

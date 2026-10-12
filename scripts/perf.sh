@@ -5,6 +5,7 @@
 #   scripts/perf.sh                       # all k6 scenarios
 #   scripts/perf.sh rate-limit spike      # some of them
 #   scripts/perf.sh autocannon            # GET /v1/jobs/:id with autocannon
+#   scripts/perf.sh slo-burn              # Stage 4 demo: dashboards and a burn-rate alert
 #
 # Raw output lands in perf/reports/raw/ (git-ignored); numbers go to perf/reports/stage-N.md.
 set -euo pipefail

@@ -1,4 +1,5 @@
 export * from './backoff';
+export * from './metrics';
 export * from './nats.module';
 export * from './nats.service';
 export * from './pull-worker';

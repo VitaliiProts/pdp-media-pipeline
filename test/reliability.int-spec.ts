@@ -10,6 +10,7 @@ import {
   type JobDto,
 } from '@pdp/contracts';
 import { MetadataClient } from '@pdp/metadata-client';
+import { startTestMetrics, type TestMetrics } from '@pdp/observability/testing';
 import { type Pool } from 'pg';
 import { createApps, type RunningApps } from './support/apps';
 import { pngImage, prepareDatabase, putSource, readStream, waitFor } from './support/helpers';
@@ -29,8 +30,10 @@ describe('retries, dead letters and duplicate deliveries', () => {
   let client: MetadataClient;
   let s3Proxy: TcpProxy;
   let userId: string;
+  let telemetry: TestMetrics;
 
   beforeAll(async () => {
+    telemetry = startTestMetrics();
     infra = await startInfra();
     const db = await prepareDatabase(infra);
     pool = db.pool;
@@ -64,6 +67,7 @@ describe('retries, dead letters and duplicate deliveries', () => {
     await s3Proxy?.close();
     await pool?.end();
     await infra?.stop();
+    await telemetry?.stop();
   });
 
   const createJob = async (name: string) => {
@@ -104,11 +108,8 @@ describe('retries, dead letters and duplicate deliveries', () => {
       .map((e) => JobDeadLetteredV1.parse(e))
       .filter((e) => e.payload.jobId === jobId);
 
-  const metric = async (line: string) => {
-    const text = await fetch(`${apps.urls.metadata}/metrics`).then((r) => r.text());
-    const match = text.split('\n').find((l) => l.startsWith(`${line} `));
-    return match ? Number(match.split(' ')[1]) : 0;
-  };
+  const metric = (name: string, attributes: Record<string, string>) =>
+    telemetry.value(name, attributes);
 
   it('ends a crash loop as dead / exhausted and dead-letters it once', async () => {
     const job = await createJob('crash-loop');
@@ -161,7 +162,7 @@ describe('retries, dead letters and duplicate deliveries', () => {
       inbox,
     });
     expect(msg.info.deliveryCount).toBe(1);
-    const duplicatesBefore = await metric('jobs_duplicates_total{source="inbox"}');
+    const duplicatesBefore = await metric('jobs.duplicates', { source: 'inbox' });
 
     await apps.start('worker', {
       S3_ENDPOINT: s3Proxy.url,
@@ -171,7 +172,7 @@ describe('retries, dead letters and duplicate deliveries', () => {
     });
 
     await waitFor(
-      async () => (await metric('jobs_duplicates_total{source="inbox"}')) > duplicatesBefore,
+      async () => (await metric('jobs.duplicates', { source: 'inbox' })) > duplicatesBefore,
       { what: 'inbox to catch the redelivery' },
     );
     await waitFor(
@@ -191,7 +192,15 @@ describe('retries, dead letters and duplicate deliveries', () => {
   });
 
   it('retries a transient storage outage until exhausted, then succeeds after a redrive', async () => {
-    const retriesBefore = await metric('jobs_retries_total{type="image.resize"}');
+    const type = { type: 'image.resize' };
+    const exhausted = { ...type, outcome: 'exhausted' };
+    const succeeded = { ...type, outcome: 'succeeded' };
+    const before = {
+      retries: await metric('jobs.retries', type),
+      dlq: await metric('jobs.dlq', { ...type, reason: 'exhausted' }),
+      exhausted: await metric('jobs.finished', exhausted),
+      exhaustedE2e: await metric('job.e2e.duration', exhausted),
+    };
     s3Proxy.mode = 'reset';
     const job = await createJob('storage-outage');
 
@@ -203,11 +212,14 @@ describe('retries, dead letters and duplicate deliveries', () => {
       { attempt: 2, outcome: 'retry' },
       { attempt: 3, outcome: 'failed' },
     ]);
-    expect(await metric('jobs_retries_total{type="image.resize"}')).toBe(
-      retriesBefore + MAX_ATTEMPTS - 1,
-    );
+    expect(await metric('jobs.retries', type)).toBe(before.retries + MAX_ATTEMPTS - 1);
+    expect(await metric('jobs.dlq', { ...type, reason: 'exhausted' })).toBe(before.dlq + 1);
+    expect(await metric('jobs.finished', exhausted)).toBe(before.exhausted + 1);
+    expect(await metric('job.e2e.duration', exhausted)).toBe(before.exhaustedE2e + 1);
     await waitFor(async () => (await deadLetters(job.id)).length === 1, { what: 'dead letter' });
 
+    const succeededBefore = await metric('jobs.finished', succeeded);
+    const succeededE2eBefore = await metric('job.e2e.duration', succeeded);
     s3Proxy.mode = 'forward';
     const redriven = await client.redrive(job.id, { actor: 'test' });
     expect(redriven).toMatchObject({ status: 'queued', attemptBase: MAX_ATTEMPTS + 1 });
@@ -223,6 +235,9 @@ describe('retries, dead letters and duplicate deliveries', () => {
         new HeadObjectCommand({ Bucket: BUCKET, Key: imageResultKey(job.id, 'thumb') }),
       ),
     ).resolves.toBeDefined();
+    // A redriven generation counts as finished but stays out of the latency SLI.
+    expect(await metric('jobs.finished', succeeded)).toBe(succeededBefore + 1);
+    expect(await metric('job.e2e.duration', succeeded)).toBe(succeededE2eBefore);
   });
 
   it('refuses to redrive a job that is not dead', async () => {

@@ -67,8 +67,8 @@ flowchart LR
   backoff з full jitter. Crash loop теж закінчується `dead / exhausted`.
 - **DLQ і redrive.** Кожна `dead`-задача потрапляє в стрім `JOBS_DLQ`;
   `POST /v1/jobs/:id/redrive` (кнопка «Запустити знову» в UI) запускає її новим поколінням спроб.
-- **Метрики.** `/metrics` (Prometheus) на metadata, scheduler і worker:
-  `jobs_duplicates_total{source}`, `jobs_retries_total{type}`, `jobs_dlq_total{type,reason}`.
+- **Метрики.** `jobs_duplicates_total{source}`, `jobs_retries_total{type}`,
+  `jobs_dlq_total{type,reason}`; з Етапу 4b вони йдуть через OpenTelemetry у VictoriaMetrics.
 
 Відео, джерела за URL і вебхуки (Етап 3b, [ADR-008](docs/adr/0008-video-worker.md),
 [ADR-009](docs/adr/0009-egress-and-webhooks.md)):
@@ -99,6 +99,20 @@ flowchart LR
   трейсу.
 - **З UI.** Задача має `traceId`; посилання «Трейс і логи» на картці відкриває дашборд **Job**.
 
+Метрики, SLO і алерти (Етап 4b, [ADR-010](docs/adr/0010-observability.md)):
+
+- **Метрики.** Той самий OpenTelemetry SDK шле метрики через колектор у VictoriaMetrics:
+  `job_e2e_duration_seconds` і `job_queue_wait_seconds` (гістограми з `type`, `class`),
+  throughput і помилки (`jobs_finished_total{outcome}`), ретраї, DLQ, дублікати, глибина кожного
+  стріму і backlog консюмерів, `http_server_request_duration_seconds{http_route}`, runtime Node.
+- **SLO.** `image.resize`: 99% задач успішні за 5 хв від створення, `video.frames`: 95%
+  ([ADR-008](docs/adr/0008-video-worker.md)). Бюджет помилок на 30 днів видно на дашборді **SLO**.
+- **Алерти.** vmalert: burn rate 1 год / 5 хв (`page`) і 6 год / 30 хв (`ticket`), частка DLQ
+  понад 1%, ріст черги. Alertmanager шле їх у `webhook-receiver`.
+- **Дашборди як код.** Overview, SLO, Queues, Per-service і Job у
+  `deploy/observability/grafana/dashboards`. З панелей латентності data links ведуть на
+  повільні й помилкові трейси в Tempo і на логи у VictoriaLogs (замість exemplars).
+
 ### Структура репозиторію
 
 | Шлях                                   | Що там                                                              |
@@ -112,10 +126,10 @@ flowchart LR
 | `apps/web`                             | React + Redux Toolkit, завантаження, задачі, вебхуки                |
 | `libs/egress`                          | Безпечні вихідні запити: SSRF-захист, ліміти, ліміт на хост         |
 | `libs/worker-kit`                      | Спільне для воркерів: `JobRunner`, `PermanentError`, S3, джерела    |
-| `libs/observability`                   | OpenTelemetry SDK, хелпери span'ів і baggage, логер, health         |
+| `libs/observability`                   | OpenTelemetry SDK, хелпери span'ів, baggage і метрик, логер, health |
 | `libs/*` (решта)                       | Контракти (zod), messaging, клієнт Metadata, config                 |
 | `deploy/helm`                          | Helm-чарти сервісів                                                 |
-| `deploy/observability`                 | Конфіги Collector і Tempo, provisioning і дашборди Grafana          |
+| `deploy/observability`                 | Collector, Tempo, правила vmalert, Alertmanager, дашборди Grafana   |
 | `perf/k6`, `perf/reports`              | Навантажувальні сценарії і звіти                                    |
 | `docs/adr`, `docs/plan`, `docs/spikes` | Рішення, плани етапів, нотатки спайку                               |
 | `test/`                                | Інтеграційні тести на Testcontainers                                |
@@ -148,8 +162,10 @@ echo "$KEY"            # цей ключ вставляється у Web UI
 | Приймач вебхуків / Video worker | http://localhost:18084, :18085                              |
 | Консоль MinIO                   | http://localhost:59001 (`minioadmin` / `minioadmin`)        |
 | Моніторинг NATS                 | http://localhost:58222                                      |
-| Grafana (без логіна)            | http://localhost:13000, дашборд «PDP / Job»                 |
+| Grafana (без логіна)            | http://localhost:13000, папка дашбордів «PDP»               |
 | Tempo / VictoriaLogs API        | http://localhost:13200, http://localhost:19428              |
+| VictoriaMetrics / vmalert       | http://localhost:18428/vmui, http://localhost:18880         |
+| Alertmanager                    | http://localhost:19093                                      |
 | PostgreSQL                      | `localhost:55432`, користувач і пароль `pdp`, БД `metadata` |
 
 Порти можна змінити через `.env` (наприклад, `GATEWAY_HOST_PORT=8080`). Зупинити:
@@ -349,11 +365,12 @@ SRC=$(up perf/k6/fixtures/source.png)
    ```
    У Web UI картка такої задачі показує «Цей файл неможливо обробити.» з текстом помилки і кнопку
    «Запустити знову».
-4. Метрики (gateway їх не віддає назовні, `localhost:18080/metrics` — `404`):
+4. Метрики у VictoriaMetrics (сервіси експортують їх раз на 15 с):
    ```bash
-   curl -s localhost:18081/metrics | grep '^jobs_'
+   vm() { curl -s localhost:18428/api/v1/query --data-urlencode "query=$1" | jq -c '.data.result[] | {m: .metric, v: .value[1]}'; }
+   vm 'sum by (type, reason) (jobs_dlq_total)'
    ```
-   Очікувано: `jobs_dlq_total{type="image.resize",reason="permanent"}` з кількістю `dead`-задач.
+   Очікувано: `{"type":"image.resize","reason":"permanent"}` з кількістю `dead`-задач.
 5. Падіння воркера посеред обробки, як в Етапі 1, п. 6: задачі доходять до «Done», а в
    `job_executions` перервана спроба має `outcome = abandoned`.
 6. Інтеграційні тести етапу (`pnpm test:int`):
@@ -439,13 +456,13 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
      curl -s -H "x-api-key: $KEY" localhost:18080/v1/webhooks/$id/deliveries \
        | jq -c --arg id "$id" '.items[] | {endpoint: $id[0:8], status, deadReason, attempts, responseStatus, lastError}'
    done
-   curl -s localhost:18081/metrics | grep 'jobs_dlq_total{type="webhook.deliver"'
+   vm 'sum by (reason) (jobs_dlq_total{type="webhook.deliver"})'   # vm() з Етапу 3a, п. 4
    ```
 
    Очікувано: `flaky` — `succeeded`, `attempts: 3`, `responseStatus: 200`; `fail`, `drop` і `slow` —
    `dead / exhausted` з `attempts: 5` і помилками `endpoint responded 500`, `socket hang up`,
    `timed out`; `410` — `dead / permanent` з `attempts: 1`. У метриках
-   `jobs_dlq_total{type="webhook.deliver",reason="exhausted"} 3` і `reason="permanent"} 1`.
+   `reason="exhausted"` — 3, `reason="permanent"` — 1.
    Backoff з full jitter і cap 60 с, тож `exhausted` настає за 1–3 хвилини. Те саме видно в Web UI:
    «Вебхуки» в шапці → адреса → таблиця доставок зі статусом, спробами, кодом відповіді й помилкою.
    «Мертву» доставку можна надіслати знову кнопкою «Запустити знову» (або
@@ -508,9 +525,63 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
      localhost:18080/v1/jobs | jq -r .jobId   # traceId цієї задачі не aaaa…
    ```
 
-6. Тести: `test/tracing.int-spec.ts` (один трейс з одним коренем від `POST /v1/jobs` до
+6. Тести: `test/telemetry.int-spec.ts` (один трейс з одним коренем від `POST /v1/jobs` до
    доставки вебхука), unit-тести передачі контексту через NATS, outbox і egress.
 7. Документи: [ADR-010](docs/adr/0010-observability.md), [план етапу](docs/plan/stage-4.md).
+
+### Етап 4b. Метрики, дашборди, SLO і алерти
+
+**Критерій PDP:** у Grafana видно latency, throughput, errors і queue depth; SLO — на дашборді.
+
+1. Демо-навантаження (k6 у Docker, 8 хв): дві задачі на секунду успішні, ще одна на секунду має
+   `sourceUrl`, що відповідає `500`, і після 5 спроб стає `dead / exhausted`. Третина задач
+   погані, тож бюджет `image.resize` горить у 33 рази швидше за норму:
+
+   ```bash
+   scripts/perf.sh slo-burn          # DURATION=15m scripts/perf.sh slo-burn — довше
+   ```
+
+2. Grafana http://localhost:13000, папка **PDP**:
+   - **Overview** — створені задачі, частка успішних, p95 від створення до кінця, черги, алерти;
+     графіки throughput, error rate, e2e latency і queue wait, запити й латентність gateway;
+   - **SLO** — ціль, SLI і залишок бюджету за 30 днів, burn rate за чотирма вікнами з порогами
+     алертів, добрі й погані задачі, таблиця алертів; тип задачі вибирається вгорі;
+   - **Queues** — глибина стрімів, backlog і in-flight кожного консюмера, queue wait за класом,
+     ретраї, DLQ за причинами, дублікати, час обробки повідомлень;
+   - **Per-service** — RED за маршрутами, вихідний HTTP, Postgres, NATS, спроби задач, event
+     loop, heap і warn/error логи вибраного сервісу.
+
+   Клік по серії на панелі латентності відкриває меню data links: трейси цього типу довші за
+   5 хв або з помилкою (TraceQL у Tempo) і warn/error логи цього типу (VictoriaLogs).
+
+3. Алерти. Приблизно за 5 хв після старту `JobSloBurnRateFast` стає `firing` (1 год і 5 хв
+   понад 14.4; погана задача рахується, лише коли вичерпає повтори), трохи пізніше —
+   `JobDeadLetterShareHigh`. Alertmanager шле їх у приймач:
+
+   ```bash
+   curl -s localhost:18880/api/v1/alerts | jq -c '.data.alerts[] | {name, state, type: .labels.type}'
+   curl -s localhost:18084/alerts | jq -c '.items[] | {status, alert: .labels.alertname, type: .labels.type}'
+   docker compose logs webhook-receiver | grep 'alert '
+   ```
+
+   Після навантаження 5-хвилинне вікно очищується, і за кілька хвилин приходить `resolved`.
+   Правила: `deploy/observability/vmalert/rules`, їх тести: `pnpm alerts:test`.
+
+4. Метрики напряму — VictoriaMetrics UI http://localhost:18428/vmui або `vm()` з Етапу 3a:
+
+   ```bash
+   vm 'histogram_quantile(0.95, sum by (type, le) (rate(job_e2e_duration_seconds_bucket[5m])))'
+   vm 'sum by (type, outcome) (increase(jobs_finished_total[10m]))'
+   vm 'max by (stream) (nats_stream_messages)'
+   vm 'job:slo_burn_rate:rate1h'
+   ```
+
+5. Як знайти трейс і логи за `jobId`: посилання «Трейс і логи» на картці в Web UI, або
+   `http://localhost:13000/d/pdp-job/job?var-job_id=<jobId>`, або TraceQL
+   `{ span.job.id = "<jobId>" }` у Tempo і `job_id:="<jobId>"` у VictoriaLogs (Етап 4a).
+6. Тести: `test/telemetry.int-spec.ts` (SLI, queue wait, HTTP і NATS метрики однієї задачі),
+   `test/reliability.int-spec.ts` (ретраї, DLQ, redrive не потрапляє в SLI), `pnpm alerts:test`
+   (burn rate, виключення `permanent`, поріг DLQ, ріст черги).
 
 ## Конфігурація Етапу 2
 
@@ -553,11 +624,12 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 | `MAX_VIDEO_BYTES` (video-worker)            | 104857600        | Ліміт розміру джерела, зокрема за URL                       |
 | `VIDEO_MAX_DURATION_SECONDS` (video-worker) | 60               | Максимальна тривалість відео                                |
 
-## Конфігурація Етапу 4a
+## Конфігурація Етапу 4
 
 | Змінна                        | За замовчуванням        | Що робить                                          |
 | ----------------------------- | ----------------------- | -------------------------------------------------- |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | Куди сервіси шлють трейси й логи (OTLP/HTTP)       |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | Куди сервіси шлють трейси, логи й метрики (OTLP)   |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `15000`                 | Як часто, мс, сервіс експортує метрики             |
 | `OTEL_SDK_DISABLED`           | `false`                 | `true` вимикає SDK; stdout-логи лишаються          |
 | `SERVICE_VERSION`             | `dev`                   | `service.version` у ресурсі                        |
 | `DEPLOYMENT_ENVIRONMENT`      | `local`                 | `deployment.environment.name` (compose: `compose`) |

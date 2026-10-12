@@ -1,6 +1,7 @@
 import { type Consumer, type JsMsg } from '@nats-io/jetstream';
 import { Logger } from '@nestjs/common';
 import { type Span, SpanStatusCode } from '@opentelemetry/api';
+import { processDurationHistogram } from './metrics';
 import { type Semaphore } from './semaphore';
 import { withConsumerSpan } from './tracing';
 
@@ -33,6 +34,7 @@ export class PullWorker {
   private stopped = false;
   private loop?: Promise<void>;
   private readonly inFlight = new Set<Promise<void>>();
+  private readonly duration = processDurationHistogram();
 
   constructor(private readonly options: PullWorkerOptions) {
     this.logger = new Logger(`PullWorker:${options.name}`);
@@ -88,10 +90,20 @@ export class PullWorker {
   private process(msg: JsMsg): Promise<void> {
     return withConsumerSpan(msg, this.options.name, async (span) => {
       const heartbeat = setInterval(() => msg.working(), this.options.heartbeatMs);
+      const startedAt = performance.now();
+      const record = (outcome: HandlerResult['kind'] | 'error') =>
+        this.duration.record((performance.now() - startedAt) / 1000, {
+          'messaging.system': 'nats',
+          'messaging.destination.name': msg.subject,
+          'messaging.consumer.group.name': this.options.name,
+          'messaging.nats.outcome': outcome,
+        });
       try {
         const result = await this.options.handler(msg);
         this.settle(msg, result, span);
+        record(result.kind);
       } catch (err) {
+        record('error');
         this.logger.error(
           `handler error on ${msg.subject} seq=${msg.seq}: ${(err as Error).message}`,
         );

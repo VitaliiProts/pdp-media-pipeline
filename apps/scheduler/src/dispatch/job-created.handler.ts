@@ -68,7 +68,7 @@ export class JobCreatedHandler {
         dispatch,
         dispatchMessageId(jobId, attemptBase),
       );
-      if (ack.duplicate) jobMetrics.duplicates.inc({ source: 'dispatch' });
+      if (ack.duplicate) jobMetrics.duplicate('dispatch');
     } catch (err) {
       this.logger.warn(`dispatch publish failed for ${jobId}: ${(err as Error).message}`);
       return nak(RETRY_DELAY_MS);

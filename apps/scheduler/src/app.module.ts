@@ -3,15 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
-import { HealthModule, MetricsModule, ObservabilityModule } from '@pdp/observability';
+import { HealthModule, ObservabilityModule } from '@pdp/observability';
 import { type Env, envSchema } from './config';
 import { DispatchService } from './dispatch/dispatch.service';
+import { StreamMetrics } from './stream-metrics';
 
 @Module({
   imports: [
     createConfigModule(envSchema),
     ObservabilityModule.forRoot('scheduler'),
-    MetricsModule,
     NatsModule.forRoot('scheduler'),
     HealthModule.forRootAsync({
       inject: [NatsService],
@@ -29,6 +29,7 @@ import { DispatchService } from './dispatch/dispatch.service';
         }),
     },
     DispatchService,
+    StreamMetrics,
   ],
 })
 export class AppModule {}
