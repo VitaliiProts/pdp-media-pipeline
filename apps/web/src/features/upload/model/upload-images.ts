@@ -9,23 +9,65 @@ import {
   uploadFailed,
   type UploadProblem,
   uploadProgressed,
+  uploadRestarted,
   uploadStarted,
   uploadStored,
   uploadSubmitted,
+  uploadWaiting,
+  type WaitReason,
 } from './uploads-slice';
 
 const PARALLEL_UPLOADS = 3;
+/** After this many waits the gateway is still refusing, so the user decides what to do. */
+export const MAX_RETRY_LATER = 5;
+/** Spreads retries of parallel uploads, so they do not come back in the same millisecond. */
+const RETRY_JITTER_MS = 500;
 
 type UploadImagesArgs = { files: readonly File[]; presets: readonly ImagePreset[] };
+
+const reasonOf = (error: Extract<AppError, { kind: 'retryLater' }>): WaitReason =>
+  error.status === 429 ? 'rateLimited' : 'queueFull';
 
 function problemOf(error: AppError): { problem: UploadProblem; detail: string | null } {
   switch (error.kind) {
     case 'unauthorized':
       return { problem: 'unauthorized', detail: null };
+    case 'retryLater':
+      return { problem: reasonOf(error), detail: null };
     case 'http':
       return { problem: 'rejected', detail: error.message };
     default:
       return { problem: 'network', detail: null };
+  }
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(signal.reason instanceof Error ? signal.reason : new Error('aborted'));
+    });
+  });
+}
+
+/** Repeats `step` after every `Retry-After`, up to `MAX_RETRY_LATER` times. */
+async function honouringRetryAfter<T>(
+  step: () => Promise<T>,
+  hooks: { onWait: (reason: WaitReason, retryAt: number) => void; onResume: () => void },
+  signal: AbortSignal,
+): Promise<T> {
+  for (let waits = 0; ; waits++) {
+    try {
+      return await step();
+    } catch (error) {
+      const appError = toAppError(error);
+      if (appError.kind !== 'retryLater' || waits >= MAX_RETRY_LATER) throw error;
+      const delayMs = appError.retryAfterS * 1000 + Math.random() * RETRY_JITTER_MS;
+      hooks.onWait(reasonOf(appError), Date.now() + delayMs);
+      await sleep(delayMs, signal);
+      hooks.onResume();
+    }
   }
 }
 
@@ -49,8 +91,14 @@ export const uploadImages = createAsyncThunk(
 
     const pending = queue.filter(({ file }) => checkFile(file) === null);
     const uploadOne = async ({ file, id }: (typeof queue)[number]) => {
+      const onWait = (reason: WaitReason, retryAt: number) =>
+        dispatch(uploadWaiting({ id, reason, retryAt }));
       try {
-        const ticket = await requestUpload(file, signal);
+        const ticket = await honouringRetryAfter(
+          () => requestUpload(file, signal),
+          { onWait, onResume: () => dispatch(uploadRestarted(id)) },
+          signal,
+        );
         await putToStorage(
           ticket.uploadUrl,
           file,
@@ -58,7 +106,11 @@ export const uploadImages = createAsyncThunk(
           signal,
         );
         dispatch(uploadStored(id));
-        const { jobId } = await createResizeJob(ticket.sourceKey, presets, signal);
+        const { jobId } = await honouringRetryAfter(
+          () => createResizeJob(ticket.sourceKey, presets, signal),
+          { onWait, onResume: () => dispatch(uploadStored(id)) },
+          signal,
+        );
         dispatch(uploadSubmitted({ id, jobId }));
         dispatch(baseApi.util.invalidateTags(['Job']));
       } catch (error) {

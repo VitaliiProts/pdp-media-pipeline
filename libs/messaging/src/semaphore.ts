@@ -14,6 +14,10 @@ export class Semaphore {
     return this.inUse;
   }
 
+  get waiting(): number {
+    return this.waiters.length;
+  }
+
   /** Waits for a free slot and takes it. */
   async acquire(): Promise<void> {
     while (this.available <= 0) {

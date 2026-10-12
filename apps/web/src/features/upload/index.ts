@@ -5,5 +5,6 @@ export {
   type Upload,
   type UploadProblem,
   uploadsSlice,
+  type WaitReason,
 } from './model/uploads-slice';
 export { UploadPanel } from './ui/UploadPanel';

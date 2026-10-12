@@ -65,7 +65,7 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
         ...consumer,
         ackWaitMs: this.ackWaitMs,
         maxDeliver: WORKER_MAX_DELIVER,
-        maxAckPending: 2 * concurrency,
+        maxAckPending: this.config.get('WORKER_MAX_ACK_PENDING', { infer: true }),
       });
       this.workers.push(
         new PullWorker({

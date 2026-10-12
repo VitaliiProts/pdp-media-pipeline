@@ -12,3 +12,4 @@
 | [002](0002-queue.md)              | Черга: NATS JetStream        | Прийнято |
 | [003](0003-database.md)           | База даних: PostgreSQL       | Прийнято |
 | [004](0004-monorepo-structure.md) | Структура монорепо           | Прийнято |
+| [005](0005-rate-limiting.md)      | Rate limiting: GCRA у Redis  | Прийнято |

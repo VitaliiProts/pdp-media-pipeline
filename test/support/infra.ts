@@ -11,6 +11,8 @@ export interface Infra {
   redisUrl: string;
   s3Endpoint: string;
   s3: S3Client;
+  /** Runs `redis-cli` inside the Redis container, e.g. FLUSHALL or CLIENT PAUSE. */
+  redisCli: (...args: string[]) => Promise<string>;
   stop: () => Promise<void>;
 }
 
@@ -49,6 +51,12 @@ export async function startInfra(): Promise<Infra> {
     redisUrl: `redis://${redis.getHost()}:${redis.getMappedPort(6379)}`,
     s3Endpoint,
     s3,
+    redisCli: async (...args) => {
+      const { exitCode, output } = await redis.exec(['redis-cli', ...args]);
+      if (exitCode !== 0)
+        throw new Error(`redis-cli ${args.join(' ')} exited with ${exitCode}: ${output}`);
+      return output.trim();
+    },
     stop: async () => {
       s3.destroy();
       await Promise.all([postgres, nats, redis, minio].map((c: StartedTestContainer) => c.stop()));

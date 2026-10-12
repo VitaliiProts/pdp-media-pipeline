@@ -11,8 +11,10 @@ export class RedisService implements OnApplicationShutdown {
   constructor(config: ConfigService<Env, true>) {
     this.client = new Redis(config.get('REDIS_URL', { infer: true }), {
       maxRetriesPerRequest: 1,
-      // Fail commands immediately while disconnected instead of queueing them.
+      // Fail commands immediately while disconnected instead of queueing them,
+      // and give up on a hanging Redis before it eats the request's latency budget.
       enableOfflineQueue: false,
+      commandTimeout: config.get('REDIS_COMMAND_TIMEOUT_MS', { infer: true }),
     });
     this.client.on('error', (err) => this.logger.warn(`redis: ${err.message}`));
   }
@@ -22,6 +24,11 @@ export class RedisService implements OnApplicationShutdown {
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.client.quit();
+    try {
+      await this.client.quit();
+    } catch {
+      // A hung Redis must not block shutdown; drop the socket instead.
+      this.client.disconnect();
+    }
   }
 }

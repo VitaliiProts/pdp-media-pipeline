@@ -10,3 +10,4 @@ coverage-int/
 *.log
 spikes/**/package-lock.json
 .idea/
+perf/reports/raw/

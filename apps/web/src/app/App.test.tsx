@@ -195,3 +195,72 @@ describe('uploading', () => {
     expect(screen.queryByText('empty.png')).not.toBeInTheDocument();
   });
 });
+
+describe('when the gateway asks to come back later', () => {
+  it('waits out a full queue and creates the job on retry', async () => {
+    const jobId = 'dddddddd-0000-4000-8000-000000000004';
+    let attempts = 0;
+    server.use(
+      http.get('/v1/jobs', () =>
+        HttpResponse.json({ items: attempts > 1 ? [job({ id: jobId })] : [], nextCursor: null }),
+      ),
+      http.post('/v1/uploads', () =>
+        HttpResponse.json({
+          uploadUrl: `${STORAGE_ORIGIN}/sources/2.png?sig=x`,
+          sourceKey: 'sources/2.png',
+        }),
+      ),
+      http.options(
+        `${STORAGE_ORIGIN}/sources/2.png`,
+        () => new HttpResponse(null, { status: 204, headers: CORS }),
+      ),
+      http.put(
+        `${STORAGE_ORIGIN}/sources/2.png`,
+        () => new HttpResponse(null, { status: 200, headers: CORS }),
+      ),
+      http.post('/v1/jobs', () =>
+        ++attempts === 1
+          ? HttpResponse.json(
+              { statusCode: 503, message: 'the cpu queue is full, retry later' },
+              { status: 503, headers: { 'Retry-After': '1' } },
+            )
+          : HttpResponse.json({ jobId }, { status: 202 }),
+      ),
+    );
+    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    await screen.findByText(/No jobs yet/);
+
+    await user.upload(
+      screen.getByLabelText(/Drop images here/, { selector: 'input' }),
+      new File([new Uint8Array(64)], 'busy.png', { type: 'image/png' }),
+    );
+
+    expect(await screen.findByText('Queue is full, waiting')).toBeInTheDocument();
+    expect(screen.getByRole('timer')).toHaveTextContent(/retry in \d s/);
+    await waitFor(
+      () => {
+        const mount = screen.getByRole('heading', { name: 'busy.png' }).closest('article');
+        expect(mount && within(mount).getByText('Queued')).toBeInTheDocument();
+      },
+      { timeout: 4000 },
+    );
+    expect(attempts).toBe(2);
+  });
+
+  it('says how long until the next refresh when polling is rate limited', async () => {
+    server.use(
+      http.get(
+        '/v1/jobs',
+        () =>
+          new HttpResponse(null, {
+            status: 429,
+            headers: { 'Retry-After': '3', 'RateLimit-Remaining': '0' },
+          }),
+      ),
+    );
+    renderApp({ apiKey: TEST_API_KEY });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many requests. Refreshing in 3 seconds.',
+    );
+  });
+});

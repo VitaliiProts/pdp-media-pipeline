@@ -123,6 +123,17 @@ services:
       METADATA_URL: http://metadata:3000
       # Presigned URLs are signed for the host the client uses, not for minio:9000.
       S3_PUBLIC_ENDPOINT: http://localhost:${MINIO_HOST_PORT:-59000}
+      # The web container's nginx sits in front; its X-Forwarded-For hop is the client.
+      TRUST_PROXY_HOPS: 1
+      RATE_LIMIT_USER_RPS: ${RATE_LIMIT_USER_RPS:-20}
+      RATE_LIMIT_USER_BURST: ${RATE_LIMIT_USER_BURST:-20}
+      RATE_LIMIT_GLOBAL_RPS: ${RATE_LIMIT_GLOBAL_RPS:-200}
+      RATE_LIMIT_GLOBAL_BURST: ${RATE_LIMIT_GLOBAL_BURST:-200}
+      RATE_LIMIT_IP_RPS: ${RATE_LIMIT_IP_RPS:-10}
+      RATE_LIMIT_IP_BURST: ${RATE_LIMIT_IP_BURST:-20}
+      BACKPRESSURE_MAX_DEPTH_CPU: ${BACKPRESSURE_MAX_DEPTH_CPU:-2000}
+      BACKPRESSURE_MAX_DEPTH_IO: ${BACKPRESSURE_MAX_DEPTH_IO:-2000}
+      BACKPRESSURE_MAX_DEPTH_PRIORITY: ${BACKPRESSURE_MAX_DEPTH_PRIORITY:-500}
     ports: ['${GATEWAY_HOST_PORT:-18080}:3000']
     depends_on:
       redis: { condition: service_healthy }

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiKeyCleared } from '../../features/api-key';
-import { StatusFilter, useLiveJobs } from '../../features/jobs';
+import { retryAfterOf, StatusFilter, useLiveJobs } from '../../features/jobs';
 import { dismissUpload, selectUploads, UploadPanel } from '../../features/upload';
 import { useAppDispatch, useAppSelector } from '../../shared/lib/redux';
 import { useStatusParam } from './lib/use-status-param';
@@ -15,7 +15,9 @@ export function WorkspacePage() {
   const dispatch = useAppDispatch();
   const [status, setStatus] = useStatusParam();
   const uploads = useAppSelector(selectUploads);
-  const hasLocalActivity = uploads.some((u) => u.phase === 'uploading' || u.phase === 'creating');
+  const hasLocalActivity = uploads.some(
+    (u) => u.phase === 'uploading' || u.phase === 'creating' || u.phase === 'waiting',
+  );
   const jobs = useLiveJobs({ status }, { hasLocalActivity });
 
   const items = useMemo(
@@ -28,12 +30,18 @@ export function WorkspacePage() {
     if (upload) dispatch(dismissUpload({ id: upload.id, previewUrl: upload.previewUrl }));
   };
 
+  const retryAfterS = retryAfterOf(jobs.error);
+
   const renderSheet = () => {
     if (jobs.isLoading) return <SheetMessage>{t('sheet.loading')}</SheetMessage>;
     if (jobs.isError && items.length === 0) {
       return (
         <SheetMessage tone="error">
-          <p>{t('sheet.error')}</p>
+          <p>
+            {retryAfterS === null
+              ? t('sheet.error')
+              : t('sheet.tooManyRequests', { count: retryAfterS })}
+          </p>
           <button type="button" className={styles.retry} onClick={() => void jobs.refetch()}>
             {t('sheet.retry')}
           </button>

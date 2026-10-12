@@ -4,6 +4,7 @@ import { type JobResult } from '../../../features/jobs';
 import { IMAGE_PRESETS, type ImagePreset, PRESET_LABEL_KEY } from '../../../features/upload';
 import { formatBytes } from '../../../shared/lib/format-bytes';
 import { type ItemDescription } from '../model/describe-item';
+import { Countdown } from './Countdown';
 import styles from './SlideMount.module.css';
 
 type SlideMountProps = {
@@ -27,7 +28,7 @@ export function SlideMount({
   onDismiss,
 }: SlideMountProps) {
   const { t, i18n } = useTranslation(['workspace', 'jobs', 'upload']);
-  const { tone, label, progress, problem } = description;
+  const { tone, label, progress, retryAt, problem } = description;
   // A file the browser cannot decode would otherwise show a broken-image icon.
   const [undecodable, setUndecodable] = useState<string | null>(null);
 
@@ -62,6 +63,7 @@ export function SlideMount({
           {attempts > 1 && (
             <span className={styles.attempts}>{t('attempt', { count: attempts })}</span>
           )}
+          {retryAt !== null && <Countdown until={retryAt} className={styles.attempts} />}
         </p>
 
         {problem && (

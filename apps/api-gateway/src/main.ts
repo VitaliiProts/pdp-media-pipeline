@@ -1,14 +1,20 @@
 import 'reflect-metadata';
-import { type INestApplication, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { type NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { API_KEY_HEADER } from '@pdp/contracts';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { type Env } from './config';
 
-export function configureApp(app: INestApplication): void {
+export function configureApp(app: NestExpressApplication): void {
+  // Rate limits for unknown keys are per client IP; behind nginx that IP comes from X-Forwarded-For.
+  app.set(
+    'trust proxy',
+    app.get<ConfigService<Env, true>>(ConfigService).get('TRUST_PROXY_HOPS', { infer: true }),
+  );
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
@@ -25,7 +31,7 @@ export function configureApp(app: INestApplication): void {
 }
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
   configureApp(app);
