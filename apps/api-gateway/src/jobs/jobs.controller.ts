@@ -32,25 +32,35 @@ import {
   IDEMPOTENCY_KEY_HEADER,
   IDEMPOTENCY_KEY_PATTERN,
   IDEMPOTENT_REPLAYED_HEADER,
+  ImageResizeInputV1,
   ImageResizeOutputV1,
   type JobDto,
+  MEDIA_JOB_TYPES,
   selectClass,
   uploadKeyPrefix,
+  type VideoFrame,
+  VideoFramesInputV1,
+  VideoFramesOutputV1,
 } from '@pdp/contracts';
+import { EgressClient } from '@pdp/egress';
 import { MetadataClient, MetadataError } from '@pdp/metadata-client';
 import { type Response } from 'express';
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import { ApiKeyGuard, UserId } from '../auth/api-key.guard';
 import { BackpressureService } from '../backpressure/backpressure.service';
+import { assertPublicUrl } from '../common/public-url';
 import { type Env } from '../config';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { StorageService } from '../storage/storage.service';
 import {
+  type CreatableJobType,
   CreateJobDto,
   CreateJobResponseDto,
   JobResponseDto,
   ListJobsQueryDto,
   ListJobsResponseDto,
+  type VideoFrameDto,
 } from './jobs.dto';
 
 export const RESULT_URL_TTL_S = 60 * 60;
@@ -63,15 +73,19 @@ const REDRIVE_ACTOR = (userId: string) => `user:${userId}`;
 @UseGuards(ApiKeyGuard, RateLimitGuard)
 @Controller('v1/jobs')
 export class JobsController {
-  private readonly maxBytes: number;
+  private readonly maxBytes: Record<CreatableJobType, number>;
 
   constructor(
     @Inject(MetadataClient) private readonly metadata: MetadataClient,
     private readonly storage: StorageService,
     private readonly backpressure: BackpressureService,
+    private readonly egress: EgressClient,
     config: ConfigService<Env, true>,
   ) {
-    this.maxBytes = config.get('MAX_UPLOAD_BYTES', { infer: true });
+    this.maxBytes = {
+      'image.resize': config.get('MAX_UPLOAD_BYTES', { infer: true }),
+      'video.frames': config.get('MAX_VIDEO_UPLOAD_BYTES', { infer: true }),
+    };
   }
 
   @Post()
@@ -103,16 +117,12 @@ export class JobsController {
     const priority = body.priority ?? DEFAULT_JOB_PRIORITY;
     await this.backpressure.assertAccepting(selectClass({ type: body.type, priority }));
 
-    if (!body.sourceKey.startsWith(uploadKeyPrefix(userId)) || body.sourceKey.includes('..')) {
-      throw new BadRequestException('sourceKey must come from POST /v1/uploads');
-    }
-    const object = await this.storage.headObject(body.sourceKey);
-    if (!object) throw new BadRequestException('source object not found; upload it first');
-    if (object.size > this.maxBytes) {
-      throw new PayloadTooLargeException(`file exceeds ${this.maxBytes} bytes`);
+    const input = jobInput(body);
+    if (body.sourceKey !== undefined) await this.assertUploaded(userId, body.sourceKey, body.type);
+    if (body.sourceUrl !== undefined) {
+      await assertPublicUrl(this.egress, body.sourceUrl, 'sourceUrl');
     }
 
-    const input = { sourceKey: body.sourceKey, presets: body.presets };
     const { job, replayed } = await this.metadata.createJob({
       userId,
       type: body.type,
@@ -132,7 +142,8 @@ export class JobsController {
     @UserId() userId: string,
     @Query() query: ListJobsQueryDto,
   ): Promise<ListJobsResponseDto> {
-    const page = await this.metadata.listJobs({ userId, ...query });
+    // Webhook deliveries are jobs too, but they are listed per endpoint under /v1/webhooks.
+    const page = await this.metadata.listJobs({ userId, ...query, types: [...MEDIA_JOB_TYPES] });
     return {
       items: await Promise.all(page.items.map((job) => this.toResponse(job))),
       nextCursor: page.nextCursor,
@@ -166,6 +177,18 @@ export class JobsController {
     return this.toResponse(await this.metadata.redrive(id, { actor: REDRIVE_ACTOR(userId) }));
   }
 
+  private async assertUploaded(userId: string, key: string, type: CreatableJobType): Promise<void> {
+    if (!key.startsWith(uploadKeyPrefix(userId)) || key.includes('..')) {
+      throw new BadRequestException('sourceKey must come from POST /v1/uploads');
+    }
+    const object = await this.storage.headObject(key);
+    if (!object) throw new BadRequestException('source object not found; upload it first');
+    const maxBytes = this.maxBytes[type];
+    if (object.size > maxBytes) {
+      throw new PayloadTooLargeException(`file exceeds ${maxBytes} bytes`);
+    }
+  }
+
   private async ownJob(userId: string, id: string): Promise<JobDto> {
     const job = await this.metadata.getJob(id).catch((err: unknown) => {
       if (err instanceof MetadataError && err.status === 404) return null;
@@ -192,16 +215,51 @@ export class JobsController {
     };
     if (job.status !== 'succeeded') return response;
 
-    const output = ImageResizeOutputV1.safeParse(job.output);
-    if (!output.success) return response;
-    response.results = await Promise.all(
-      output.data.results.map(async ({ key, ...result }) => ({
-        ...result,
-        url: await this.storage.presignGet(key, RESULT_URL_TTL_S),
-      })),
-    );
+    if (job.type === 'image.resize') {
+      const output = ImageResizeOutputV1.safeParse(job.output);
+      if (!output.success) return response;
+      response.results = await Promise.all(
+        output.data.results.map(async ({ key, ...result }) => ({
+          ...result,
+          url: await this.storage.presignGet(key, RESULT_URL_TTL_S),
+        })),
+      );
+    }
+    if (job.type === 'video.frames') {
+      const output = VideoFramesOutputV1.safeParse(job.output);
+      if (!output.success) return response;
+      const { preview, frames, ...video } = output.data;
+      response.video = {
+        ...video,
+        preview: await this.presignFrame(preview),
+        frames: await Promise.all(frames.map((frame) => this.presignFrame(frame))),
+      };
+    }
     return response;
   }
+
+  private async presignFrame({ key, ...frame }: VideoFrame): Promise<VideoFrameDto> {
+    return { ...frame, url: await this.storage.presignGet(key, RESULT_URL_TTL_S) };
+  }
+}
+
+/** Validated against the same schema Metadata uses, so defaults are part of the request hash. */
+function jobInput(body: CreateJobDto): Record<string, unknown> {
+  const source = Object.fromEntries(
+    Object.entries({ sourceKey: body.sourceKey, sourceUrl: body.sourceUrl }).filter(
+      ([, value]) => value !== undefined,
+    ),
+  );
+  const parsed =
+    body.type === 'image.resize'
+      ? ImageResizeInputV1.safeParse({ ...source, presets: body.presets })
+      : VideoFramesInputV1.safeParse({
+          ...source,
+          intervalSeconds: body.intervalSeconds,
+          maxFrames: body.maxFrames,
+        });
+  if (!parsed.success) throw new BadRequestException(z.prettifyError(parsed.error));
+  return parsed.data;
 }
 
 /** Same body, same hash: keys are sorted so property order does not matter. */

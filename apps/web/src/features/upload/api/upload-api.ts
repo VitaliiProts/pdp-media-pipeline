@@ -27,20 +27,27 @@ export async function putToStorage(
   });
 }
 
+/** Images are resized to the chosen presets; videos get a preview and frames. */
+export type JobSpec = { kind: 'image'; presets: readonly ImagePreset[] } | { kind: 'video' };
+
+const bodyOf = (sourceKey: string, spec: JobSpec) =>
+  spec.kind === 'image'
+    ? { type: 'image.resize', sourceKey, presets: spec.presets }
+    : { type: 'video.frames', sourceKey };
+
 /**
  * `idempotencyKey` stays the same for every retry of one upload, so a retry after a lost
  * response returns the job already created instead of making a second one.
  */
-export async function createResizeJob(
+export async function createJob(
   sourceKey: string,
-  presets: readonly ImagePreset[],
+  spec: JobSpec,
   idempotencyKey: string,
   signal: AbortSignal,
 ): Promise<CreatedJob> {
-  const { data } = await http.post<CreatedJob>(
-    '/v1/jobs',
-    { type: 'image.resize', sourceKey, presets },
-    { headers: { 'Idempotency-Key': idempotencyKey }, signal },
-  );
+  const { data } = await http.post<CreatedJob>('/v1/jobs', bodyOf(sourceKey, spec), {
+    headers: { 'Idempotency-Key': idempotencyKey },
+    signal,
+  });
   return data;
 }

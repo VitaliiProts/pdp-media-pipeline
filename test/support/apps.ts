@@ -12,12 +12,13 @@ const loaders: Record<AppName, () => unknown> = {
   scheduler: () => appModule(require('../../apps/scheduler/src/app.module')),
   'api-gateway': () => appModule(require('../../apps/api-gateway/src/app.module')),
   worker: () => appModule(require('../../apps/worker/src/app.module')),
+  'video-worker': () => appModule(require('../../apps/video-worker/src/app.module')),
 };
 const loadConfigureGateway = () =>
   (require('../../apps/api-gateway/src/main') as typeof GatewayMain).configureApp;
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-export type AppName = 'metadata' | 'scheduler' | 'api-gateway' | 'worker';
+export type AppName = 'metadata' | 'scheduler' | 'api-gateway' | 'worker' | 'video-worker';
 
 export interface RunningApps {
   urls: Partial<Record<AppName, string>>;
@@ -76,7 +77,13 @@ export function createApps(infra: Infra): RunningApps {
   };
 
   const stopAll = async () => {
-    for (const name of ['worker', 'scheduler', 'api-gateway', 'metadata'] as const) {
+    for (const name of [
+      'video-worker',
+      'worker',
+      'scheduler',
+      'api-gateway',
+      'metadata',
+    ] as const) {
       await stop(name);
     }
   };

@@ -1,9 +1,9 @@
 import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { RedriveButton } from '../../../features/jobs';
 import { describeItem } from '../model/describe-item';
 import { type SheetItem } from '../model/sheet-items';
 import styles from './ContactSheet.module.css';
-import { RedriveButton } from './RedriveButton';
 import { SlideMount } from './SlideMount';
 
 type ContactSheetProps = {
@@ -25,6 +25,7 @@ export function ContactSheet({ items, onDismiss }: ContactSheetProps) {
               description={describeItem(item)}
               attempts={item.attempts}
               results={item.results}
+              frames={item.frames}
               action={item.status === 'dead' ? <RedriveButton jobId={item.jobId} /> : undefined}
             />
           ) : (
@@ -34,6 +35,7 @@ export function ContactSheet({ items, onDismiss }: ContactSheetProps) {
               description={describeItem(item)}
               attempts={0}
               results={[]}
+              frames={[]}
               onDismiss={item.stage.phase === 'failed' ? () => onDismiss(item.uploadId) : undefined}
             />
           )}

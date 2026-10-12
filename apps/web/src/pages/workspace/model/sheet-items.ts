@@ -1,4 +1,10 @@
-import { type DeadReason, type Job, type JobResult, type JobStatus } from '../../../features/jobs';
+import {
+  type DeadReason,
+  type Job,
+  type JobResult,
+  type JobStatus,
+  type VideoFrame,
+} from '../../../features/jobs';
 import { type Upload, type UploadProblem, type WaitReason } from '../../../features/upload';
 
 export type SheetItem =
@@ -26,6 +32,7 @@ export type SheetItem =
       lastError: string | null;
       deadReason: DeadReason | null;
       results: JobResult[];
+      frames: VideoFrame[];
     };
 
 type LocalStage = Extract<SheetItem, { kind: 'local' }>['stage'];
@@ -46,6 +53,7 @@ function stageOf(upload: Exclude<Upload, { phase: 'submitted' }>): LocalStage {
 const PREFERRED_PREVIEW = 'medium';
 
 function previewOf(job: Job, localPreview: string | null): string | null {
+  if (job.video) return job.video.preview.url;
   const results = job.results ?? [];
   const best = results.find((r) => r.preset === PREFERRED_PREVIEW) ?? results[0];
   return best?.url ?? localPreview;
@@ -88,6 +96,7 @@ export function buildSheetItems(jobs: readonly Job[], uploads: readonly Upload[]
       lastError: job.lastError,
       deadReason: job.deadReason,
       results: job.results ?? [],
+      frames: job.video?.frames ?? [],
     };
   });
 

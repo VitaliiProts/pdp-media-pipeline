@@ -10,8 +10,8 @@ import {
   type CreateJobRequest,
   type CreateJobResponse,
   deadLetterSubject,
-  DEFAULT_JOB_PRIORITY,
   ImageResizeInputV1,
+  isMediaJobType,
   JobCreatedV1,
   JobDeadLetteredV1,
   type JobDto,
@@ -22,9 +22,10 @@ import {
   type RedriveRequest,
   type TransitionRequest,
   type TransitionResponse,
+  VideoFramesInputV1,
 } from '@pdp/contracts';
 import { jobMetrics } from '@pdp/observability';
-import { and, count, desc, eq, gt, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { type Env } from '../config';
 import { PostgresService, type Tx } from '../database/postgres.service';
@@ -38,11 +39,15 @@ import {
   jobTransitions,
 } from '../database/schema';
 import { enqueueEvent } from '../outbox/outbox';
+import { WebhooksService } from '../webhooks/webhooks.service';
+import { insertJob } from './insert-job';
 import { decodeCursor, encodeCursor, toJobDto } from './job.mapper';
 import { decide, type Decision, decideRedrive, type RetryPolicy } from './state-machine';
 
+/** Types clients may create; `webhook.deliver` jobs are only created by Metadata itself. */
 const INPUT_SCHEMAS: Partial<Record<JobType, z.ZodType>> = {
   'image.resize': ImageResizeInputV1,
+  'video.frames': VideoFramesInputV1,
 };
 
 const error = (code: MetadataErrorBody['code'], message: string): MetadataErrorBody => ({
@@ -60,6 +65,7 @@ export class JobsService {
 
   constructor(
     private readonly pg: PostgresService,
+    private readonly webhooks: WebhooksService,
     config: ConfigService<Env, true>,
   ) {
     this.policy = { maxAttempts: config.get('JOB_MAX_ATTEMPTS', { infer: true }) };
@@ -82,30 +88,12 @@ export class JobsService {
         if (replay) return { job: replay, replayed: true };
       }
 
-      const [job] = await tx
-        .insert(jobs)
-        .values({
-          userId: req.userId,
-          type: req.type,
-          priority: req.priority ?? DEFAULT_JOB_PRIORITY,
-          input: input.data as Record<string, unknown>,
-        })
-        .returning();
-      if (!job) throw new Error('insert returned no row');
-
-      await enqueueEvent(tx, JobCreatedV1, {
-        jobId: job.id,
-        userId: job.userId,
-        type: job.type,
-        priority: job.priority,
-        input: job.input,
-        attemptBase: job.attemptBase,
-      });
-      await tx.insert(auditLog).values({
-        actor: `user:${job.userId}`,
-        action: 'job.created',
-        entityId: job.id,
-        data: { type: job.type },
+      const job = await insertJob(tx, {
+        userId: req.userId,
+        type: req.type,
+        priority: req.priority,
+        input: input.data as Record<string, unknown>,
+        actor: `user:${req.userId}`,
       });
 
       const dto = toJobDto(job);
@@ -179,11 +167,17 @@ export class JobsService {
   async list(query: {
     userId: string;
     status?: JobRow['status'];
+    types?: JobType[];
+    webhookEndpointId?: string;
     limit: number;
     cursor?: string;
   }): Promise<ListJobsResponse> {
     const filters: SQL[] = [eq(jobs.userId, query.userId)];
     if (query.status) filters.push(eq(jobs.status, query.status));
+    if (query.types) filters.push(inArray(jobs.type, query.types));
+    if (query.webhookEndpointId) {
+      filters.push(sql`(${jobs.input}->>'endpointId') = ${query.webhookEndpointId}`);
+    }
     if (query.cursor) {
       const cursor = decodeCursor(query.cursor);
       if (!cursor) throw new BadRequestException(error('VALIDATION_FAILED', 'invalid cursor'));
@@ -285,6 +279,17 @@ export class JobsService {
             input: updated.input,
           },
           deadLetterSubject(updated.type),
+        );
+      }
+      // Deliveries do not notify about themselves, or a failing endpoint would feed itself.
+      if (
+        isMediaJobType(updated.type) &&
+        (decision.effect === 'succeed' || decision.effect === 'dead')
+      ) {
+        await this.webhooks.enqueueDeliveries(
+          tx,
+          updated,
+          decision.effect === 'succeed' ? 'job.succeeded' : 'job.dead',
         );
       }
       return { applied: true, job: updated, decision };

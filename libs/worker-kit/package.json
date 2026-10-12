@@ -1,0 +1,25 @@
+{
+  "name": "@pdp/worker-kit",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1147.0",
+    "@nestjs/common": "^11",
+    "@nestjs/config": "^4",
+    "@pdp/config": "workspace:^",
+    "@pdp/contracts": "workspace:^",
+    "@pdp/egress": "workspace:^",
+    "@pdp/messaging": "workspace:^",
+    "@pdp/metadata-client": "workspace:^",
+    "zod": "^4"
+  }
+}

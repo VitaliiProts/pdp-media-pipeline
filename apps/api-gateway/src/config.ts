@@ -1,5 +1,6 @@
 import {
   baseEnvSchema,
+  egressEnvSchema,
   metadataClientEnvSchema,
   natsEnvSchema,
   redisEnvSchema,
@@ -16,6 +17,8 @@ export const envSchema = baseEnvSchema.extend({
   ...s3EnvSchema.shape,
   ...metadataClientEnvSchema.shape,
   ...uploadLimitsEnvSchema.shape,
+  ...egressEnvSchema.shape,
+  MAX_VIDEO_UPLOAD_BYTES: positiveInt().default(100 * 1024 * 1024),
   /** Host the client sees; presigned URLs are signed for it, not for the in-cluster endpoint. */
   S3_PUBLIC_ENDPOINT: z.url(),
   API_KEY_CACHE_TTL_MS: z.coerce.number().int().min(0).default(60_000),

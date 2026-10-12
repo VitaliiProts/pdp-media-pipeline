@@ -1,8 +1,8 @@
 import { PRIORITY_THRESHOLD, selectClass } from './job-class';
-import { DEFAULT_JOB_PRIORITY, JOB_TYPES } from './jobs';
+import { DEFAULT_JOB_PRIORITY, MEDIA_JOB_TYPES } from './jobs';
 
 describe('selectClass', () => {
-  it.each(JOB_TYPES)('routes %s with default priority to cpu', (type) => {
+  it.each(MEDIA_JOB_TYPES)('routes %s with default priority to cpu', (type) => {
     expect(selectClass({ type, priority: DEFAULT_JOB_PRIORITY })).toBe('cpu');
   });
 
@@ -16,5 +16,10 @@ describe('selectClass', () => {
 
   it('routes low priority to its type class', () => {
     expect(selectClass({ type: 'video.transcode', priority: 0 })).toBe('cpu');
+  });
+
+  it('keeps webhook deliveries in the io class at any priority', () => {
+    expect(selectClass({ type: 'webhook.deliver', priority: DEFAULT_JOB_PRIORITY })).toBe('io');
+    expect(selectClass({ type: 'webhook.deliver', priority: 9 })).toBe('io');
   });
 });

@@ -9,6 +9,7 @@ import { ApiKeyGuard } from './auth/api-key.guard';
 import { BackpressureService } from './backpressure/backpressure.service';
 import { QueueDepthService } from './backpressure/queue-depth.service';
 import { MetadataErrorFilter } from './common/metadata-error.filter';
+import { egressClientProvider } from './common/public-url';
 import { RetryLaterFilter } from './common/retry-later';
 import { type Env, envSchema } from './config';
 import { JobsController } from './jobs/jobs.controller';
@@ -18,6 +19,7 @@ import { RedisModule } from './redis/redis.module';
 import { StorageModule } from './storage/storage.module';
 import { StorageService } from './storage/storage.service';
 import { UploadsController } from './uploads/uploads.controller';
+import { WebhooksController } from './webhooks/webhooks.controller';
 
 @Module({
   imports: [
@@ -37,7 +39,7 @@ import { UploadsController } from './uploads/uploads.controller';
       ],
     }),
   ],
-  controllers: [UploadsController, JobsController],
+  controllers: [UploadsController, JobsController, WebhooksController],
   providers: [
     {
       provide: MetadataClient,
@@ -48,6 +50,7 @@ import { UploadsController } from './uploads/uploads.controller';
           timeoutMs: config.get('METADATA_TIMEOUT_MS', { infer: true }),
         }),
     },
+    egressClientProvider,
     RateLimiterService,
     ApiKeyGuard,
     RateLimitGuard,

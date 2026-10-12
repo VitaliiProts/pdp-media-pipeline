@@ -21,6 +21,7 @@
     "@nestjs/swagger": "^11.4.7",
     "@pdp/config": "workspace:^",
     "@pdp/contracts": "workspace:^",
+    "@pdp/egress": "workspace:^",
     "@pdp/messaging": "workspace:^",
     "@pdp/metadata-client": "workspace:^",
     "@pdp/observability": "workspace:^",

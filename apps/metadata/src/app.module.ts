@@ -10,6 +10,8 @@ import { IdempotencyJanitor } from './jobs/idempotency-janitor';
 import { JobsController } from './jobs/jobs.controller';
 import { JobsService } from './jobs/jobs.service';
 import { OutboxRelay } from './outbox/outbox.relay';
+import { WebhooksController } from './webhooks/webhooks.controller';
+import { WebhooksService } from './webhooks/webhooks.service';
 
 @Module({
   imports: [
@@ -27,7 +29,7 @@ import { OutboxRelay } from './outbox/outbox.relay';
       ],
     }),
   ],
-  controllers: [JobsController, AuthController],
-  providers: [JobsService, OutboxRelay, IdempotencyJanitor],
+  controllers: [JobsController, WebhooksController, AuthController],
+  providers: [JobsService, WebhooksService, OutboxRelay, IdempotencyJanitor],
 })
 export class AppModule {}

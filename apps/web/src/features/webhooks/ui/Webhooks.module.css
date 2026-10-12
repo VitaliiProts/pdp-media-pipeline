@@ -1,0 +1,256 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--mount);
+  border-radius: var(--radius-mount);
+  box-shadow: var(--shadow-mount);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-weight: 600;
+}
+
+.input {
+  min-width: 0;
+  padding: var(--space-3);
+  font: inherit;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--glow);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--red);
+}
+
+.events {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  cursor: pointer;
+}
+
+.event + .event {
+  border-top: 1px solid var(--rule);
+}
+
+.eventName {
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.submit {
+  composes: primary from '../../../shared/ui/button.module.css';
+  align-self: flex-start;
+  margin-top: var(--space-2);
+}
+
+.quiet {
+  composes: quiet from '../../../shared/ui/button.module.css';
+  font-size: var(--text-sm);
+}
+
+.danger {
+  composes: quiet;
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.hint,
+.warning {
+  margin: 0;
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.warning,
+.problem {
+  color: var(--red);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.detail {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.secret {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--amber);
+  border-radius: var(--radius-control);
+}
+
+.secretTitle {
+  margin: 0;
+  font-weight: 700;
+}
+
+.secretValue {
+  display: block;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+  background: var(--table);
+  border-radius: var(--radius-control);
+  user-select: all;
+}
+
+.endpoints {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.endpoint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.endpoint + .endpoint {
+  border-top: 1px solid var(--rule);
+}
+
+.endpointMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-2);
+  font: inherit;
+  text-align: start;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  cursor: pointer;
+}
+
+.endpointMain:hover {
+  border-color: var(--rule);
+}
+
+.endpointMain[aria-pressed='true'] {
+  border-color: var(--ink);
+}
+
+.url {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.confirm {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.message {
+  margin: 0;
+  color: var(--graphite);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th {
+  padding: var(--space-2);
+  color: var(--graphite);
+  font-weight: 600;
+  text-align: start;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.table td {
+  padding: var(--space-2);
+  vertical-align: top;
+  border-bottom: 1px solid var(--rule);
+}
+
+.status {
+  font-weight: 650;
+}
+
+tr[data-status='succeeded'] .status {
+  color: var(--green);
+}
+
+tr[data-status='dead'] .status {
+  color: var(--red);
+}
+
+tr[data-status='running'] .status,
+tr[data-status='scheduled'] .status {
+  color: var(--amber);
+}
+
+.ids {
+  display: block;
+  max-width: 14rem;
+  overflow: hidden;
+  color: var(--graphite);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.number {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

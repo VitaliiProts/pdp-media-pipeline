@@ -10,6 +10,10 @@ import {
   ResolveApiKeyResponse,
   type TransitionRequest,
   TransitionResponse,
+  type CreateWebhookEndpointRequest,
+  ListWebhookEndpointsResponse,
+  WebhookEndpointDto,
+  WebhookEndpointWithSecretDto,
 } from '@pdp/contracts';
 import { type z } from 'zod';
 
@@ -56,6 +60,8 @@ export class MetadataClient {
     const params = new URLSearchParams();
     params.set('userId', query.userId);
     if (query.status) params.set('status', query.status);
+    if (query.types) params.set('types', query.types.join(','));
+    if (query.webhookEndpointId) params.set('webhookEndpointId', query.webhookEndpointId);
     if (query.limit !== undefined) params.set('limit', String(query.limit));
     if (query.cursor) params.set('cursor', query.cursor);
     return this.request('GET', `/internal/jobs?${params.toString()}`, ListJobsResponse);
@@ -67,6 +73,37 @@ export class MetadataClient {
       `/internal/jobs/${encodeURIComponent(id)}/transitions`,
       TransitionResponse,
       body,
+    );
+  }
+
+  createWebhookEndpoint(body: CreateWebhookEndpointRequest): Promise<WebhookEndpointWithSecretDto> {
+    return this.request('POST', '/internal/webhooks', WebhookEndpointWithSecretDto, body);
+  }
+
+  listWebhookEndpoints(userId: string): Promise<ListWebhookEndpointsResponse> {
+    const params = new URLSearchParams({ userId });
+    return this.request(
+      'GET',
+      `/internal/webhooks?${params.toString()}`,
+      ListWebhookEndpointsResponse,
+    );
+  }
+
+  /** Includes the signing secret; for the delivering worker only. */
+  getWebhookEndpoint(id: string): Promise<WebhookEndpointWithSecretDto> {
+    return this.request(
+      'GET',
+      `/internal/webhooks/${encodeURIComponent(id)}`,
+      WebhookEndpointWithSecretDto,
+    );
+  }
+
+  deleteWebhookEndpoint(id: string, userId: string): Promise<WebhookEndpointDto> {
+    const params = new URLSearchParams({ userId });
+    return this.request(
+      'DELETE',
+      `/internal/webhooks/${encodeURIComponent(id)}?${params.toString()}`,
+      WebhookEndpointDto,
     );
   }
 
@@ -83,7 +120,7 @@ export class MetadataClient {
   }
 
   private async request<S extends z.ZodType>(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'DELETE',
     path: string,
     schema: S,
     body?: unknown,

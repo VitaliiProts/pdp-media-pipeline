@@ -6,6 +6,8 @@ import {
   type ImagePreset,
   JOB_STATUSES,
   type JobStatus,
+  SOURCE_URL_MAX_LENGTH,
+  VIDEO_CODECS,
 } from '@pdp/contracts';
 import { Type } from 'class-transformer';
 import {
@@ -14,29 +16,64 @@ import {
   IsArray,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
-export class CreateJobDto {
-  @ApiProperty({ enum: ['image.resize'] })
-  @IsIn(['image.resize'])
-  type!: 'image.resize';
+export const CREATABLE_JOB_TYPES = ['image.resize', 'video.frames'] as const;
+export type CreatableJobType = (typeof CREATABLE_JOB_TYPES)[number];
 
-  @ApiProperty({ description: 'Key returned by POST /v1/uploads.' })
+/** Exactly one of `sourceKey` and `sourceUrl`; the rest depends on `type`. */
+export class CreateJobDto {
+  @ApiProperty({ enum: CREATABLE_JOB_TYPES })
+  @IsIn(CREATABLE_JOB_TYPES)
+  type!: CreatableJobType;
+
+  @ApiPropertyOptional({ description: 'Key returned by POST /v1/uploads.' })
+  @IsOptional()
   @IsString()
   @MaxLength(512)
-  sourceKey!: string;
+  sourceKey?: string;
 
-  @ApiProperty({ enum: IMAGE_PRESET_NAMES, isArray: true })
+  @ApiPropertyOptional({
+    description: 'Public http(s) URL to fetch the source from; private addresses are rejected.',
+    maxLength: SOURCE_URL_MAX_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(SOURCE_URL_MAX_LENGTH)
+  sourceUrl?: string;
+
+  @ApiPropertyOptional({
+    enum: IMAGE_PRESET_NAMES,
+    isArray: true,
+    description: 'Required for image.resize.',
+  })
+  @ValidateIf((dto: CreateJobDto) => dto.type === 'image.resize')
   @IsArray()
   @ArrayMinSize(1)
   @ArrayUnique()
   @IsIn(IMAGE_PRESET_NAMES, { each: true })
-  presets!: ImagePreset[];
+  presets?: ImagePreset[];
+
+  @ApiPropertyOptional({ minimum: 0.5, maximum: 30, default: 2, description: 'video.frames' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.5)
+  @Max(30)
+  intervalSeconds?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 60, default: 10, description: 'video.frames' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  maxFrames?: number;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 9, default: 5 })
   @IsOptional()
@@ -92,6 +129,43 @@ export class JobResultDto {
   url!: string;
 }
 
+export class VideoFrameDto {
+  @ApiProperty({ description: 'Position in the video.' })
+  atSeconds!: number;
+
+  @ApiProperty()
+  width!: number;
+
+  @ApiProperty()
+  height!: number;
+
+  @ApiProperty()
+  bytes!: number;
+
+  @ApiProperty({ description: 'Presigned GET URL, valid for one hour.' })
+  url!: string;
+}
+
+export class VideoResultDto {
+  @ApiProperty()
+  durationSeconds!: number;
+
+  @ApiProperty()
+  width!: number;
+
+  @ApiProperty()
+  height!: number;
+
+  @ApiProperty({ enum: VIDEO_CODECS })
+  codec!: string;
+
+  @ApiProperty({ type: VideoFrameDto })
+  preview!: VideoFrameDto;
+
+  @ApiProperty({ type: [VideoFrameDto] })
+  frames!: VideoFrameDto[];
+}
+
 export class JobResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -121,8 +195,11 @@ export class JobResponseDto {
   })
   deadReason!: DeadReason | null;
 
-  @ApiProperty({ type: [JobResultDto], required: false })
+  @ApiProperty({ type: [JobResultDto], required: false, description: 'image.resize' })
   results?: JobResultDto[];
+
+  @ApiProperty({ type: VideoResultDto, required: false, description: 'video.frames' })
+  video?: VideoResultDto;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;

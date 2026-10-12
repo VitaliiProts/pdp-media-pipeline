@@ -6,6 +6,8 @@ import {
   JobStatusSchema,
   JobTypeSchema,
 } from './jobs';
+import { SOURCE_URL_MAX_LENGTH } from './source';
+import { WebhookEventSchema } from './webhooks';
 
 /** Internal REST API of the Metadata service, shared by the server and its clients. */
 
@@ -51,6 +53,13 @@ export type CreateJobResponse = z.infer<typeof CreateJobResponse>;
 export const ListJobsQuery = z.object({
   userId: z.uuid(),
   status: JobStatusSchema.optional(),
+  /** Comma-separated in the query string. */
+  types: z
+    .union([z.array(JobTypeSchema), z.string().transform((s) => s.split(','))])
+    .pipe(z.array(JobTypeSchema).min(1))
+    .optional(),
+  /** Deliveries to one endpoint; implies `types = [webhook.deliver]`. */
+  webhookEndpointId: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
 });
@@ -99,6 +108,32 @@ export type RedriveRequest = z.infer<typeof RedriveRequest>;
 export const ResolveApiKeyRequest = z.object({ apiKeyHash: z.string().length(64) });
 export const ResolveApiKeyResponse = z.object({ userId: z.uuid() });
 
+export const WebhookEndpointDto = z.object({
+  id: z.uuid(),
+  userId: z.uuid(),
+  url: z.url(),
+  events: z.array(WebhookEventSchema).min(1),
+  createdAt: z.iso.datetime(),
+});
+export type WebhookEndpointDto = z.infer<typeof WebhookEndpointDto>;
+
+/** Only returned on creation and to the delivering worker; never listed. */
+export const WebhookEndpointWithSecretDto = WebhookEndpointDto.extend({ secret: z.string() });
+export type WebhookEndpointWithSecretDto = z.infer<typeof WebhookEndpointWithSecretDto>;
+
+export const CreateWebhookEndpointRequest = z.object({
+  userId: z.uuid(),
+  url: z.url({ protocol: /^https?$/ }).max(SOURCE_URL_MAX_LENGTH),
+  events: z
+    .array(WebhookEventSchema)
+    .min(1)
+    .refine((e) => new Set(e).size === e.length, 'events must be unique'),
+});
+export type CreateWebhookEndpointRequest = z.infer<typeof CreateWebhookEndpointRequest>;
+
+export const ListWebhookEndpointsResponse = z.object({ items: z.array(WebhookEndpointDto) });
+export type ListWebhookEndpointsResponse = z.infer<typeof ListWebhookEndpointsResponse>;
+
 export const METADATA_ERROR_CODES = [
   'VALIDATION_FAILED',
   'JOB_NOT_FOUND',
@@ -110,6 +145,8 @@ export const METADATA_ERROR_CODES = [
   'NOT_REDRIVABLE',
   'IDEMPOTENCY_KEY_IN_PROGRESS',
   'IDEMPOTENCY_KEY_REUSED',
+  'WEBHOOK_NOT_FOUND',
+  'WEBHOOK_LIMIT_REACHED',
 ] as const;
 export type MetadataErrorCode = (typeof METADATA_ERROR_CODES)[number];
 

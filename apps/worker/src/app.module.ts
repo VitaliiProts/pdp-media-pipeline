@@ -4,10 +4,14 @@ import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
 import { createLoggerModule, HealthModule, MetricsModule } from '@pdp/observability';
+import {
+  egressClientProvider,
+  ObjectStorage,
+  ObjectStorageModule,
+  sourceFetcherProvider,
+} from '@pdp/worker-kit';
 import { type Env, envSchema } from './config';
 import { JobsService } from './jobs/jobs.service';
-import { StorageModule } from './storage/storage.module';
-import { StorageService } from './storage/storage.service';
 
 @Module({
   imports: [
@@ -15,11 +19,11 @@ import { StorageService } from './storage/storage.service';
     createLoggerModule('worker'),
     MetricsModule,
     NatsModule.forRoot('worker'),
-    StorageModule,
+    ObjectStorageModule,
     HealthModule.forRootAsync({
-      imports: [StorageModule],
-      inject: [NatsService, StorageService],
-      useFactory: (nats: NatsService, storage: StorageService) => [
+      imports: [ObjectStorageModule],
+      inject: [NatsService, ObjectStorage],
+      useFactory: (nats: NatsService, storage: ObjectStorage) => [
         { name: 'nats', check: () => nats.ping() },
         { name: 's3', check: () => storage.ping() },
       ],
@@ -35,6 +39,8 @@ import { StorageService } from './storage/storage.service';
           timeoutMs: config.get('METADATA_TIMEOUT_MS', { infer: true }),
         }),
     },
+    egressClientProvider('pdp-worker'),
+    sourceFetcherProvider,
     JobsService,
   ],
 })

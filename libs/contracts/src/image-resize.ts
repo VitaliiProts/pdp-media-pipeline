@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EXACTLY_ONE_SOURCE_MESSAGE, hasExactlyOneSource, mediaSourceFields } from './source';
 
 /** Target width in px; height keeps the aspect ratio. */
 export const IMAGE_PRESETS = {
@@ -11,13 +12,15 @@ export const IMAGE_PRESET_NAMES = Object.keys(IMAGE_PRESETS) as [keyof typeof IM
 export const ImagePresetSchema = z.enum(IMAGE_PRESET_NAMES);
 export type ImagePreset = z.infer<typeof ImagePresetSchema>;
 
-export const ImageResizeInputV1 = z.object({
-  sourceKey: z.string().min(1),
-  presets: z
-    .array(ImagePresetSchema)
-    .min(1)
-    .refine((p) => new Set(p).size === p.length, 'presets must be unique'),
-});
+export const ImageResizeInputV1 = z
+  .object({
+    ...mediaSourceFields,
+    presets: z
+      .array(ImagePresetSchema)
+      .min(1)
+      .refine((p) => new Set(p).size === p.length, 'presets must be unique'),
+  })
+  .refine(hasExactlyOneSource, EXACTLY_ONE_SOURCE_MESSAGE);
 export type ImageResizeInputV1 = z.infer<typeof ImageResizeInputV1>;
 
 export const ImageResultSchema = z.object({

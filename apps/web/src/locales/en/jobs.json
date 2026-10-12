@@ -2,7 +2,7 @@
   "status": {
     "queued": "Queued",
     "scheduled": "Scheduled",
-    "running": "Resizing",
+    "running": "Processing",
     "succeeded": "Done",
     "failed": "Failed",
     "dead": "Gave up"
@@ -10,5 +10,11 @@
   "filter": {
     "label": "Filter by status",
     "all": "All"
+  },
+  "redrive": {
+    "action": "Run again",
+    "pending": "Sending…",
+    "failed": "Could not send the job again.",
+    "busy": "The queue is busy, try again in a moment."
   }
 }
