@@ -1,0 +1,14 @@
+{
+  "status": {
+    "queued": "Queued",
+    "scheduled": "Scheduled",
+    "running": "Resizing",
+    "succeeded": "Done",
+    "failed": "Failed",
+    "dead": "Gave up"
+  },
+  "filter": {
+    "label": "Filter by status",
+    "all": "All"
+  }
+}

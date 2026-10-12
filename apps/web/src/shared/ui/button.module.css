@@ -1,0 +1,33 @@
+.base {
+  padding: var(--space-3) var(--space-4);
+  font: inherit;
+  font-weight: 650;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.base:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.primary {
+  composes: base;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--mount);
+}
+
+.quiet {
+  composes: base;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--graphite);
+  font-weight: 550;
+}
+
+.quiet:hover {
+  color: var(--ink);
+  border-color: var(--rule);
+}

@@ -3,3 +3,4 @@ dist
 coverage
 deploy/helm/**/templates
 apps/*/drizzle
+coverage-int

@@ -1,0 +1,26 @@
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.option {
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--graphite);
+  cursor: pointer;
+}
+
+.option:hover {
+  color: var(--ink);
+}
+
+.option[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--mount);
+}

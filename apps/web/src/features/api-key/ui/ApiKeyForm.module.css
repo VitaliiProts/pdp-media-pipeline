@@ -1,0 +1,76 @@
+.form {
+  max-width: 34rem;
+  margin: 12vh auto 0;
+  padding: var(--space-6);
+  background: var(--mount);
+  border-radius: var(--radius-mount);
+  box-shadow: var(--shadow-mount);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+  font-stretch: 72%;
+  font-weight: 760;
+  line-height: 1.05;
+}
+
+.lead {
+  margin: 0 0 var(--space-5);
+  color: var(--graphite);
+}
+
+.label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3);
+  font: inherit;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--glow);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--red);
+}
+
+.submit {
+  composes: primary from '../../../shared/ui/button.module.css';
+}
+
+.error {
+  margin: var(--space-2) 0 0;
+  color: var(--red);
+}
+
+.hint {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.hint p {
+  margin: 0 0 var(--space-2);
+}
+
+.command {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+  background: var(--table);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+}

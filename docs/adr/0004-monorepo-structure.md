@@ -17,6 +17,7 @@
 ```
 apps/
   api-gateway/   metadata/   scheduler/   worker/      # NestJS, кожен з Dockerfile
+  web/           # React + Vite, статика в nginx (додано після Етапу 1)
 libs/
   contracts/     # події й енуми на zod, з версією (job.created v1, job.status_changed v1)
   config/        # zod-схеми env + @nestjs/config з fail-fast валідацією
@@ -43,6 +44,13 @@ spikes/          # одноразовий код спайків, поза worksp
 
 `libs/messaging` не було в початковому плані: підключення до NATS однакове для трьох сервісів
 (gateway, scheduler, worker), і дублювати його з першого дня немає сенсу.
+
+`apps/web` додано для наочного демо: завантаження зображень і перегляд задач у браузері. PDP
+його не вимагає, тому це окремий застосунок поза NestJS-правилами: ESM, Vite, Vitest + MSW,
+власний `tsconfig`, у Jest-покриття не входить. Шари `app -> pages -> features -> shared`
+імпортуються лише вниз, фічі одна одну не імпортують; це теж перевіряє dependency-cruiser.
+Браузер ходить на `/v1` того самого origin (Vite proxy в dev, nginx у compose), тож gateway не
+потребує CORS; файл іде напряму в MinIO за presigned URL.
 
 `libs/metadata-client` додано на Етапі 1: gateway, scheduler і worker викликають той самий
 internal API Metadata. У lib лише транспорт (таймаут, розбір відповіді, `MetadataError`); реакція

@@ -4,5 +4,6 @@
     "noEmit": true,
     "incremental": false
   },
-  "include": ["apps/*/src/**/*.ts", "libs/*/src/**/*.ts"]
+  "include": ["apps/*/src/**/*.ts", "libs/*/src/**/*.ts"],
+  "exclude": ["apps/web"]
 }

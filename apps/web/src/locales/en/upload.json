@@ -1,0 +1,14 @@
+{
+  "drop": {
+    "title": "Drop images here or choose files",
+    "limits": "JPEG, PNG or WebP, up to {{maxMb}} MB each"
+  },
+  "presets": {
+    "legend": "Sizes to produce",
+    "width": "{{width}} px wide",
+    "required": "Pick at least one size.",
+    "thumb": "Thumbnail",
+    "medium": "Medium",
+    "large": "Large"
+  }
+}

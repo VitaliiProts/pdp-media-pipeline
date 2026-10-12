@@ -1,0 +1,114 @@
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: var(--space-4);
+}
+
+/* The lit surface of the light table: the one place that glows. */
+.table {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 11rem;
+  padding: var(--space-6);
+  border: 2px dashed var(--rule-strong);
+  border-radius: var(--radius-mount);
+  background: radial-gradient(120% 140% at 30% 20%, var(--glow) 0%, var(--table-lit) 70%);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.table:hover,
+.table[data-dragging='true'] {
+  border-color: var(--ink);
+}
+
+.table[data-dragging='true'] {
+  background: var(--glow);
+}
+
+.table[data-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.table:has(.input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.call {
+  font-size: var(--text-xl);
+  font-stretch: 72%;
+  font-weight: 720;
+  line-height: 1.1;
+}
+
+.limits {
+  margin-top: var(--space-2);
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.presets {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-mount);
+  background: var(--mount);
+}
+
+/* Floating takes the legend out of the border, so it sits inside the card. */
+.legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-1);
+  padding: 0;
+  font-weight: 650;
+}
+
+.legend + * {
+  clear: both;
+}
+
+.preset {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  cursor: pointer;
+}
+
+.preset + .preset {
+  border-top: 1px solid var(--rule);
+}
+
+.presetWidth {
+  white-space: nowrap;
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.warning {
+  margin: var(--space-2) 0 0;
+  color: var(--red);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 40rem) {
+  .panel {
+    grid-template-columns: 1fr;
+  }
+}
