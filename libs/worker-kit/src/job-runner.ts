@@ -15,6 +15,8 @@ import {
   term,
 } from '@pdp/messaging';
 import { MetadataError } from '@pdp/metadata-client';
+import { traced, withJobContext } from '@pdp/observability';
+import { trace } from '@opentelemetry/api';
 import { type z } from 'zod';
 import { isPermanentError } from './permanent-error';
 
@@ -39,6 +41,12 @@ export interface JobProcessor<I> {
 interface RegisteredProcessor {
   parse(input: unknown): unknown;
   process(job: JobContext, input: unknown): Promise<JobOutput>;
+}
+
+interface ParsedDispatch {
+  dispatch: JobDispatchV1;
+  input: unknown;
+  processor: RegisteredProcessor;
 }
 
 export interface JobRunnerDeps {
@@ -91,9 +99,20 @@ export class JobRunner {
   async handle(msg: DeliveredMessage): Promise<HandlerResult> {
     const parsed = this.parse(msg.data);
     if ('reason' in parsed) return term(parsed.reason);
-    const { dispatch, input, processor } = parsed;
+    const { dispatch } = parsed;
+    // The scheduler already set this baggage; set again for dispatches published without it.
+    return withJobContext({ id: dispatch.jobId, type: dispatch.type, class: dispatch.class }, () =>
+      this.run(msg, parsed),
+    );
+  }
+
+  private async run(
+    msg: DeliveredMessage,
+    { dispatch, input, processor }: ParsedDispatch,
+  ): Promise<HandlerResult> {
     const { jobId } = dispatch;
     const attempt = dispatch.attemptBase + msg.deliveryCount;
+    trace.getActiveSpan()?.setAttribute('job.attempt', attempt);
     const retryDelay = fullJitterDelay(msg.deliveryCount, this.options.retry);
     const inbox = {
       consumer: msg.consumer,
@@ -120,7 +139,11 @@ export class JobRunner {
 
     let output: JobOutput;
     try {
-      output = await processor.process({ jobId, attempt }, input);
+      output = await traced(
+        `job process ${dispatch.type}`,
+        { attributes: { 'job.attempt': attempt } },
+        () => processor.process({ jobId, attempt }, input),
+      );
     } catch (err) {
       return this.onProcessingError(err, jobId, attempt, inbox, retryDelay);
     }
@@ -139,11 +162,7 @@ export class JobRunner {
     }
   }
 
-  private parse(
-    data: Uint8Array,
-  ):
-    | { dispatch: JobDispatchV1; input: unknown; processor: RegisteredProcessor }
-    | { reason: string } {
+  private parse(data: Uint8Array): ParsedDispatch | { reason: string } {
     try {
       const dispatch = JobDispatchV1.parse(JSON.parse(new TextDecoder().decode(data)));
       const processor = this.processors.get(dispatch.type);
@@ -163,6 +182,7 @@ export class JobRunner {
   ): Promise<HandlerResult> {
     const message = (err instanceof Error ? err.message : String(err)).slice(0, 2000);
     const permanent = isPermanentError(err);
+    trace.getActiveSpan()?.setAttribute('job.error.permanent', permanent);
     this.logger.warn(
       `job ${jobId} attempt ${attempt} failed (${permanent ? 'permanent' : 'transient'}): ${message}`,
     );

@@ -15,11 +15,13 @@
     "@aws-sdk/client-s3": "^3.1147.0",
     "@nestjs/common": "^11",
     "@nestjs/config": "^4",
+    "@opentelemetry/api": "^1.9.1",
     "@pdp/config": "workspace:^",
     "@pdp/contracts": "workspace:^",
     "@pdp/egress": "workspace:^",
     "@pdp/messaging": "workspace:^",
     "@pdp/metadata-client": "workspace:^",
+    "@pdp/observability": "workspace:^",
     "zod": "^4"
   }
 }

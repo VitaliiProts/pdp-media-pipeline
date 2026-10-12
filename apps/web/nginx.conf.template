@@ -1,5 +1,5 @@
-# Rendered by the image entrypoint with envsubst; only ${GATEWAY_URL} is defined,
-# so nginx's own $variables are left untouched.
+# Rendered by the image entrypoint with envsubst; only ${GATEWAY_URL} and ${GRAFANA_URL}
+# are defined, so nginx's own $variables are left untouched.
 server {
     listen 8080;
     server_name _;
@@ -16,6 +16,13 @@ server {
     location /docs {
         proxy_pass ${GATEWAY_URL};
         proxy_set_header Host $host;
+    }
+
+    # Runtime settings for the SPA; an empty GRAFANA_URL hides the trace links.
+    location = /config.json {
+        add_header Cache-Control "no-cache";
+        default_type application/json;
+        return 200 '{"grafanaUrl":"${GRAFANA_URL}"}';
     }
 
     location = /healthz {

@@ -12,7 +12,8 @@ import {
   jetstreamManager,
   type PubAck,
 } from '@nats-io/jetstream';
-import { connect, type NatsConnection } from '@nats-io/transport-node';
+import { connect, headers, type NatsConnection } from '@nats-io/transport-node';
+import { injectTraceHeaders, withProducerSpan } from './tracing';
 
 export interface NatsModuleOptions {
   servers: string;
@@ -58,9 +59,25 @@ export class NatsService implements OnModuleInit, OnApplicationShutdown {
     return this.jsmPromise;
   }
 
-  /** `msgId` becomes `Nats-Msg-Id`: republishing within the duplicate window is a no-op. */
+  /**
+   * `msgId` becomes `Nats-Msg-Id`: republishing within the duplicate window is a no-op.
+   * The active trace context travels in the message headers.
+   */
   publishJson(subject: string, data: unknown, msgId: string): Promise<PubAck> {
-    return this.jetstream.publish(subject, JSON.stringify(data), { msgID: msgId });
+    return withProducerSpan(subject, msgId, async (span) => {
+      const hdrs = headers();
+      injectTraceHeaders(hdrs);
+      const ack = await this.jetstream.publish(subject, JSON.stringify(data), {
+        msgID: msgId,
+        headers: hdrs,
+      });
+      span.setAttributes({
+        'messaging.nats.stream': ack.stream,
+        'messaging.nats.stream_sequence': ack.seq,
+        'messaging.nats.duplicate': ack.duplicate,
+      });
+      return ack;
+    });
   }
 
   /** Verifies the server responds and JetStream is enabled for the account. */

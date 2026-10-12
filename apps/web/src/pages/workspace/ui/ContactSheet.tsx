@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RedriveButton } from '../../../features/jobs';
+import { RedriveButton, TraceLink } from '../../../features/jobs';
 import { describeItem } from '../model/describe-item';
 import { type SheetItem } from '../model/sheet-items';
 import styles from './ContactSheet.module.css';
@@ -26,7 +26,12 @@ export function ContactSheet({ items, onDismiss }: ContactSheetProps) {
               attempts={item.attempts}
               results={item.results}
               frames={item.frames}
-              action={item.status === 'dead' ? <RedriveButton jobId={item.jobId} /> : undefined}
+              action={
+                <>
+                  {item.status === 'dead' && <RedriveButton jobId={item.jobId} />}
+                  <TraceLink jobId={item.jobId} traceId={item.traceId} createdAt={item.createdAt} />
+                </>
+              }
             />
           ) : (
             <SlideMount

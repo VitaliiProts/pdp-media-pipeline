@@ -28,6 +28,8 @@ export const JobDto = z.object({
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   finishedAt: z.iso.datetime().nullable(),
+  /** Absent in responses stored before tracing; null when tracing is off. */
+  traceId: z.string().nullable().default(null),
 });
 export type JobDto = z.infer<typeof JobDto>;
 

@@ -17,6 +17,7 @@ RUN pnpm --filter @pdp/web build
 # Static files only: no Node in the runtime image.
 FROM nginxinc/nginx-unprivileged:1.29-alpine AS runtime
 ENV GATEWAY_URL=http://api-gateway:3000
+ENV GRAFANA_URL=
 COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 EXPOSE 8080

@@ -1,4 +1,6 @@
+import { type Attributes, trace } from '@opentelemetry/api';
 import { VIDEO_FRAME_WIDTH } from '@pdp/contracts';
+import { traced } from '@pdp/observability';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ffprobeArgs, parseProbe, type ProbeLimits, type VideoProbe } from './probe';
@@ -19,11 +21,20 @@ const FRAME_PATTERN = /^frame-(\d{4})\.jpg$/;
 export class Ffmpeg {
   constructor(private readonly options: FfmpegOptions) {}
 
-  async probe(path: string): Promise<VideoProbe> {
-    const { stdout } = await runProcess(this.options.ffprobePath, ffprobeArgs(path), {
-      timeoutMs: this.options.timeoutMs,
+  probe(path: string): Promise<VideoProbe> {
+    return traced('ffprobe', {}, async (span) => {
+      const { stdout } = await runProcess(this.options.ffprobePath, ffprobeArgs(path), {
+        timeoutMs: this.options.timeoutMs,
+      });
+      const probe = parseProbe(stdout, this.options.limits);
+      span.setAttributes({
+        'video.duration_seconds': probe.durationSeconds,
+        'video.width': probe.width,
+        'video.height': probe.height,
+        'video.codec': probe.codec,
+      });
+      return probe;
     });
-    return parseProbe(stdout, this.options.limits);
   }
 
   /** One decode pass; the fps filter picks a frame every `intervalSeconds` from the start. */
@@ -33,7 +44,7 @@ export class Ffmpeg {
     intervalSeconds: number,
     maxFrames: number,
   ): Promise<string[]> {
-    await this.ffmpeg([
+    await this.ffmpeg('ffmpeg frames', { 'video.interval_seconds': intervalSeconds }, [
       '-i',
       source,
       '-vf',
@@ -47,12 +58,13 @@ export class Ffmpeg {
       join(dir, 'frame-%04d.jpg'),
     ]);
     const files = (await readdir(dir)).filter((f) => FRAME_PATTERN.test(f)).sort();
+    trace.getActiveSpan()?.setAttribute('video.frames', files.length);
     return files.map((f) => join(dir, f));
   }
 
   /** `-ss` before `-i` seeks the input, so the preview does not decode up to that point. */
   async extractPreview(source: string, output: string, atSeconds: number): Promise<void> {
-    await this.ffmpeg([
+    await this.ffmpeg('ffmpeg preview', { 'video.at_seconds': atSeconds }, [
       '-ss',
       atSeconds.toFixed(3),
       '-i',
@@ -67,9 +79,11 @@ export class Ffmpeg {
     ]);
   }
 
-  private async ffmpeg(args: string[]): Promise<void> {
-    await runProcess(this.options.ffmpegPath, ['-nostdin', '-v', 'error', '-y', ...args], {
-      timeoutMs: this.options.timeoutMs,
-    });
+  private async ffmpeg(span: string, attributes: Attributes, args: string[]): Promise<void> {
+    await traced(span, { attributes }, () =>
+      runProcess(this.options.ffmpegPath, ['-nostdin', '-v', 'error', '-y', ...args], {
+        timeoutMs: this.options.timeoutMs,
+      }),
+    );
   }
 }

@@ -6,6 +6,7 @@ import {
   type JobDto,
   WEBHOOK_EVENTS,
 } from '@pdp/contracts';
+import { type TraceCarrier } from '@pdp/observability';
 import { sql } from 'drizzle-orm';
 import {
   index,
@@ -62,6 +63,8 @@ export const jobs = pgTable(
     attemptBase: integer('attempt_base').notNull().default(0),
     deadReason: deadReason('dead_reason'),
     lastError: text('last_error'),
+    /** Trace of the request that created or last redrove the job. */
+    traceId: text('trace_id'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
     finishedAt: ts('finished_at'),
@@ -134,6 +137,8 @@ export const outbox = pgTable(
     id: uuid('id').primaryKey(),
     subject: text('subject').notNull(),
     payload: jsonb('payload').notNull(),
+    /** W3C context of the writing request; the relay publishes inside it. */
+    traceContext: jsonb('trace_context').$type<TraceCarrier>(),
     createdAt: ts('created_at').notNull().defaultNow(),
     publishedAt: ts('published_at'),
   },

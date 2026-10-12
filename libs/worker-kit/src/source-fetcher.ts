@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { type egressEnvSchema } from '@pdp/config';
 import { type MediaSource } from '@pdp/contracts';
 import { classifyStatus, EgressClient } from '@pdp/egress';
+import { traced } from '@pdp/observability';
 import { createWriteStream } from 'node:fs';
 import { type z } from 'zod';
 import { ObjectStorage } from './object-storage';
@@ -20,20 +21,44 @@ export class SourceFetcher {
     private readonly egress: EgressClient,
   ) {}
 
-  async fetch(source: MediaSource, limits: FetchLimits): Promise<Buffer> {
-    if (source.kind === 'key') return this.storage.getObject(source.key, limits.maxBytes);
-    const res = await this.egress.request(source.url, limits);
-    assertOk(res.status, source.url);
-    return res.body;
+  fetch(source: MediaSource, limits: FetchLimits): Promise<Buffer> {
+    return traced('source fetch', { attributes: { 'source.kind': source.kind } }, async (span) => {
+      const body =
+        source.kind === 'key'
+          ? await this.storage.getObject(source.key, limits.maxBytes)
+          : await this.fetchUrl(source.url, limits);
+      span.setAttribute('source.bytes', body.length);
+      return body;
+    });
   }
 
-  async download(source: MediaSource, path: string, limits: FetchLimits): Promise<void> {
-    if (source.kind === 'key') {
-      await this.storage.downloadToFile(source.key, path, limits.maxBytes);
-      return;
-    }
-    const res = await this.egress.request(source.url, { ...limits, sink: createWriteStream(path) });
-    assertOk(res.status, source.url);
+  /** Streams to disk; the span covers the whole transfer, not just the response headers. */
+  download(source: MediaSource, path: string, limits: FetchLimits): Promise<void> {
+    return traced(
+      'source download',
+      { attributes: { 'source.kind': source.kind } },
+      async (span) => {
+        if (source.kind === 'key') {
+          span.setAttribute(
+            'source.bytes',
+            await this.storage.downloadToFile(source.key, path, limits.maxBytes),
+          );
+          return;
+        }
+        const res = await this.egress.request(source.url, {
+          ...limits,
+          sink: createWriteStream(path),
+        });
+        assertOk(res.status, source.url);
+        span.setAttribute('source.bytes', res.bytes);
+      },
+    );
+  }
+
+  private async fetchUrl(url: string, limits: FetchLimits): Promise<Buffer> {
+    const res = await this.egress.request(url, limits);
+    assertOk(res.status, url);
+    return res.body;
   }
 }
 

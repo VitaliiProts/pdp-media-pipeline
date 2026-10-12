@@ -1,6 +1,8 @@
 import { type Consumer, type JsMsg } from '@nats-io/jetstream';
 import { Logger } from '@nestjs/common';
+import { type Span, SpanStatusCode } from '@opentelemetry/api';
 import { type Semaphore } from './semaphore';
+import { withConsumerSpan } from './tracing';
 
 export type HandlerResult =
   { kind: 'ack' } | { kind: 'nak'; delayMs: number } | { kind: 'term'; reason: string };
@@ -83,31 +85,43 @@ export class PullWorker {
     }
   }
 
-  private async process(msg: JsMsg): Promise<void> {
-    const heartbeat = setInterval(() => msg.working(), this.options.heartbeatMs);
-    try {
-      const result = await this.options.handler(msg);
-      this.settle(msg, result);
-    } catch (err) {
-      this.logger.error(
-        `handler error on ${msg.subject} seq=${msg.seq}: ${(err as Error).message}`,
-      );
-      msg.nak(this.options.errorNakDelayMs ?? 2000);
-    } finally {
-      clearInterval(heartbeat);
-    }
+  private process(msg: JsMsg): Promise<void> {
+    return withConsumerSpan(msg, this.options.name, async (span) => {
+      const heartbeat = setInterval(() => msg.working(), this.options.heartbeatMs);
+      try {
+        const result = await this.options.handler(msg);
+        this.settle(msg, result, span);
+      } catch (err) {
+        this.logger.error(
+          `handler error on ${msg.subject} seq=${msg.seq}: ${(err as Error).message}`,
+        );
+        span.recordException(err as Error);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
+        const delayMs = this.options.errorNakDelayMs ?? 2000;
+        span.setAttributes({
+          'messaging.nats.outcome': 'nak',
+          'messaging.nats.nak_delay_ms': delayMs,
+        });
+        msg.nak(delayMs);
+      } finally {
+        clearInterval(heartbeat);
+      }
+    });
   }
 
-  private settle(msg: JsMsg, result: HandlerResult): void {
+  private settle(msg: JsMsg, result: HandlerResult, span: Span): void {
+    span.setAttribute('messaging.nats.outcome', result.kind);
     switch (result.kind) {
       case 'ack':
         msg.ack();
         return;
       case 'nak':
+        span.setAttribute('messaging.nats.nak_delay_ms', result.delayMs);
         msg.nak(result.delayMs);
         return;
       case 'term':
         this.logger.warn(`term ${msg.subject} seq=${msg.seq}: ${result.reason}`);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: result.reason });
         msg.term(result.reason);
         return;
     }

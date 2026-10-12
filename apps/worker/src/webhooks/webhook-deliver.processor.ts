@@ -7,6 +7,7 @@ import {
   type WebhookDeliverOutputV1,
   type WebhookEndpointWithSecretDto,
 } from '@pdp/contracts';
+import { trace } from '@opentelemetry/api';
 import { classifyStatus, type EgressRequest, type EgressResponse } from '@pdp/egress';
 import { type JobContext, type JobProcessor, PermanentError } from '@pdp/worker-kit';
 
@@ -42,6 +43,11 @@ export class WebhookDeliverProcessor implements JobProcessor<WebhookDeliverInput
   }
 
   async process(_job: JobContext, input: WebhookDeliverInputV1): Promise<WebhookDeliverOutputV1> {
+    trace.getActiveSpan()?.setAttributes({
+      'webhook.endpoint_id': input.endpointId,
+      'webhook.message_id': input.messageId,
+      'webhook.event': input.payload.type,
+    });
     const endpoint = await this.deps.getEndpoint(input.endpointId);
     if (!endpoint) throw new PermanentError(`endpoint ${input.endpointId} no longer exists`);
 

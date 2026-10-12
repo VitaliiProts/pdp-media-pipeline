@@ -4,7 +4,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
-import { createLoggerModule, HealthModule } from '@pdp/observability';
+import { HealthModule, ObservabilityModule } from '@pdp/observability';
 import { ApiKeyGuard } from './auth/api-key.guard';
 import { BackpressureService } from './backpressure/backpressure.service';
 import { QueueDepthService } from './backpressure/queue-depth.service';
@@ -24,7 +24,7 @@ import { WebhooksController } from './webhooks/webhooks.controller';
 @Module({
   imports: [
     createConfigModule(envSchema),
-    createLoggerModule('api-gateway'),
+    ObservabilityModule.forRoot('api-gateway'),
     NatsModule.forRoot('api-gateway'),
     RedisModule,
     StorageModule,

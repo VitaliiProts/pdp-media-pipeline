@@ -1,7 +1,7 @@
 import { type INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { type NestExpressApplication } from '@nestjs/platform-express';
-import type * as GatewayMain from '../../apps/api-gateway/src/main';
+import type * as GatewayConfigure from '../../apps/api-gateway/src/configure-app';
 import { BUCKET, type Infra } from './infra';
 
 const appModule = (mod: unknown): unknown => (mod as { AppModule: unknown }).AppModule;
@@ -15,7 +15,7 @@ const loaders: Record<AppName, () => unknown> = {
   'video-worker': () => appModule(require('../../apps/video-worker/src/app.module')),
 };
 const loadConfigureGateway = () =>
-  (require('../../apps/api-gateway/src/main') as typeof GatewayMain).configureApp;
+  (require('../../apps/api-gateway/src/configure-app') as typeof GatewayConfigure).configureApp;
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 export type AppName = 'metadata' | 'scheduler' | 'api-gateway' | 'worker' | 'video-worker';

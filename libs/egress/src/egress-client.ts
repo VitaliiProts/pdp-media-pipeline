@@ -4,8 +4,12 @@ import https from 'node:https';
 import { isIP, type LookupFunction } from 'node:net';
 import { Transform, Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { context, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
+import { suppressTracing } from '@opentelemetry/core';
 import { isPublicAddress } from './address-policy';
 import { HostConcurrencyLimiter } from './host-limiter';
+
+const tracer = trace.getTracer('@pdp/egress');
 
 export type EgressErrorCode =
   | 'INVALID_URL'
@@ -123,8 +127,49 @@ export class EgressClient {
     await this.resolveTarget(parseUrl(rawUrl));
   }
 
+  /**
+   * One CLIENT span for the whole exchange, redirects included. Only the host is recorded,
+   * since paths and queries of webhook URLs often hold tokens. Tracing is suppressed below
+   * the span, so no `traceparent` or `baggage` (job ids) leaks to a third-party server.
+   */
   async request(rawUrl: string, req: EgressRequest = {}): Promise<EgressResponse> {
-    let url = parseUrl(rawUrl);
+    const url = parseUrl(rawUrl);
+    const method = req.method ?? 'GET';
+    return tracer.startActiveSpan(
+      `egress ${method}`,
+      {
+        kind: SpanKind.CLIENT,
+        attributes: {
+          'http.request.method': method,
+          'server.address': url.hostname,
+          'url.scheme': url.protocol.slice(0, -1),
+        },
+      },
+      async (span) => {
+        try {
+          const res = await context.with(suppressTracing(context.active()), () =>
+            this.exchange(url, req),
+          );
+          span.setAttributes({
+            'http.response.status_code': res.status,
+            'http.response.body.size': res.bytes,
+          });
+          if (res.status >= 400) span.setStatus({ code: SpanStatusCode.ERROR });
+          return res;
+        } catch (err) {
+          span.recordException(err as Error);
+          span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
+          if (err instanceof EgressError) span.setAttribute('error.type', err.code);
+          throw err;
+        } finally {
+          span.end();
+        }
+      },
+    );
+  }
+
+  private exchange(initialUrl: URL, req: EgressRequest): Promise<EgressResponse> {
+    let url = initialUrl;
     const deadline = AbortSignal.timeout(req.timeoutMs ?? this.options.timeoutMs);
     const signal = req.signal ? AbortSignal.any([deadline, req.signal]) : deadline;
     const maxRedirects = this.options.maxRedirects ?? 3;

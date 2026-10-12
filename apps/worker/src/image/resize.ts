@@ -1,5 +1,6 @@
 import { IMAGE_PRESETS, type ImagePreset } from '@pdp/contracts';
 import sharp from 'sharp';
+import { traced } from '@pdp/observability';
 import { PermanentError } from '@pdp/worker-kit';
 
 // libvips threads would multiply on top of our own per-message concurrency.
@@ -26,12 +27,24 @@ export async function resizeImage(
   presets: readonly ImagePreset[],
   options: ResizeOptions,
 ): Promise<ResizedImage[]> {
-  let meta: sharp.Metadata;
-  try {
-    meta = await sharp(input).metadata();
-  } catch (err) {
-    throw new PermanentError(`unreadable image: ${(err as Error).message}`);
-  }
+  const meta = await traced(
+    'sharp metadata',
+    { attributes: { 'image.input.bytes': input.length } },
+    async (span) => {
+      let meta: sharp.Metadata;
+      try {
+        meta = await sharp(input).metadata();
+      } catch (err) {
+        throw new PermanentError(`unreadable image: ${(err as Error).message}`);
+      }
+      span.setAttributes({
+        'image.format': meta.format,
+        'image.width': meta.width,
+        'image.height': meta.height,
+      });
+      return meta;
+    },
+  );
   if (!meta.width || !meta.height) throw new PermanentError('image has no dimensions');
   if (meta.width * meta.height > options.maxInputPixels) {
     throw new PermanentError(
@@ -41,13 +54,20 @@ export async function resizeImage(
 
   const base = sharp(input, { failOn: 'error', limitInputPixels: options.maxInputPixels }).rotate();
   return Promise.all(
-    presets.map(async (preset) => {
-      const { data, info } = await base
-        .clone()
-        .resize({ width: IMAGE_PRESETS[preset], withoutEnlargement: true })
-        .webp({ quality: options.quality ?? 80 })
-        .toBuffer({ resolveWithObject: true });
-      return { preset, width: info.width, height: info.height, data };
-    }),
+    presets.map((preset) =>
+      traced('sharp resize', { attributes: { 'image.preset': preset } }, async (span) => {
+        const { data, info } = await base
+          .clone()
+          .resize({ width: IMAGE_PRESETS[preset], withoutEnlargement: true })
+          .webp({ quality: options.quality ?? 80 })
+          .toBuffer({ resolveWithObject: true });
+        span.setAttributes({
+          'image.width': info.width,
+          'image.height': info.height,
+          'image.output.bytes': data.length,
+        });
+        return { preset, width: info.width, height: info.height, data };
+      }),
+    ),
   );
 }

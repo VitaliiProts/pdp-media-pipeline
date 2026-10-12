@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
-import { createLoggerModule, HealthModule, MetricsModule } from '@pdp/observability';
+import { HealthModule, MetricsModule, ObservabilityModule } from '@pdp/observability';
 import {
   egressClientProvider,
   ObjectStorage,
@@ -16,7 +16,7 @@ import { JobsService } from './jobs/jobs.service';
 @Module({
   imports: [
     createConfigModule(envSchema),
-    createLoggerModule('video-worker'),
+    ObservabilityModule.forRoot('video-worker'),
     MetricsModule,
     NatsModule.forRoot('video-worker'),
     ObjectStorageModule,

@@ -1,0 +1,50 @@
+# Services export OTLP/HTTP here; the collector is the only place that knows the backends.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+  batch: {}
+  # The SDK's process detector adds these to every span and log line; host.name (the
+  # container) and the runtime version are enough to tell instances apart.
+  resource/slim:
+    attributes:
+      - { key: process.command, action: delete }
+      - { key: process.command_args, action: delete }
+      - { key: process.executable.path, action: delete }
+      - { key: process.owner, action: delete }
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlp_http/victorialogs:
+    logs_endpoint: http://victorialogs:9428/insert/opentelemetry/v1/logs
+    headers:
+      # One log stream per service; everything else stays a regular, searchable field.
+      VL-Stream-Fields: service.name,deployment.environment.name
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/slim, batch]
+      exporters: [otlp_grpc/tempo]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/slim, batch]
+      exporters: [otlp_http/victorialogs]

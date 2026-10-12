@@ -16,5 +16,8 @@
     "pending": "Sending…",
     "failed": "Could not send the job again.",
     "busy": "The queue is busy, try again in a moment."
+  },
+  "trace": {
+    "open": "Trace and logs"
   }
 }

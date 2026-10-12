@@ -24,7 +24,7 @@ import {
   type TransitionResponse,
   VideoFramesInputV1,
 } from '@pdp/contracts';
-import { jobMetrics } from '@pdp/observability';
+import { currentTraceId, jobMetrics, withJobContext } from '@pdp/observability';
 import { and, count, desc, eq, gt, inArray, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { type Env } from '../config';
@@ -310,56 +310,63 @@ export class JobsService {
       if (decision.kind === 'reject') {
         throw new ConflictException(error('NOT_REDRIVABLE', decision.message));
       }
-
-      const attemptBase = job.attempts + 1;
-      const [updated] = await tx
-        .update(jobs)
-        .set({
-          status: 'queued',
-          attemptBase,
-          deadReason: null,
-          finishedAt: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(jobs.id, id))
-        .returning();
-      if (!updated) throw new Error('update returned no row');
-
-      await tx.insert(jobTransitions).values({
-        jobId: id,
-        attempt: attemptBase,
-        toStatus: 'queued',
-        fromStatus: job.status,
-        actor: req.actor,
-      });
-      await enqueueEvent(tx, JobStatusChangedV1, {
-        jobId: id,
-        userId: updated.userId,
-        type: updated.type,
-        from: job.status,
-        to: 'queued',
-        class: updated.class,
-        attempt: attemptBase,
-        reason: 'redrive',
-      });
-      // The scheduler dispatches on job.created; the new base makes its Nats-Msg-Id new too.
-      await enqueueEvent(tx, JobCreatedV1, {
-        jobId: id,
-        userId: updated.userId,
-        type: updated.type,
-        priority: updated.priority,
-        input: updated.input,
-        attemptBase,
-      });
-      await tx.insert(auditLog).values({
-        actor: req.actor,
-        action: 'job.redriven',
-        entityId: id,
-        data: { attemptBase, deadReason: job.deadReason },
-      });
-      return updated;
+      return withJobContext({ id: job.id, type: job.type, class: job.class }, () =>
+        this.requeue(tx, job, req),
+      );
     });
     return toJobDto(row);
+  }
+
+  /** The new generation is traced from the redrive request on. */
+  private async requeue(tx: Tx, job: JobRow, req: RedriveRequest): Promise<JobRow> {
+    const attemptBase = job.attempts + 1;
+    const [updated] = await tx
+      .update(jobs)
+      .set({
+        status: 'queued',
+        attemptBase,
+        deadReason: null,
+        finishedAt: null,
+        traceId: currentTraceId() ?? job.traceId,
+        updatedAt: new Date(),
+      })
+      .where(eq(jobs.id, job.id))
+      .returning();
+    if (!updated) throw new Error('update returned no row');
+
+    await tx.insert(jobTransitions).values({
+      jobId: job.id,
+      attempt: attemptBase,
+      toStatus: 'queued',
+      fromStatus: job.status,
+      actor: req.actor,
+    });
+    await enqueueEvent(tx, JobStatusChangedV1, {
+      jobId: job.id,
+      userId: updated.userId,
+      type: updated.type,
+      from: job.status,
+      to: 'queued',
+      class: updated.class,
+      attempt: attemptBase,
+      reason: 'redrive',
+    });
+    // The scheduler dispatches on job.created; the new base makes its Nats-Msg-Id new too.
+    await enqueueEvent(tx, JobCreatedV1, {
+      jobId: job.id,
+      userId: updated.userId,
+      type: updated.type,
+      priority: updated.priority,
+      input: updated.input,
+      attemptBase,
+    });
+    await tx.insert(auditLog).values({
+      actor: req.actor,
+      action: 'job.redriven',
+      entityId: job.id,
+      data: { attemptBase, deadReason: job.deadReason },
+    });
+    return updated;
   }
 
   private async lockJob(tx: Tx, id: string): Promise<JobRow> {
