@@ -6,8 +6,8 @@
 NATS JetStream, стан задач живе в PostgreSQL, файли в S3-сумісному сховищі (MinIO).
 
 Проєкт іде за PDP-планом з 10 етапів. Зараз готові **Етапи 0, 1, 2 і 3** (3a — надійність,
-3b — `video.frames`, завантаження за URL і вебхуки). Нижче описано, як усе працює, і як руками
-перевірити кожен етап.
+3b — `video.frames`, завантаження за URL і вебхуки) і **4a** — трейси й логи. Нижче описано, як
+усе працює, і як руками перевірити кожен етап.
 
 ## Як це працює
 
@@ -87,6 +87,18 @@ flowchart LR
 - **Web UI.** Відео можна перетягнути так само, як картинку; на картці видно превʼю і кадри.
   Розділ «Вебхуки» в шапці: додати адресу, побачити доставки і надіслати «мертву» ще раз.
 
+Трейси й логи (Етап 4a, [ADR-010](docs/adr/0010-observability.md)):
+
+- **Один трейс на задачу.** OpenTelemetry у кожному сервісі; контекст іде через HTTP, заголовки
+  NATS і outbox. Від `POST /v1/jobs` через scheduler і воркер до доставки вебхука — один трейс у
+  Tempo, зі span'ами на sharp, ffmpeg, S3, Postgres і вихідні запити.
+- **`job.id` скрізь.** Baggage несе `job.id`, `job.type`, `job.class`; вони стають атрибутами
+  кожного span'а і полями `job_id`, `job_type`, `job_class` у кожному рядку логу.
+- **Логи.** Pino пише в stdout, як і раніше, і паралельно через OTLP у VictoriaLogs, з
+  `trace_id` і `span_id`. У Grafana з рядка логу відкривається його трейс, а зі span'а — логи
+  трейсу.
+- **З UI.** Задача має `traceId`; посилання «Трейс і логи» на картці відкриває дашборд **Job**.
+
 ### Структура репозиторію
 
 | Шлях                                   | Що там                                                              |
@@ -100,8 +112,10 @@ flowchart LR
 | `apps/web`                             | React + Redux Toolkit, завантаження, задачі, вебхуки                |
 | `libs/egress`                          | Безпечні вихідні запити: SSRF-захист, ліміти, ліміт на хост         |
 | `libs/worker-kit`                      | Спільне для воркерів: `JobRunner`, `PermanentError`, S3, джерела    |
-| `libs/*` (решта)                       | Контракти (zod), messaging, клієнт Metadata, config, observability  |
+| `libs/observability`                   | OpenTelemetry SDK, хелпери span'ів і baggage, логер, health         |
+| `libs/*` (решта)                       | Контракти (zod), messaging, клієнт Metadata, config                 |
 | `deploy/helm`                          | Helm-чарти сервісів                                                 |
+| `deploy/observability`                 | Конфіги Collector і Tempo, provisioning і дашборди Grafana          |
 | `perf/k6`, `perf/reports`              | Навантажувальні сценарії і звіти                                    |
 | `docs/adr`, `docs/plan`, `docs/spikes` | Рішення, плани етапів, нотатки спайку                               |
 | `test/`                                | Інтеграційні тести на Testcontainers                                |
@@ -134,6 +148,8 @@ echo "$KEY"            # цей ключ вставляється у Web UI
 | Приймач вебхуків / Video worker | http://localhost:18084, :18085                              |
 | Консоль MinIO                   | http://localhost:59001 (`minioadmin` / `minioadmin`)        |
 | Моніторинг NATS                 | http://localhost:58222                                      |
+| Grafana (без логіна)            | http://localhost:13000, дашборд «PDP / Job»                 |
+| Tempo / VictoriaLogs API        | http://localhost:13200, http://localhost:19428              |
 | PostgreSQL                      | `localhost:55432`, користувач і пароль `pdp`, БД `metadata` |
 
 Порти можна змінити через `.env` (наприклад, `GATEWAY_HOST_PORT=8080`). Зупинити:
@@ -444,6 +460,58 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 7. Документи: [ADR-008](docs/adr/0008-video-worker.md), [ADR-009](docs/adr/0009-egress-and-webhooks.md),
    [план етапу](docs/plan/stage-3.md).
 
+### Етап 4a. Трейси і логи
+
+1. Створити задачу з вебхуком і взяти її `traceId`:
+
+   ```bash
+   curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d '{"url":"http://webhook-receiver:3000/ok"}' localhost:18080/v1/webhooks >/dev/null
+   IMG=perf/k6/fixtures/source.png
+   UP=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"contentType\":\"image/png\",\"size\":$(wc -c < $IMG | tr -d ' ')}" localhost:18080/v1/uploads)
+   curl -s -X PUT -H 'content-type: image/png' --data-binary @$IMG "$(jq -r .uploadUrl <<<"$UP")"
+   JOB=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"image.resize\",\"sourceKey\":\"$(jq -r .sourceKey <<<"$UP")\",\"presets\":[\"thumb\"]}" \
+     localhost:18080/v1/jobs | jq -r .jobId)
+   sleep 5; TRACE=$(curl -s -H "x-api-key: $KEY" localhost:18080/v1/jobs/$JOB | jq -r .traceId); echo $TRACE
+   ```
+
+2. Трейс охоплює всі сервіси. Очікувано: `api-gateway`, `metadata`, `scheduler`, `worker`, а
+   серед span'ів `job create`, `send`/`process events.job.created.v1`, `sharp resize`,
+   `S3.PutObject`, `job process webhook.deliver`, `egress POST`:
+
+   ```bash
+   curl -s localhost:13200/api/v2/traces/$TRACE | jq -r '[.trace.resourceSpans[]
+     | .resource.attributes[] | select(.key=="service.name") | .value.stringValue] | unique | .[]'
+   curl -s localhost:13200/api/v2/traces/$TRACE | jq -r '[.trace.resourceSpans[].scopeSpans[].spans[].name]
+     | unique | .[]'
+   ```
+
+3. Логи задачі з усіх сервісів за `job_id`, кожен з `trace_id`:
+
+   ```bash
+   curl -s localhost:19428/select/logsql/query --data-urlencode "query=job_id:=\"$JOB\"" \
+     | jq -c '{service: .["service.name"], msg: ._msg, trace_id, job_type}'
+   ```
+
+4. Grafana: http://localhost:13000 → дашборд **PDP / Job** (або посилання «Трейс і логи» на
+   картці задачі в Web UI). Нагорі трейс, нижче логи задачі. Клік на `trace_id` у рядку логу
+   відкриває трейс, а «Logs for this span» у трейсі — логи. Таблиця внизу показує всі трейси з
+   цим `job.id`: після redrive їх два.
+5. Gateway — межа довіри: `traceparent` і `baggage` від клієнта ігноруються, а вихідні запити на
+   адреси користувачів (вебхуки, `sourceUrl`) не несуть ні того, ні іншого:
+
+   ```bash
+   curl -s -H "x-api-key: $KEY" -H 'traceparent: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01' \
+     -H 'content-type: application/json' -d "{\"type\":\"image.resize\",\"sourceKey\":\"$(jq -r .sourceKey <<<"$UP")\",\"presets\":[\"thumb\"]}" \
+     localhost:18080/v1/jobs | jq -r .jobId   # traceId цієї задачі не aaaa…
+   ```
+
+6. Тести: `test/tracing.int-spec.ts` (один трейс з одним коренем від `POST /v1/jobs` до
+   доставки вебхука), unit-тести передачі контексту через NATS, outbox і egress.
+7. Документи: [ADR-010](docs/adr/0010-observability.md), [план етапу](docs/plan/stage-4.md).
+
 ## Конфігурація Етапу 2
 
 Ліміти й пороги задаються через env gateway; у `docker-compose.yml` їх можна перевизначити
@@ -485,9 +553,19 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 | `MAX_VIDEO_BYTES` (video-worker)            | 104857600        | Ліміт розміру джерела, зокрема за URL                       |
 | `VIDEO_MAX_DURATION_SECONDS` (video-worker) | 60               | Максимальна тривалість відео                                |
 
+## Конфігурація Етапу 4a
+
+| Змінна                        | За замовчуванням        | Що робить                                          |
+| ----------------------------- | ----------------------- | -------------------------------------------------- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | Куди сервіси шлють трейси й логи (OTLP/HTTP)       |
+| `OTEL_SDK_DISABLED`           | `false`                 | `true` вимикає SDK; stdout-логи лишаються          |
+| `SERVICE_VERSION`             | `dev`                   | `service.version` у ресурсі                        |
+| `DEPLOYMENT_ENVIRONMENT`      | `local`                 | `deployment.environment.name` (compose: `compose`) |
+| `GRAFANA_URL` (web)           | порожньо                | Адреса Grafana для посилань; порожня ховає їх      |
+
 ## Документація
 
-- Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md)
+- Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md), [Етап 4](docs/plan/stage-4.md)
 - ADR: [docs/adr](docs/adr/README.md)
 - Спайк JetStream проти BullMQ: [docs/spikes](docs/spikes/01-jetstream-vs-bullmq.md)
 - Звіти навантаження: [perf/reports](perf/reports/stage-2.md)

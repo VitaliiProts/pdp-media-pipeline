@@ -33,6 +33,8 @@ export type SheetItem =
       deadReason: DeadReason | null;
       results: JobResult[];
       frames: VideoFrame[];
+      createdAt: string;
+      traceId: string | null;
     };
 
 type LocalStage = Extract<SheetItem, { kind: 'local' }>['stage'];
@@ -97,6 +99,8 @@ export function buildSheetItems(jobs: readonly Job[], uploads: readonly Upload[]
       deadReason: job.deadReason,
       results: job.results ?? [],
       frames: job.video?.frames ?? [],
+      createdAt: job.createdAt,
+      traceId: job.traceId,
     };
   });
 

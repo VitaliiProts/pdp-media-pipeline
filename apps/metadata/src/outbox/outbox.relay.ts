@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ensureStreams, NatsService } from '@pdp/messaging';
-import { jobMetrics } from '@pdp/observability';
+import { jobMetrics, withStoredTraceContext } from '@pdp/observability';
 import { asc, inArray, isNull } from 'drizzle-orm';
 import { type Env } from '../config';
 import { PostgresService } from '../database/postgres.service';
@@ -59,7 +59,9 @@ export class OutboxRelay implements OnApplicationBootstrap, BeforeApplicationShu
       if (rows.length === 0) return 0;
 
       for (const row of rows) {
-        const ack = await this.nats.publishJson(row.subject, row.payload, row.id);
+        const ack = await withStoredTraceContext(row.traceContext, () =>
+          this.nats.publishJson(row.subject, row.payload, row.id),
+        );
         if (ack.duplicate) jobMetrics.duplicates.inc({ source: 'outbox' });
       }
       await tx

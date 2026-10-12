@@ -56,11 +56,13 @@ describe('VideoFramesProcessor', () => {
     );
     expect(deps.extractFrames).toHaveBeenCalledWith(expect.any(String), expect.any(String), 2, 10);
     expect(deps.extractPreview.mock.calls[0]?.[2]).toBe(1);
-    expect(deps.putObject.mock.calls.map(([key, , type]) => [key, type])).toEqual([
-      ['results/j1/preview.jpg', 'image/jpeg'],
+    // Frames upload in parallel, so only the set of uploads is fixed, not their order.
+    const uploads = deps.putObject.mock.calls.map(([key, , type]) => [key, type]);
+    expect(uploads.sort()).toEqual([
       ['results/j1/frames/0001.jpg', 'image/jpeg'],
       ['results/j1/frames/0002.jpg', 'image/jpeg'],
       ['results/j1/frames/0003.jpg', 'image/jpeg'],
+      ['results/j1/preview.jpg', 'image/jpeg'],
     ]);
     expect(output).toMatchObject({
       durationSeconds: 5,

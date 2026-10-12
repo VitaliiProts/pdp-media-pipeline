@@ -3,6 +3,7 @@ import {
   dispatchMessageId,
   dispatchSubject,
   JobCreatedV1,
+  type JobClass,
   type JobDispatchV1,
   selectClass,
   type TransitionRequest,
@@ -10,7 +11,7 @@ import {
 } from '@pdp/contracts';
 import { ack, type HandlerResult, nak, term } from '@pdp/messaging';
 import { MetadataError } from '@pdp/metadata-client';
-import { jobMetrics } from '@pdp/observability';
+import { jobMetrics, withJobContext } from '@pdp/observability';
 
 export const SCHEDULER_ACTOR = 'scheduler';
 export const RETRY_DELAY_MS = 2000;
@@ -39,8 +40,17 @@ export class JobCreatedHandler {
       return term(`invalid job.created: ${(err as Error).message}`);
     }
 
-    const { jobId, type, priority, input, attemptBase } = event.payload;
+    const { type, priority } = event.payload;
     const jobClass = selectClass({ type, priority });
+    return withJobContext({ id: event.payload.jobId, type, class: jobClass }, () =>
+      this.dispatch(event.payload, jobClass),
+    );
+  }
+
+  private async dispatch(
+    { jobId, type, priority, input, attemptBase }: JobCreatedV1['payload'],
+    jobClass: JobClass,
+  ): Promise<HandlerResult> {
     const dispatch: JobDispatchV1 = {
       version: 1,
       jobId,

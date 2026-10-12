@@ -209,6 +209,13 @@ export class JobResponseDto {
 
   @ApiProperty({ format: 'date-time', type: String, nullable: true })
   finishedAt!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'W3C trace id of the request that created or last redrove the job.',
+  })
+  traceId!: string | null;
 }
 
 export class ListJobsResponseDto {

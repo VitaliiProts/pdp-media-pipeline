@@ -1,0 +1,10 @@
+.link {
+  margin-top: var(--space-1);
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  text-underline-offset: 0.2em;
+}
+
+.link:hover {
+  color: var(--ink);
+}

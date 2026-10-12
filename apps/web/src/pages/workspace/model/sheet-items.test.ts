@@ -12,6 +12,7 @@ const job = (overrides: Partial<Job> = {}): Job => ({
   lastError: null,
   deadReason: null,
   createdAt: '2026-10-09T10:00:00.000Z',
+  traceId: null,
   ...overrides,
 });
 

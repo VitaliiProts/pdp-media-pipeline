@@ -17,6 +17,7 @@ export const toJobDto = (row: JobRow): JobDto => ({
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
   finishedAt: row.finishedAt?.toISOString() ?? null,
+  traceId: row.traceId,
 });
 
 interface Cursor {

@@ -12,6 +12,7 @@ const job = (overrides: Partial<Job> = {}): Job => ({
   lastError: null,
   deadReason: null,
   createdAt: '2026-10-09T10:00:00.000Z',
+  traceId: null,
   ...overrides,
 });
 
@@ -99,6 +100,32 @@ describe('jobs sheet', () => {
     expect(within(dead).getByText('unsupported image format')).toBeInTheDocument();
     expect(within(dead).getByText('This file cannot be processed.')).toBeInTheDocument();
     expect(within(done).queryByRole('button', { name: 'Run again' })).not.toBeInTheDocument();
+  });
+
+  it('links each job to its trace and logs once Grafana is configured', async () => {
+    const traceId = '4bf92f3577b34da6a3ce929d0e0e4736';
+    server.use(
+      http.get('/config.json', () => HttpResponse.json({ grafanaUrl: 'http://grafana.test/' })),
+      listJobs([job({ id: 'cccccccc-0000-4000-8000-000000000003', traceId })]),
+    );
+    renderApp({ apiKey: TEST_API_KEY });
+
+    const mount = (await screen.findByRole('heading', { name: 'Job cccccccc' })).closest('article');
+    if (!mount) throw new Error('mount not found');
+    const link = await within(mount).findByRole('link', { name: 'Trace and logs' });
+    const url = new URL(link.getAttribute('href') ?? '');
+    expect(url.origin + url.pathname).toBe('http://grafana.test/d/pdp-job/job');
+    expect(url.searchParams.get('var-trace_id')).toBe(traceId);
+    expect(url.searchParams.get('var-job_id')).toBe('cccccccc-0000-4000-8000-000000000003');
+  });
+
+  it('shows no trace link without Grafana', async () => {
+    server.use(listJobs([job({ id: 'dddddddd-0000-4000-8000-000000000004' })]));
+    renderApp({ apiKey: TEST_API_KEY });
+
+    const mount = (await screen.findByRole('heading', { name: 'Job dddddddd' })).closest('article');
+    if (!mount) throw new Error('mount not found');
+    await waitFor(() => expect(within(mount).queryByRole('link')).not.toBeInTheDocument());
   });
 
   it('runs a dead job again and shows it queued', async () => {

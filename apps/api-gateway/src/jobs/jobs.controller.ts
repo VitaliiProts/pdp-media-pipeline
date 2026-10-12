@@ -212,6 +212,7 @@ export class JobsController {
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
       finishedAt: job.finishedAt,
+      traceId: job.traceId,
     };
     if (job.status !== 'succeeded') return response;
 

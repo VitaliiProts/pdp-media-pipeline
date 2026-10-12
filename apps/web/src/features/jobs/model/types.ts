@@ -52,6 +52,8 @@ export type Job = {
   results?: JobResult[];
   video?: VideoResult;
   createdAt: string;
+  /** Trace of the request that created or last redrove the job. */
+  traceId: string | null;
 };
 
 export type JobPage = {

@@ -14,3 +14,4 @@ export { retryAfterOf, useLiveJobs } from './model/use-live-jobs';
 export { STATUS_LABEL_KEY } from './model/status-labels';
 export { RedriveButton } from './ui/RedriveButton';
 export { StatusFilter } from './ui/StatusFilter';
+export { TraceLink } from './ui/TraceLink';
