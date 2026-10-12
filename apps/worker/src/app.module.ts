@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
-import { createLoggerModule, HealthModule } from '@pdp/observability';
+import { createLoggerModule, HealthModule, MetricsModule } from '@pdp/observability';
 import { type Env, envSchema } from './config';
 import { JobsService } from './jobs/jobs.service';
 import { StorageModule } from './storage/storage.module';
@@ -13,6 +13,7 @@ import { StorageService } from './storage/storage.service';
   imports: [
     createConfigModule(envSchema),
     createLoggerModule('worker'),
+    MetricsModule,
     NatsModule.forRoot('worker'),
     StorageModule,
     HealthModule.forRootAsync({

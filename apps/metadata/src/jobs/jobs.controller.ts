@@ -1,9 +1,21 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
 import {
   CreateJobRequest,
+  type CreateJobResponse,
   type JobDto,
   ListJobsQuery,
   type ListJobsResponse,
+  RedriveRequest,
   TransitionRequest,
   type TransitionResponse,
 } from '@pdp/contracts';
@@ -11,14 +23,24 @@ import { type z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { JobsService } from './jobs.service';
 
+interface StatusResponse {
+  status(code: number): unknown;
+}
+
 /** Internal API: reachable only inside the compose network / cluster, no auth. */
 @Controller('internal/jobs')
 export class JobsController {
   constructor(private readonly jobs: JobsService) {}
 
+  /** 201 for a new job, 200 when an Idempotency-Key replays an earlier one. */
   @Post()
-  create(@Body(new ZodValidationPipe(CreateJobRequest)) body: CreateJobRequest): Promise<JobDto> {
-    return this.jobs.create(body);
+  async create(
+    @Body(new ZodValidationPipe(CreateJobRequest)) body: CreateJobRequest,
+    @Res({ passthrough: true }) res: StatusResponse,
+  ): Promise<CreateJobResponse> {
+    const result = await this.jobs.create(body);
+    res.status(result.replayed ? 200 : 201);
+    return result;
   }
 
   @Get()
@@ -40,5 +62,14 @@ export class JobsController {
     @Body(new ZodValidationPipe(TransitionRequest)) body: TransitionRequest,
   ): Promise<TransitionResponse> {
     return this.jobs.transition(id, body);
+  }
+
+  @Post(':id/redrive')
+  @HttpCode(200)
+  redrive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(RedriveRequest)) body: RedriveRequest,
+  ): Promise<JobDto> {
+    return this.jobs.redrive(id, body);
   }
 }

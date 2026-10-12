@@ -1,6 +1,5 @@
 import { AckPolicy, jetstream, jetstreamManager } from '@nats-io/jetstream';
 import { connect, type NatsConnection } from '@nats-io/transport-node';
-import { WORKER_MAX_DELIVER } from '@pdp/contracts';
 import { MetadataClient } from '@pdp/metadata-client';
 import { type Pool } from 'pg';
 import { createApps, type RunningApps } from './support/apps';
@@ -44,14 +43,14 @@ describe('redelivery after a lost ack', () => {
         filter_subject: 'jobs.cpu.>',
         ack_policy: AckPolicy.Explicit,
         ack_wait: ACK_WAIT_MS * 1_000_000,
-        max_deliver: WORKER_MAX_DELIVER,
+        max_deliver: -1,
         max_ack_pending: 2 * WORKER_CONCURRENCY,
       }),
     );
 
     const sourceKey = `uploads/${userId}/redelivery.png`;
     await putSource(infra.s3, sourceKey, await pngImage(400, 300));
-    const job = await client.createJob({
+    const { job } = await client.createJob({
       userId,
       type: 'image.resize',
       input: { sourceKey, presets: ['thumb'] },

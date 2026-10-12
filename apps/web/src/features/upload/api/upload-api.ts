@@ -27,15 +27,20 @@ export async function putToStorage(
   });
 }
 
+/**
+ * `idempotencyKey` stays the same for every retry of one upload, so a retry after a lost
+ * response returns the job already created instead of making a second one.
+ */
 export async function createResizeJob(
   sourceKey: string,
   presets: readonly ImagePreset[],
+  idempotencyKey: string,
   signal: AbortSignal,
 ): Promise<CreatedJob> {
   const { data } = await http.post<CreatedJob>(
     '/v1/jobs',
     { type: 'image.resize', sourceKey, presets },
-    { signal },
+    { headers: { 'Idempotency-Key': idempotencyKey }, signal },
   );
   return data;
 }

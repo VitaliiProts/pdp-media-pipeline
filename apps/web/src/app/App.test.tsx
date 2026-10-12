@@ -9,6 +9,7 @@ const job = (overrides: Partial<Job> = {}): Job => ({
   status: 'queued',
   attempts: 0,
   lastError: null,
+  deadReason: null,
   createdAt: '2026-10-09T10:00:00.000Z',
   ...overrides,
 });
@@ -52,7 +53,7 @@ describe('API key gate', () => {
 });
 
 describe('jobs sheet', () => {
-  it('shows result links for finished jobs and the error of failed ones', async () => {
+  it('shows result links for finished jobs and why dead ones stopped', async () => {
     server.use(
       listJobs([
         job({
@@ -74,6 +75,7 @@ describe('jobs sheet', () => {
           status: 'dead',
           attempts: 3,
           lastError: 'unsupported image format',
+          deadReason: 'permanent',
         }),
       ]),
     );
@@ -92,6 +94,62 @@ describe('jobs sheet', () => {
     expect(within(dead).getByText('Gave up')).toBeInTheDocument();
     expect(within(dead).getByText('Attempt 3')).toBeInTheDocument();
     expect(within(dead).getByText('unsupported image format')).toBeInTheDocument();
+    expect(within(dead).getByText('This file cannot be processed.')).toBeInTheDocument();
+    expect(within(done).queryByRole('button', { name: 'Run again' })).not.toBeInTheDocument();
+  });
+
+  it('runs a dead job again and shows it queued', async () => {
+    const id = 'eeeeeeee-0000-4000-8000-000000000005';
+    let redriven = false;
+    server.use(
+      http.get('/v1/jobs', () =>
+        HttpResponse.json({
+          items: [
+            redriven
+              ? job({ id, status: 'queued', attempts: 5 })
+              : job({
+                  id,
+                  status: 'dead',
+                  attempts: 5,
+                  lastError: 'connect ECONNREFUSED',
+                  deadReason: 'exhausted',
+                }),
+          ],
+          nextCursor: null,
+        }),
+      ),
+      http.post(`/v1/jobs/${id}/redrive`, () => {
+        redriven = true;
+        return HttpResponse.json(job({ id, status: 'queued', attempts: 5 }), { status: 202 });
+      }),
+    );
+    const { user } = renderApp({ apiKey: TEST_API_KEY });
+
+    const mount = (await screen.findByRole('heading', { name: 'Job eeeeeeee' })).closest('article');
+    if (!mount) throw new Error('mount not found');
+    expect(within(mount).getByText('Every attempt failed.')).toBeInTheDocument();
+    await user.click(within(mount).getByRole('button', { name: 'Run again' }));
+
+    await waitFor(() => {
+      const card = screen.getByRole('heading', { name: 'Job eeeeeeee' }).closest('article');
+      expect(card && within(card).getByText('Queued')).toBeInTheDocument();
+    });
+    expect(redriven).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Run again' })).not.toBeInTheDocument();
+  });
+
+  it('says so when a redrive is refused', async () => {
+    const id = 'ffffffff-0000-4000-8000-000000000006';
+    server.use(
+      listJobs([job({ id, status: 'dead', attempts: 1, deadReason: 'permanent' })]),
+      http.post(`/v1/jobs/${id}/redrive`, () =>
+        HttpResponse.json({ code: 'NOT_REDRIVABLE', message: 'not dead' }, { status: 409 }),
+      ),
+    );
+    const { user } = renderApp({ apiKey: TEST_API_KEY });
+
+    await user.click(await screen.findByRole('button', { name: 'Run again' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not send the job again.');
   });
 
   it('reports a failed load and recovers on retry', async () => {
@@ -121,11 +179,11 @@ describe('jobs sheet', () => {
     const { user } = renderApp({ apiKey: TEST_API_KEY });
     await screen.findByText(/No jobs yet/);
 
-    await user.click(screen.getByRole('button', { name: 'Failed' }));
+    await user.click(screen.getByRole('button', { name: 'Gave up' }));
 
     expect(await screen.findByText('No jobs with this status.')).toBeInTheDocument();
-    expect(window.location.search).toBe('?status=failed');
-    expect(statuses).toContain('failed');
+    expect(window.location.search).toBe('?status=dead');
+    expect(statuses).toContain('dead');
   });
 });
 
@@ -135,6 +193,7 @@ describe('uploading', () => {
     let created = false;
     let putContentType: string | null = null;
     let jobBody: unknown = null;
+    let idempotencyKey: string | null = null;
     server.use(
       http.get('/v1/jobs', () =>
         HttpResponse.json({ items: created ? [job({ id: jobId })] : [], nextCursor: null }),
@@ -156,6 +215,7 @@ describe('uploading', () => {
       }),
       http.post('/v1/jobs', async ({ request }) => {
         jobBody = await request.json();
+        idempotencyKey = request.headers.get('idempotency-key');
         created = true;
         return HttpResponse.json({ jobId }, { status: 201 });
       }),
@@ -178,6 +238,7 @@ describe('uploading', () => {
       sourceKey: 'sources/1.png',
       presets: ['thumb', 'medium'],
     });
+    expect(idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('rejects unusable files locally and lets the user remove them', async () => {
@@ -200,6 +261,7 @@ describe('when the gateway asks to come back later', () => {
   it('waits out a full queue and creates the job on retry', async () => {
     const jobId = 'dddddddd-0000-4000-8000-000000000004';
     let attempts = 0;
+    const keys: (string | null)[] = [];
     server.use(
       http.get('/v1/jobs', () =>
         HttpResponse.json({ items: attempts > 1 ? [job({ id: jobId })] : [], nextCursor: null }),
@@ -218,14 +280,15 @@ describe('when the gateway asks to come back later', () => {
         `${STORAGE_ORIGIN}/sources/2.png`,
         () => new HttpResponse(null, { status: 200, headers: CORS }),
       ),
-      http.post('/v1/jobs', () =>
-        ++attempts === 1
+      http.post('/v1/jobs', ({ request }) => {
+        keys.push(request.headers.get('idempotency-key'));
+        return ++attempts === 1
           ? HttpResponse.json(
               { statusCode: 503, message: 'the cpu queue is full, retry later' },
               { status: 503, headers: { 'Retry-After': '1' } },
             )
-          : HttpResponse.json({ jobId }, { status: 202 }),
-      ),
+          : HttpResponse.json({ jobId }, { status: 202 });
+      }),
     );
     const { user } = renderApp({ apiKey: TEST_API_KEY });
     await screen.findByText(/No jobs yet/);
@@ -245,6 +308,8 @@ describe('when the gateway asks to come back later', () => {
       { timeout: 4000 },
     );
     expect(attempts).toBe(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
   });
 
   it('says how long until the next refresh when polling is rate limited', async () => {

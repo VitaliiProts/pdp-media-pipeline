@@ -12,11 +12,14 @@ interface EventDefinition<E> {
 /**
  * Writes an event in the caller's transaction, so it is published if and only if
  * the state change commits. The relay picks it up afterwards.
+ *
+ * @param subject overrides the event's own subject, e.g. to route it to the DLQ stream
  */
 export async function enqueueEvent<E, P>(
   tx: Tx,
   definition: EventDefinition<E>,
   payload: P,
+  subject: string = definition.subject,
 ): Promise<E & { eventId: string }> {
   const eventId = randomUUID();
   const event = definition.parse({
@@ -26,6 +29,6 @@ export async function enqueueEvent<E, P>(
     occurredAt: new Date().toISOString(),
     payload,
   });
-  await tx.insert(outbox).values({ id: eventId, subject: definition.subject, payload: event });
+  await tx.insert(outbox).values({ id: eventId, subject, payload: event });
   return { ...event, eventId };
 }

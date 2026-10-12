@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import {
+  dispatchMessageId,
   imageResultKey,
   ImageResizeInputV1,
   type ImageResizeOutputV1,
@@ -8,12 +9,17 @@ import {
   type TransitionRequest,
   type TransitionResponse,
 } from '@pdp/contracts';
-import { ack, type HandlerResult, nak, term } from '@pdp/messaging';
+import {
+  ack,
+  type BackoffOptions,
+  fullJitterDelay,
+  type HandlerResult,
+  nak,
+  term,
+} from '@pdp/messaging';
 import { MetadataError } from '@pdp/metadata-client';
 import { PermanentError } from '../image/permanent-error';
 import { type ResizedImage } from '../image/resize';
-
-export const RETRY_BASE_DELAY_MS = 2000;
 
 export interface ImageResizeDeps {
   transition: (jobId: string, body: TransitionRequest) => Promise<TransitionResponse>;
@@ -24,18 +30,23 @@ export interface ImageResizeDeps {
 
 export interface ImageResizeOptions {
   workerId: string;
-  maxDeliver: number;
+  retry: BackoffOptions;
 }
 
 export interface DeliveredMessage {
   data: Uint8Array;
-  /** 1 on first delivery; used as the attempt number. */
+  /** 1 on first delivery of this dispatch. */
   deliveryCount: number;
+  /** Durable consumer the message came from; scopes the inbox entry. */
+  consumer: string;
 }
 
 /**
  * Status changes go through Metadata synchronously and the message is acked only
  * after Metadata confirmed the outcome; when Metadata is unavailable it is nak'ed.
+ *
+ * The worker does not decide when to give up: Metadata counts attempts and answers a
+ * start or retry over the limit with `dead`, which the worker then acks.
  */
 export class ImageResizeHandler {
   private readonly logger = new Logger(ImageResizeHandler.name);
@@ -49,20 +60,31 @@ export class ImageResizeHandler {
   }
 
   async handle(msg: DeliveredMessage): Promise<HandlerResult> {
-    const attempt = msg.deliveryCount;
     const parsed = this.parse(msg.data);
     if ('reason' in parsed) return term(parsed.reason);
     const { dispatch, input } = parsed;
     const { jobId } = dispatch;
-    const retryDelay = RETRY_BASE_DELAY_MS * attempt;
+    const attempt = dispatch.attemptBase + msg.deliveryCount;
+    const retryDelay = fullJitterDelay(msg.deliveryCount, this.options.retry);
+    const inbox = {
+      consumer: msg.consumer,
+      messageId: dispatchMessageId(jobId, dispatch.attemptBase),
+    };
 
     try {
-      await this.deps.transition(jobId, {
+      const started = await this.deps.transition(jobId, {
         to: 'running',
         attempt,
         actor: this.actor,
         class: dispatch.class,
+        inbox,
       });
+      if (started.job.status !== 'running') {
+        this.logger.warn(
+          `job ${jobId} is ${started.job.status}, not processing attempt ${attempt}`,
+        );
+        return ack();
+      }
     } catch (err) {
       return this.onMetadataError(err, jobId, retryDelay);
     }
@@ -71,7 +93,7 @@ export class ImageResizeHandler {
     try {
       output = await this.process(jobId, input);
     } catch (err) {
-      return this.onProcessingError(err, jobId, attempt, retryDelay);
+      return this.onProcessingError(err, jobId, attempt, inbox, retryDelay);
     }
 
     try {
@@ -80,6 +102,7 @@ export class ImageResizeHandler {
         attempt,
         actor: this.actor,
         output,
+        inbox,
       });
       return ack();
     } catch (err) {
@@ -124,31 +147,34 @@ export class ImageResizeHandler {
     err: unknown,
     jobId: string,
     attempt: number,
+    inbox: TransitionRequest['inbox'],
     retryDelay: number,
   ): Promise<HandlerResult> {
     const message = (err as Error).message.slice(0, 2000);
     const permanent = err instanceof PermanentError;
-    const lastAttempt = attempt >= this.options.maxDeliver;
     this.logger.warn(
       `job ${jobId} attempt ${attempt} failed (${permanent ? 'permanent' : 'transient'}): ${message}`,
     );
 
     try {
-      if (permanent || lastAttempt) {
+      if (permanent) {
         await this.deps.transition(jobId, {
-          to: 'failed',
+          to: 'dead',
           attempt,
           actor: this.actor,
           error: message,
+          inbox,
         });
         return ack();
       }
-      await this.deps.transition(jobId, {
+      const res = await this.deps.transition(jobId, {
         to: 'scheduled',
         attempt,
         actor: this.actor,
         error: message,
       });
+      if (res.job.status === 'dead') return ack();
+      this.logger.log(`job ${jobId} retries in ${retryDelay}ms`);
       return nak(retryDelay);
     } catch (transitionErr) {
       return this.onMetadataError(transitionErr, jobId, retryDelay);
@@ -161,6 +187,7 @@ export class ImageResizeHandler {
     switch (err.code) {
       case 'JOB_TERMINAL':
       case 'STALE_ATTEMPT':
+      case 'DUPLICATE_DELIVERY':
         this.logger.log(`job ${jobId}: ${err.code}, dropping this delivery`);
         return ack();
       case 'INVALID_TRANSITION':

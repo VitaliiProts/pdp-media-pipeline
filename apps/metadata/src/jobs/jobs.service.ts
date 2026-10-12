@@ -3,27 +3,43 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   type CreateJobRequest,
+  type CreateJobResponse,
+  deadLetterSubject,
   DEFAULT_JOB_PRIORITY,
   ImageResizeInputV1,
   JobCreatedV1,
+  JobDeadLetteredV1,
   type JobDto,
   type JobType,
   JobStatusChangedV1,
   type ListJobsResponse,
   type MetadataErrorBody,
+  type RedriveRequest,
   type TransitionRequest,
   type TransitionResponse,
 } from '@pdp/contracts';
-import { and, desc, eq, isNull, ne, sql, type SQL } from 'drizzle-orm';
+import { jobMetrics } from '@pdp/observability';
+import { and, count, desc, eq, gt, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
+import { type Env } from '../config';
 import { PostgresService, type Tx } from '../database/postgres.service';
-import { auditLog, jobExecutions, type JobRow, jobs, jobTransitions } from '../database/schema';
+import {
+  auditLog,
+  idempotencyKeys,
+  inbox,
+  jobExecutions,
+  type JobRow,
+  jobs,
+  jobTransitions,
+} from '../database/schema';
 import { enqueueEvent } from '../outbox/outbox';
 import { decodeCursor, encodeCursor, toJobDto } from './job.mapper';
-import { decide, type TransitionEffect } from './state-machine';
+import { decide, type Decision, decideRedrive, type RetryPolicy } from './state-machine';
 
 const INPUT_SCHEMAS: Partial<Record<JobType, z.ZodType>> = {
   'image.resize': ImageResizeInputV1,
@@ -34,11 +50,23 @@ const error = (code: MetadataErrorBody['code'], message: string): MetadataErrorB
   message,
 });
 
+type AppliedDecision = Extract<Decision, { kind: 'apply' }>;
+type Idempotency = NonNullable<CreateJobRequest['idempotency']>;
+
 @Injectable()
 export class JobsService {
-  constructor(private readonly pg: PostgresService) {}
+  private readonly policy: RetryPolicy;
+  private readonly idempotencyTtlHours: number;
 
-  async create(req: CreateJobRequest): Promise<JobDto> {
+  constructor(
+    private readonly pg: PostgresService,
+    config: ConfigService<Env, true>,
+  ) {
+    this.policy = { maxAttempts: config.get('JOB_MAX_ATTEMPTS', { infer: true }) };
+    this.idempotencyTtlHours = config.get('IDEMPOTENCY_TTL_HOURS', { infer: true });
+  }
+
+  async create(req: CreateJobRequest): Promise<CreateJobResponse> {
     const inputSchema = INPUT_SCHEMAS[req.type];
     if (!inputSchema) {
       throw new BadRequestException(error('VALIDATION_FAILED', `unsupported job type ${req.type}`));
@@ -48,7 +76,12 @@ export class JobsService {
       throw new BadRequestException(error('VALIDATION_FAILED', z.prettifyError(input.error)));
     }
 
-    const row = await this.pg.db.transaction(async (tx) => {
+    return this.pg.db.transaction(async (tx) => {
+      if (req.idempotency) {
+        const replay = await this.claimIdempotencyKey(tx, req.userId, req.idempotency);
+        if (replay) return { job: replay, replayed: true };
+      }
+
       const [job] = await tx
         .insert(jobs)
         .values({
@@ -66,6 +99,7 @@ export class JobsService {
         type: job.type,
         priority: job.priority,
         input: job.input,
+        attemptBase: job.attemptBase,
       });
       await tx.insert(auditLog).values({
         actor: `user:${job.userId}`,
@@ -73,9 +107,67 @@ export class JobsService {
         entityId: job.id,
         data: { type: job.type },
       });
-      return job;
+
+      const dto = toJobDto(job);
+      if (req.idempotency) {
+        await tx.insert(idempotencyKeys).values({
+          userId: req.userId,
+          key: req.idempotency.key,
+          requestHash: req.idempotency.requestHash,
+          jobId: job.id,
+          response: dto,
+        });
+      }
+      return { job: dto, replayed: false };
     });
-    return toJobDto(row);
+  }
+
+  /**
+   * Serialises requests with the same key on a transaction-scoped advisory lock: the holder
+   * creates the job and stores the response before the lock goes away at commit, so a
+   * concurrent request either sees the key busy or finds the stored response.
+   *
+   * @returns the stored response to replay, or null when this request owns the key
+   */
+  private async claimIdempotencyKey(
+    tx: Tx,
+    userId: string,
+    { key, requestHash }: Idempotency,
+  ): Promise<JobDto | null> {
+    const { rows } = await tx.execute<{ locked: boolean }>(
+      sql`select pg_try_advisory_xact_lock(hashtextextended(${`${userId}:${key}`}, 0)) as locked`,
+    );
+    if (!rows[0]?.locked) {
+      throw new ConflictException(
+        error('IDEMPOTENCY_KEY_IN_PROGRESS', 'a request with this Idempotency-Key is in progress'),
+      );
+    }
+
+    const sameKey = and(eq(idempotencyKeys.userId, userId), eq(idempotencyKeys.key, key));
+    await tx
+      .delete(idempotencyKeys)
+      .where(and(sameKey, lte(idempotencyKeys.createdAt, this.expiry())));
+    const [stored] = await tx.select().from(idempotencyKeys).where(sameKey);
+    if (!stored) return null;
+    if (stored.requestHash !== requestHash) {
+      throw new UnprocessableEntityException(
+        error('IDEMPOTENCY_KEY_REUSED', 'this Idempotency-Key was used with a different request'),
+      );
+    }
+    return stored.response;
+  }
+
+  /** Removes keys past their TTL; returns how many. */
+  async purgeIdempotencyKeys(): Promise<number> {
+    const deleted = await this.pg.db
+      .delete(idempotencyKeys)
+      .where(lte(idempotencyKeys.createdAt, this.expiry()))
+      .returning({ key: idempotencyKeys.key });
+    return deleted.length;
+  }
+
+  private expiry(): SQL {
+    return sql`now() - make_interval(hours => ${this.idempotencyTtlHours})`;
   }
 
   async get(id: string): Promise<JobDto> {
@@ -119,8 +211,7 @@ export class JobsService {
    */
   async transition(id: string, req: TransitionRequest): Promise<TransitionResponse> {
     const result = await this.pg.db.transaction(async (tx) => {
-      const [job] = await tx.select().from(jobs).where(eq(jobs.id, id)).for('update');
-      if (!job) throw new NotFoundException(error('JOB_NOT_FOUND', `job ${id} not found`));
+      const job = await this.lockJob(tx, id);
 
       const [existing] = await tx
         .select({ attempt: jobTransitions.attempt })
@@ -133,43 +224,168 @@ export class JobsService {
           ),
         );
 
-      const decision = decide(job, req, existing !== undefined);
+      if (!existing && req.inbox && (await this.inInbox(tx, req.inbox))) {
+        jobMetrics.duplicates.inc({ source: 'inbox' });
+        throw new ConflictException(
+          error('DUPLICATE_DELIVERY', `message ${req.inbox.messageId} was already processed`),
+        );
+      }
+
+      const [started] = await tx
+        .select({ n: count() })
+        .from(jobExecutions)
+        .where(and(eq(jobExecutions.jobId, id), gt(jobExecutions.attempt, job.attemptBase)));
+      const decision = decide(
+        { ...job, startedInGeneration: started?.n ?? 0 },
+        req,
+        existing !== undefined,
+        this.policy,
+      );
       if (decision.kind === 'reject') {
         throw new ConflictException(error(decision.code, decision.message));
       }
-      if (decision.kind === 'noop') return { applied: false, job };
+      if (decision.kind === 'noop') return { applied: false, job, decision };
 
-      const updated = await this.applyEffect(tx, job, req, decision.effect);
+      const updated = await this.applyEffect(tx, job, req, decision);
       await tx.insert(jobTransitions).values({
         jobId: id,
         attempt: req.attempt,
-        toStatus: req.to,
+        toStatus: decision.to,
         fromStatus: decision.from,
+        actor: req.actor,
+      });
+      if (req.inbox && (decision.effect === 'succeed' || decision.effect === 'dead')) {
+        await tx
+          .insert(inbox)
+          .values({ ...req.inbox, jobId: id })
+          .onConflictDoNothing();
+      }
+      await enqueueEvent(tx, JobStatusChangedV1, {
+        jobId: id,
+        userId: updated.userId,
+        type: updated.type,
+        from: decision.from,
+        to: decision.to,
+        class: updated.class,
+        attempt: req.attempt,
+        reason: decision.deadReason ? `${decision.deadReason}: ${updated.lastError}` : req.error,
+      });
+      if (decision.effect === 'dead') {
+        await enqueueEvent(
+          tx,
+          JobDeadLetteredV1,
+          {
+            jobId: id,
+            userId: updated.userId,
+            type: updated.type,
+            class: updated.class,
+            reason: decision.deadReason ?? 'permanent',
+            attempts: updated.attempts,
+            lastError: updated.lastError,
+            input: updated.input,
+          },
+          deadLetterSubject(updated.type),
+        );
+      }
+      return { applied: true, job: updated, decision };
+    });
+
+    if (result.decision.kind === 'apply') this.countEffect(result.job, result.decision);
+    return { applied: result.applied, job: toJobDto(result.job) };
+  }
+
+  /**
+   * Sends a dead job through the pipeline again as a new generation: attempts restart
+   * above the current ones, so the old executions neither count nor collide.
+   */
+  async redrive(id: string, req: RedriveRequest): Promise<JobDto> {
+    const row = await this.pg.db.transaction(async (tx) => {
+      const job = await this.lockJob(tx, id);
+      const decision = decideRedrive(job);
+      if (decision.kind === 'reject') {
+        throw new ConflictException(error('NOT_REDRIVABLE', decision.message));
+      }
+
+      const attemptBase = job.attempts + 1;
+      const [updated] = await tx
+        .update(jobs)
+        .set({
+          status: 'queued',
+          attemptBase,
+          deadReason: null,
+          finishedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(jobs.id, id))
+        .returning();
+      if (!updated) throw new Error('update returned no row');
+
+      await tx.insert(jobTransitions).values({
+        jobId: id,
+        attempt: attemptBase,
+        toStatus: 'queued',
+        fromStatus: job.status,
         actor: req.actor,
       });
       await enqueueEvent(tx, JobStatusChangedV1, {
         jobId: id,
         userId: updated.userId,
         type: updated.type,
-        from: decision.from,
-        to: req.to,
+        from: job.status,
+        to: 'queued',
         class: updated.class,
-        attempt: req.attempt,
-        reason: req.error,
+        attempt: attemptBase,
+        reason: 'redrive',
       });
-      return { applied: true, job: updated };
+      // The scheduler dispatches on job.created; the new base makes its Nats-Msg-Id new too.
+      await enqueueEvent(tx, JobCreatedV1, {
+        jobId: id,
+        userId: updated.userId,
+        type: updated.type,
+        priority: updated.priority,
+        input: updated.input,
+        attemptBase,
+      });
+      await tx.insert(auditLog).values({
+        actor: req.actor,
+        action: 'job.redriven',
+        entityId: id,
+        data: { attemptBase, deadReason: job.deadReason },
+      });
+      return updated;
     });
-    return { applied: result.applied, job: toJobDto(result.job) };
+    return toJobDto(row);
+  }
+
+  private async lockJob(tx: Tx, id: string): Promise<JobRow> {
+    const [job] = await tx.select().from(jobs).where(eq(jobs.id, id)).for('update');
+    if (!job) throw new NotFoundException(error('JOB_NOT_FOUND', `job ${id} not found`));
+    return job;
+  }
+
+  private async inInbox(tx: Tx, key: NonNullable<TransitionRequest['inbox']>): Promise<boolean> {
+    const [row] = await tx
+      .select({ jobId: inbox.jobId })
+      .from(inbox)
+      .where(and(eq(inbox.consumer, key.consumer), eq(inbox.messageId, key.messageId)));
+    return row !== undefined;
+  }
+
+  private countEffect(job: JobRow, decision: AppliedDecision): void {
+    if (decision.effect === 'retry') jobMetrics.retries.inc({ type: job.type });
+    if (decision.effect === 'dead' && decision.deadReason) {
+      jobMetrics.deadLettered.inc({ type: job.type, reason: decision.deadReason });
+    }
   }
 
   private async applyEffect(
     tx: Tx,
     job: JobRow,
     req: TransitionRequest,
-    effect: TransitionEffect,
+    decision: AppliedDecision,
   ): Promise<JobRow> {
     const now = new Date();
-    const patch: Partial<JobRow> = { status: req.to, updatedAt: now };
+    const patch: Partial<JobRow> = { status: decision.to, updatedAt: now };
     const thisExecution = and(
       eq(jobExecutions.jobId, job.id),
       eq(jobExecutions.attempt, req.attempt),
@@ -185,7 +401,7 @@ export class JobsService {
         .set({ finishedAt: now, outcome: 'abandoned', error: reason })
         .where(otherOpenExecutions);
 
-    switch (effect) {
+    switch (decision.effect) {
       case 'schedule':
         patch.class = req.class ?? job.class;
         break;
@@ -219,13 +435,18 @@ export class JobsService {
         patch.finishedAt = now;
         break;
 
-      case 'fail':
+      case 'dead':
+        // No execution row when a crash loop ends at the start of the next delivery.
         await tx
           .update(jobExecutions)
           .set({ finishedAt: now, outcome: 'failed', error: req.error ?? null })
-          .where(thisExecution);
-        await abandon(`job failed on attempt ${req.attempt}`);
-        patch.lastError = req.error ?? null;
+          .where(and(thisExecution, isNull(jobExecutions.finishedAt)));
+        await abandon(`job dead on attempt ${req.attempt}`);
+        patch.deadReason = decision.deadReason ?? 'permanent';
+        patch.lastError =
+          req.error ??
+          job.lastError ??
+          `${this.policy.maxAttempts} attempts started and none finished`;
         patch.finishedAt = now;
         break;
     }

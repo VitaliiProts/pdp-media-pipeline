@@ -30,7 +30,9 @@
     "rejected": "The gateway refused the request.",
     "processing": "Last error",
     "rateLimited": "Still rate limited after several retries. Try again in a minute.",
-    "queueFull": "The queue stayed full after several retries. The file is uploaded; try again later."
+    "queueFull": "The queue stayed full after several retries. The file is uploaded; try again later.",
+    "deadPermanent": "This file cannot be processed.",
+    "deadExhausted": "Every attempt failed."
   },
   "untitled": "Job {{id}}",
   "attempt_one": "Attempt {{count}}",
@@ -39,5 +41,11 @@
   "dimensions": "{{width}} × {{height}}",
   "dismiss": "Remove",
   "retryIn_one": "retry in {{count}} s",
-  "retryIn_other": "retry in {{count}} s"
+  "retryIn_other": "retry in {{count}} s",
+  "redrive": {
+    "action": "Run again",
+    "pending": "Sending…",
+    "failed": "Could not send the job again.",
+    "busy": "The queue is busy, try again in a moment."
+  }
 }

@@ -23,5 +23,8 @@ export const envSchema = baseEnvSchema.extend({
    * or extra replicas sit idle. Per-process load is capped by the semaphore.
    */
   WORKER_MAX_ACK_PENDING: z.coerce.number().int().min(1).default(256),
+  /** Full-jitter backoff between attempts: random(0, min(max, base × 2^(n−1))). */
+  WORKER_RETRY_BASE_MS: z.coerce.number().int().min(0).default(1000),
+  WORKER_RETRY_MAX_MS: z.coerce.number().int().min(0).default(60_000),
 });
 export type Env = z.infer<typeof envSchema>;

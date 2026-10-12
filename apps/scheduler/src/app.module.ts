@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
-import { createLoggerModule, HealthModule } from '@pdp/observability';
+import { createLoggerModule, HealthModule, MetricsModule } from '@pdp/observability';
 import { type Env, envSchema } from './config';
 import { DispatchService } from './dispatch/dispatch.service';
 
@@ -11,6 +11,7 @@ import { DispatchService } from './dispatch/dispatch.service';
   imports: [
     createConfigModule(envSchema),
     createLoggerModule('scheduler'),
+    MetricsModule,
     NatsModule.forRoot('scheduler'),
     HealthModule.forRootAsync({
       inject: [NatsService],

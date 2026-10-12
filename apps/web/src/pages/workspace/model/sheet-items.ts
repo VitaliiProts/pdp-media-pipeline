@@ -1,4 +1,4 @@
-import { type Job, type JobResult, type JobStatus } from '../../../features/jobs';
+import { type DeadReason, type Job, type JobResult, type JobStatus } from '../../../features/jobs';
 import { type Upload, type UploadProblem, type WaitReason } from '../../../features/upload';
 
 export type SheetItem =
@@ -24,6 +24,7 @@ export type SheetItem =
       status: JobStatus;
       attempts: number;
       lastError: string | null;
+      deadReason: DeadReason | null;
       results: JobResult[];
     };
 
@@ -85,6 +86,7 @@ export function buildSheetItems(jobs: readonly Job[], uploads: readonly Upload[]
       status: job.status,
       attempts: job.attempts,
       lastError: job.lastError,
+      deadReason: job.deadReason,
       results: job.results ?? [],
     };
   });

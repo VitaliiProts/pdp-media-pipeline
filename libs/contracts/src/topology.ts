@@ -13,6 +13,7 @@ export const STREAMS = {
   JOBS_CPU: { name: 'JOBS_CPU', subjects: ['jobs.cpu.>'], retention: 'workqueue' },
   JOBS_IO: { name: 'JOBS_IO', subjects: ['jobs.io.>'], retention: 'workqueue' },
   JOBS_PRIORITY: { name: 'JOBS_PRIORITY', subjects: ['jobs.priority.>'], retention: 'workqueue' },
+  JOBS_DLQ: { name: 'JOBS_DLQ', subjects: ['dlq.>'], retention: 'limits' },
 } as const;
 
 export type StreamName = keyof typeof STREAMS;
@@ -26,8 +27,14 @@ export const STREAM_BY_CLASS: Record<JobClass, StreamName> = {
 export const dispatchSubject = (jobClass: JobClass, type: JobType): string =>
   `jobs.${jobClass}.${type}`;
 
-/** `Nats-Msg-Id` for dispatch: a redelivered job.created must not enqueue the job twice. */
-export const dispatchMessageId = (jobId: string): string => `dispatch:${jobId}`;
+export const deadLetterSubject = (type: JobType): string => `dlq.jobs.${type}`;
+
+/**
+ * `Nats-Msg-Id` for dispatch: a redelivered job.created must not enqueue the job twice,
+ * while a redrive (new `attemptBase`) must.
+ */
+export const dispatchMessageId = (jobId: string, attemptBase: number): string =>
+  `dispatch:${jobId}:${attemptBase}`;
 
 /**
  * Command sent to a class stream. Unlike events, it has exactly one consumer
@@ -40,8 +47,7 @@ export const JobDispatchV1 = z.object({
   class: JobClassSchema,
   priority: JobPrioritySchema,
   input: z.record(z.string(), z.unknown()),
+  attemptBase: z.number().int().min(0).default(0),
   dispatchedAt: z.iso.datetime(),
 });
 export type JobDispatchV1 = z.infer<typeof JobDispatchV1>;
-
-export const WORKER_MAX_DELIVER = 3;

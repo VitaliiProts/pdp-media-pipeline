@@ -11,6 +11,8 @@ export const toJobDto = (row: JobRow): JobDto => ({
   input: row.input,
   output: row.output,
   attempts: row.attempts,
+  attemptBase: row.attemptBase,
+  deadReason: row.deadReason,
   lastError: row.lastError,
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
