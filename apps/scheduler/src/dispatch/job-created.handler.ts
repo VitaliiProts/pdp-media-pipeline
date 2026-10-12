@@ -10,12 +10,13 @@ import {
 } from '@pdp/contracts';
 import { ack, type HandlerResult, nak, term } from '@pdp/messaging';
 import { MetadataError } from '@pdp/metadata-client';
+import { jobMetrics } from '@pdp/observability';
 
 export const SCHEDULER_ACTOR = 'scheduler';
 export const RETRY_DELAY_MS = 2000;
 
 export interface JobCreatedDeps {
-  publish: (subject: string, data: JobDispatchV1, msgId: string) => Promise<unknown>;
+  publish: (subject: string, data: JobDispatchV1, msgId: string) => Promise<{ duplicate: boolean }>;
   transition: (jobId: string, body: TransitionRequest) => Promise<TransitionResponse>;
 }
 
@@ -23,6 +24,7 @@ export interface JobCreatedDeps {
  * Publishes the dispatch first, then marks the job `scheduled`. If the transition
  * fails, the redelivered event republishes under the same `Nats-Msg-Id` and
  * JetStream drops the copy, so the job is never enqueued twice within the window.
+ * A redrive carries a new `attemptBase`, which makes a new id and a new dispatch.
  */
 export class JobCreatedHandler {
   private readonly logger = new Logger(JobCreatedHandler.name);
@@ -37,7 +39,7 @@ export class JobCreatedHandler {
       return term(`invalid job.created: ${(err as Error).message}`);
     }
 
-    const { jobId, type, priority, input } = event.payload;
+    const { jobId, type, priority, input, attemptBase } = event.payload;
     const jobClass = selectClass({ type, priority });
     const dispatch: JobDispatchV1 = {
       version: 1,
@@ -46,11 +48,17 @@ export class JobCreatedHandler {
       class: jobClass,
       priority,
       input,
+      attemptBase,
       dispatchedAt: new Date().toISOString(),
     };
 
     try {
-      await this.deps.publish(dispatchSubject(jobClass, type), dispatch, dispatchMessageId(jobId));
+      const ack = await this.deps.publish(
+        dispatchSubject(jobClass, type),
+        dispatch,
+        dispatchMessageId(jobId, attemptBase),
+      );
+      if (ack.duplicate) jobMetrics.duplicates.inc({ source: 'dispatch' });
     } catch (err) {
       this.logger.warn(`dispatch publish failed for ${jobId}: ${(err as Error).message}`);
       return nak(RETRY_DELAY_MS);
@@ -59,7 +67,7 @@ export class JobCreatedHandler {
     try {
       await this.deps.transition(jobId, {
         to: 'scheduled',
-        attempt: 0,
+        attempt: attemptBase,
         actor: SCHEDULER_ACTOR,
         class: jobClass,
       });

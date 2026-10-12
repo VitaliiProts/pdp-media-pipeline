@@ -5,7 +5,7 @@ import { type JobCreatedDeps, JobCreatedHandler, RETRY_DELAY_MS } from './job-cr
 
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
 
-function jobCreated(priority = 5) {
+function jobCreated(priority = 5, attemptBase = 0) {
   const jobId = randomUUID();
   return {
     jobId,
@@ -21,6 +21,7 @@ function jobCreated(priority = 5) {
           type: 'image.resize',
           priority,
           input: { sourceKey: 'uploads/u/a.png', presets: ['thumb'] },
+          attemptBase,
         },
       }),
     ),
@@ -29,8 +30,8 @@ function jobCreated(priority = 5) {
 
 function setup(transition: JobCreatedDeps['transition'] = jest.fn()) {
   const deps = {
-    publish: jest.fn<Promise<unknown>, Parameters<JobCreatedDeps['publish']>>(() =>
-      Promise.resolve({}),
+    publish: jest.fn<Promise<{ duplicate: boolean }>, Parameters<JobCreatedDeps['publish']>>(() =>
+      Promise.resolve({ duplicate: false }),
     ),
     transition: jest.fn(transition),
   };
@@ -50,7 +51,7 @@ describe('JobCreatedHandler', () => {
     expect(deps.publish).toHaveBeenCalledWith(
       'jobs.cpu.image.resize',
       expect.objectContaining({ jobId, class: 'cpu', version: 1 }),
-      `dispatch:${jobId}`,
+      `dispatch:${jobId}:0`,
     );
     expect(deps.transition).toHaveBeenCalledWith(jobId, {
       to: 'scheduled',
@@ -61,6 +62,20 @@ describe('JobCreatedHandler', () => {
     expect(deps.publish.mock.invocationCallOrder[0]).toBeLessThan(
       deps.transition.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it('dispatches a redriven job under a new id and schedules its new generation', async () => {
+    const { deps, handler } = setup(ok);
+    const { jobId, bytes } = jobCreated(5, 4);
+
+    await expect(handler.handle(bytes)).resolves.toEqual({ kind: 'ack' });
+
+    expect(deps.publish).toHaveBeenCalledWith(
+      'jobs.cpu.image.resize',
+      expect.objectContaining({ jobId, attemptBase: 4 }),
+      `dispatch:${jobId}:4`,
+    );
+    expect(deps.transition).toHaveBeenCalledWith(jobId, expect.objectContaining({ attempt: 4 }));
   });
 
   it('routes high priority jobs to the priority stream', async () => {

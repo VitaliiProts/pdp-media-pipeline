@@ -1,4 +1,4 @@
-import { STATUS_LABEL_KEY, type JobStatus } from '../../../features/jobs';
+import { type DeadReason, STATUS_LABEL_KEY, type JobStatus } from '../../../features/jobs';
 import { type UploadProblem, type WaitReason } from '../../../features/upload';
 import { type SheetItem } from './sheet-items';
 
@@ -39,6 +39,18 @@ const WAIT_LABEL_KEY = {
   queueFull: 'stage.waitingQueue',
 } as const satisfies Record<WaitReason, string>;
 
+const DEAD_PROBLEM_KEY = {
+  permanent: 'problem.deadPermanent',
+  exhausted: 'problem.deadExhausted',
+} as const satisfies Record<DeadReason, string>;
+
+function jobProblem(item: Extract<SheetItem, { kind: 'job' }>): ItemDescription['problem'] {
+  if (item.status === 'dead' && item.deadReason) {
+    return { key: DEAD_PROBLEM_KEY[item.deadReason], detail: item.lastError };
+  }
+  return item.lastError ? { key: 'problem.processing', detail: item.lastError } : null;
+}
+
 export function describeItem(item: SheetItem): ItemDescription {
   if (item.kind === 'job') {
     return {
@@ -46,7 +58,7 @@ export function describeItem(item: SheetItem): ItemDescription {
       label: { ns: 'jobs', key: STATUS_LABEL_KEY[item.status] },
       progress: null,
       retryAt: null,
-      problem: item.lastError ? { key: 'problem.processing', detail: item.lastError } : null,
+      problem: jobProblem(item),
     };
   }
   switch (item.stage.phase) {

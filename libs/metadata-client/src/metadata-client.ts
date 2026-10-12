@@ -1,10 +1,12 @@
 import {
   type CreateJobRequest,
+  CreateJobResponse,
   JobDto,
   ListJobsResponse,
   type ListJobsQuery,
   MetadataErrorBody,
   type MetadataErrorCode,
+  type RedriveRequest,
   ResolveApiKeyResponse,
   type TransitionRequest,
   TransitionResponse,
@@ -38,8 +40,12 @@ export class MetadataError extends Error {
 export class MetadataClient {
   constructor(private readonly options: MetadataClientOptions) {}
 
-  createJob(body: CreateJobRequest): Promise<JobDto> {
-    return this.request('POST', '/internal/jobs', JobDto, body);
+  createJob(body: CreateJobRequest): Promise<CreateJobResponse> {
+    return this.request('POST', '/internal/jobs', CreateJobResponse, body);
+  }
+
+  redrive(id: string, body: RedriveRequest): Promise<JobDto> {
+    return this.request('POST', `/internal/jobs/${encodeURIComponent(id)}/redrive`, JobDto, body);
   }
 
   getJob(id: string): Promise<JobDto> {

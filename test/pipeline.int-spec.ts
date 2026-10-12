@@ -1,8 +1,8 @@
 import { HeadObjectCommand } from '@aws-sdk/client-s3';
-import { IMAGE_PRESET_NAMES } from '@pdp/contracts';
+import { deadLetterSubject, IMAGE_PRESET_NAMES, JobDeadLetteredV1 } from '@pdp/contracts';
 import { type Pool } from 'pg';
 import { createApps, type RunningApps } from './support/apps';
-import { pngImage, prepareDatabase, waitFor } from './support/helpers';
+import { pngImage, prepareDatabase, readStream, waitFor } from './support/helpers';
 import { BUCKET, type Infra, startInfra } from './support/infra';
 
 interface JobView {
@@ -10,6 +10,7 @@ interface JobView {
   status: string;
   attempts: number;
   lastError: string | null;
+  deadReason: string | null;
   results?: { preset: string; width: number; height: number; bytes: number; url: string }[];
 }
 
@@ -41,12 +42,12 @@ describe('image.resize end to end (all four services)', () => {
   async function api<T>(
     path: string,
     init: RequestInit = {},
-  ): Promise<{ status: number; body: T }> {
+  ): Promise<{ status: number; body: T; headers: Headers }> {
     const res = await fetch(`${gateway}${path}`, {
       ...init,
       headers: { 'x-api-key': apiKey, 'content-type': 'application/json', ...init.headers },
     });
-    return { status: res.status, body: (await res.json()) as T };
+    return { status: res.status, body: (await res.json()) as T, headers: res.headers };
   }
 
   it('uploads, processes and exposes the results', async () => {
@@ -78,7 +79,7 @@ describe('image.resize end to end (all four services)', () => {
     const job = await waitFor(
       async () => {
         const { body } = await api<JobView>(`/v1/jobs/${jobId}`);
-        if (body.status === 'failed') throw new Error(`job failed: ${body.lastError}`);
+        if (body.status === 'dead') throw new Error(`job dead: ${body.lastError}`);
         return body.status === 'succeeded' ? body : undefined;
       },
       { what: 'job to succeed' },
@@ -115,7 +116,7 @@ describe('image.resize end to end (all four services)', () => {
     expect(executions).toEqual([{ attempt: 1, outcome: 'succeeded' }]);
   });
 
-  it('marks unreadable images failed without retrying', async () => {
+  it('marks unreadable images dead as permanent without retrying', async () => {
     const garbage = Buffer.from('definitely not a png');
     const upload = await api<{ uploadUrl: string; sourceKey: string }>('/v1/uploads', {
       method: 'POST',
@@ -138,12 +139,56 @@ describe('image.resize end to end (all four services)', () => {
     const job = await waitFor(
       async () => {
         const res = await api<JobView>(`/v1/jobs/${body.jobId}`);
-        return res.body.status === 'failed' ? res.body : undefined;
+        return res.body.status === 'dead' ? res.body : undefined;
       },
-      { what: 'job to fail' },
+      { what: 'job to die' },
     );
     expect(job.attempts).toBe(1);
     expect(job.lastError).toMatch(/unreadable image/);
+    expect(job.deadReason).toBe('permanent');
+
+    const letters = await waitFor(
+      async () => {
+        const all = await readStream(infra.natsUrl, 'JOBS_DLQ', deadLetterSubject('image.resize'));
+        const mine = all
+          .map((e) => JobDeadLetteredV1.parse(e))
+          .filter((e) => e.payload.jobId === job.id);
+        return mine.length > 0 && mine;
+      },
+      { what: 'dead letter' },
+    );
+    expect(letters).toHaveLength(1);
+    expect(letters[0]?.payload).toMatchObject({ reason: 'permanent', type: 'image.resize' });
+  });
+
+  it('replays a job created with the same Idempotency-Key', async () => {
+    const image = await pngImage(200, 100);
+    const upload = await api<{ uploadUrl: string; sourceKey: string }>('/v1/uploads', {
+      method: 'POST',
+      body: JSON.stringify({ contentType: 'image/png', size: image.length }),
+    });
+    await fetch(upload.body.uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'image/png' },
+      body: image,
+    });
+    const create = (presets: string[]) =>
+      api<{ jobId: string; code?: string }>('/v1/jobs', {
+        method: 'POST',
+        headers: { 'idempotency-key': 'upload-1' },
+        body: JSON.stringify({ type: 'image.resize', sourceKey: upload.body.sourceKey, presets }),
+      });
+
+    const first = await create(['thumb']);
+    const second = await create(['thumb']);
+    expect(first.status).toBe(202);
+    expect(first.headers.get('idempotent-replayed')).toBeNull();
+    expect(second.status).toBe(202);
+    expect(second.headers.get('idempotent-replayed')).toBe('true');
+    expect(second.body.jobId).toBe(first.body.jobId);
+
+    const reused = await create(['medium']);
+    expect(reused).toMatchObject({ status: 422, body: { code: 'IDEMPOTENCY_KEY_REUSED' } });
   });
 
   it('hides jobs of other users and rejects foreign source keys', async () => {

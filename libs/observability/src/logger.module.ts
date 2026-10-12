@@ -13,7 +13,7 @@ export function createLoggerModule(serviceName: string): DynamicModule {
           level: config.get<string>('LOG_LEVEL') ?? 'info',
           base: { service: serviceName },
           redact: ['req.headers.authorization', 'req.headers["x-api-key"]'],
-          autoLogging: { ignore: (req) => req.url?.startsWith('/health') ?? false },
+          autoLogging: { ignore: (req) => /^\/(health|metrics)\b/.test(req.url ?? '') },
           transport: pretty ? { target: 'pino-pretty', options: { singleLine: true } } : undefined,
         },
       };

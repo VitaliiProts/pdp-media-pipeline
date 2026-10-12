@@ -175,6 +175,12 @@
   font-size: var(--text-sm);
 }
 
+.action {
+  composes: dismiss;
+  border-color: var(--rule);
+  color: var(--ink);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mount[data-tone='active'] .blank {
     animation: none;

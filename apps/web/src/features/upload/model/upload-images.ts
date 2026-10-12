@@ -107,7 +107,7 @@ export const uploadImages = createAsyncThunk(
         );
         dispatch(uploadStored(id));
         const { jobId } = await honouringRetryAfter(
-          () => createResizeJob(ticket.sourceKey, presets, signal),
+          () => createResizeJob(ticket.sourceKey, presets, id, signal),
           { onWait, onResume: () => dispatch(uploadStored(id)) },
           signal,
         );

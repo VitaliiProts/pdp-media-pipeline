@@ -5,7 +5,7 @@ import {
   type OnApplicationBootstrap,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { type StreamName, WORKER_MAX_DELIVER } from '@pdp/contracts';
+import { type StreamName } from '@pdp/contracts';
 import {
   ensurePullConsumer,
   ensureStreams,
@@ -50,7 +50,13 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
         putObject: (key, body, type) => this.storage.putObject(key, body, type),
         resize: (input, presets) => resizeImage(input, presets, { maxInputPixels }),
       },
-      { workerId: this.config.get('WORKER_ID', { infer: true }), maxDeliver: WORKER_MAX_DELIVER },
+      {
+        workerId: this.config.get('WORKER_ID', { infer: true }),
+        retry: {
+          baseMs: this.config.get('WORKER_RETRY_BASE_MS', { infer: true }),
+          maxMs: this.config.get('WORKER_RETRY_MAX_MS', { infer: true }),
+        },
+      },
     );
 
     const jsm = await this.nats.manager();
@@ -64,7 +70,8 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
       await ensurePullConsumer(jsm, {
         ...consumer,
         ackWaitMs: this.ackWaitMs,
-        maxDeliver: WORKER_MAX_DELIVER,
+        // Metadata decides when a job is out of attempts; NATS keeps redelivering until then.
+        maxDeliver: -1,
         maxAckPending: this.config.get('WORKER_MAX_ACK_PENDING', { infer: true }),
       });
       this.workers.push(
@@ -72,7 +79,11 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
           name: consumer.durable,
           consumer: await this.nats.jetstream.consumers.get(consumer.stream, consumer.durable),
           handler: (msg) =>
-            handler.handle({ data: msg.data, deliveryCount: msg.info.deliveryCount }),
+            handler.handle({
+              data: msg.data,
+              deliveryCount: msg.info.deliveryCount,
+              consumer: consumer.durable,
+            }),
           semaphore,
           heartbeatMs: this.ackWaitMs / 3,
         }),

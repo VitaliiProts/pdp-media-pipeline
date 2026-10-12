@@ -1,5 +1,6 @@
-export { jobsApi, type ListJobsArgs } from './api/jobs-api';
+export { jobsApi, type ListJobsArgs, useRedriveJobMutation } from './api/jobs-api';
 export {
+  type DeadReason,
   FILTERABLE_STATUSES,
   isTerminal,
   type Job,

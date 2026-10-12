@@ -21,6 +21,11 @@ export type JobStatus = z.infer<typeof JobStatusSchema>;
 
 export const TERMINAL_JOB_STATUSES: readonly JobStatus[] = ['succeeded', 'failed', 'dead'];
 
+/** Why a job is `dead`: retrying cannot help, or every allowed attempt failed. */
+export const DEAD_REASONS = ['permanent', 'exhausted'] as const;
+export const DeadReasonSchema = z.enum(DEAD_REASONS);
+export type DeadReason = z.infer<typeof DeadReasonSchema>;
+
 export const isTerminalStatus = (status: JobStatus): boolean =>
   TERMINAL_JOB_STATUSES.includes(status);
 

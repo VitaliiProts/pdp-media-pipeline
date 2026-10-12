@@ -1,3 +1,4 @@
+export * from './backoff';
 export * from './nats.module';
 export * from './nats.service';
 export * from './pull-worker';

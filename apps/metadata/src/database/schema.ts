@@ -1,4 +1,4 @@
-import { JOB_CLASSES, JOB_STATUSES, JOB_TYPES } from '@pdp/contracts';
+import { DEAD_REASONS, JOB_CLASSES, JOB_STATUSES, JOB_TYPES, type JobDto } from '@pdp/contracts';
 import { sql } from 'drizzle-orm';
 import {
   index,
@@ -20,6 +20,7 @@ const ts = (name: string) => timestamp(name, { withTimezone: true, precision: 3 
 export const jobStatus = pgEnum('job_status', JOB_STATUSES);
 export const jobClass = pgEnum('job_class', JOB_CLASSES);
 export const jobType = pgEnum('job_type', JOB_TYPES);
+export const deadReason = pgEnum('dead_reason', DEAD_REASONS);
 export const executionOutcome = pgEnum('execution_outcome', [
   'succeeded',
   'retry',
@@ -49,6 +50,9 @@ export const jobs = pgTable(
     input: jsonb('input').$type<Record<string, unknown>>().notNull(),
     output: jsonb('output').$type<Record<string, unknown>>(),
     attempts: integer('attempts').notNull().default(0),
+    /** Set to `attempts + 1` by a redrive; attempts at or below it belong to earlier generations. */
+    attemptBase: integer('attempt_base').notNull().default(0),
+    deadReason: deadReason('dead_reason'),
     lastError: text('last_error'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -124,6 +128,45 @@ export const outbox = pgTable(
     index('outbox_unpublished_idx')
       .on(t.createdAt)
       .where(sql`${t.publishedAt} is null`),
+  ],
+);
+
+/**
+ * Messages a worker has finished with, written in the transaction of the final transition.
+ * A redelivery of the same message is then recognised before any work is repeated.
+ */
+export const inbox = pgTable(
+  'inbox',
+  {
+    consumer: text('consumer').notNull(),
+    messageId: text('message_id').notNull(),
+    jobId: uuid('job_id')
+      .notNull()
+      .references(() => jobs.id),
+    processedAt: ts('processed_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.consumer, t.messageId] })],
+);
+
+/** `Idempotency-Key` of `POST /v1/jobs`, kept for a day. */
+export const idempotencyKeys = pgTable(
+  'idempotency_keys',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    key: text('key').notNull(),
+    requestHash: text('request_hash').notNull(),
+    jobId: uuid('job_id')
+      .notNull()
+      .references(() => jobs.id),
+    /** The response as first sent; a replay returns exactly this. */
+    response: jsonb('response').$type<JobDto>().notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.key] }),
+    index('idempotency_keys_created_idx').on(t.createdAt),
   ],
 );
 

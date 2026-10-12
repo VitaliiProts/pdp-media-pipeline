@@ -9,6 +9,7 @@ const job = (overrides: Partial<Job> = {}): Job => ({
   status: 'running',
   attempts: 1,
   lastError: null,
+  deadReason: null,
   createdAt: '2026-10-09T10:00:00.000Z',
   ...overrides,
 });

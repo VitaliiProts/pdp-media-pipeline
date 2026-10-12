@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IMAGE_PRESET_NAMES, type ImagePreset, JOB_STATUSES, type JobStatus } from '@pdp/contracts';
+import {
+  DEAD_REASONS,
+  type DeadReason,
+  IMAGE_PRESET_NAMES,
+  type ImagePreset,
+  JOB_STATUSES,
+  type JobStatus,
+} from '@pdp/contracts';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
@@ -106,6 +113,13 @@ export class JobResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   lastError!: string | null;
+
+  @ApiProperty({
+    enum: DEAD_REASONS,
+    nullable: true,
+    description: 'Why a dead job stopped: the input is unusable, or every attempt failed.',
+  })
+  deadReason!: DeadReason | null;
 
   @ApiProperty({ type: [JobResultDto], required: false })
   results?: JobResultDto[];

@@ -13,7 +13,11 @@ import { STREAMS, type StreamName } from '@pdp/contracts';
 const ns = (ms: number): number => ms * 1_000_000;
 
 const DUPLICATE_WINDOW_MS = 2 * 60_000;
-const EVENTS_MAX_AGE_MS = 7 * 24 * 60 * 60_000;
+const DAY_MS = 24 * 60 * 60_000;
+const MAX_AGE_MS: Partial<Record<StreamName, number>> = {
+  EVENTS: 7 * DAY_MS,
+  JOBS_DLQ: 14 * DAY_MS,
+};
 
 function streamConfig(name: StreamName): Partial<StreamConfig> & { name: string } {
   const def = STREAMS[name];
@@ -23,7 +27,7 @@ function streamConfig(name: StreamName): Partial<StreamConfig> & { name: string 
     retention: def.retention === 'workqueue' ? RetentionPolicy.Workqueue : RetentionPolicy.Limits,
     storage: StorageType.File,
     duplicate_window: ns(DUPLICATE_WINDOW_MS),
-    max_age: def.retention === 'limits' ? ns(EVENTS_MAX_AGE_MS) : 0,
+    max_age: ns(MAX_AGE_MS[name] ?? 0),
   };
 }
 
@@ -59,6 +63,7 @@ export interface PullConsumerConfig {
   durable: string;
   filterSubject?: string;
   ackWaitMs: number;
+  /** -1 for unlimited. */
   maxDeliver: number;
   maxAckPending: number;
 }

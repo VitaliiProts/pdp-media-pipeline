@@ -4,7 +4,7 @@
 кілька секунд бачить статус `succeeded` і посилання на готові розміри. Сервіси зв'язані через
 NATS JetStream, стан задач живе в PostgreSQL, файли в S3-сумісному сховищі (MinIO).
 
-Проєкт іде за PDP-планом з 10 етапів. Зараз готові **Етапи 0, 1 і 2**. Нижче описано, як усе
+Проєкт іде за PDP-планом з 10 етапів. Зараз готові **Етапи 0, 1, 2** і перша половина Етапу 3 (**3a, надійність**). Нижче описано, як усе
 працює, і як руками перевірити кожен етап.
 
 ## Як це працює
@@ -33,8 +33,9 @@ flowchart LR
 4. Worker бере повідомлення pull-консюмером, робить пресети WebP завширшки 200, 800 і 1600 px (менші оригінали не збільшуються),
    кладе їх у `results/{jobId}/{preset}.webp` і переводить задачу в `succeeded`.
    Кожна спроба пишеться в `job_executions`.
-5. Статуси: `queued → scheduled → running → succeeded | failed | dead`, переходи лише через
-   машину станів у Metadata.
+5. Статуси: `queued → scheduled → running → succeeded | dead`, переходи лише через
+   машину станів у Metadata. Невдача — це `dead` з причиною: `permanent` (файл непридатний) або
+   `exhausted` (усі спроби вичерпано).
 
 Захист від перевантаження (Етап 2):
 
@@ -46,6 +47,21 @@ flowchart LR
   відповідає на `POST /v1/jobs` кодом `503` з `Retry-After`. Класи ізольовані: забита черга CPU не
   блокує пріоритетні задачі.
 - **Web UI** показує `429` / `503` з відліком і сам повторює запит після `Retry-After`.
+
+Надійність (Етап 3a, [ADR-006](docs/adr/0006-idempotency-and-delivery.md),
+[ADR-007](docs/adr/0007-retries-and-dlq.md)):
+
+- **Idempotency-Key.** Повторний `POST /v1/jobs` з тим самим ключем протягом 24 год повертає ту
+  саму задачу із заголовком `Idempotent-Replayed: true`; той самий ключ з іншим тілом дає `422`,
+  а запит, поки перший ще виконується, отримує `409`.
+- **Inbox.** Metadata запам'ятовує оброблені повідомлення в тій самій транзакції, що й фінальний
+  статус. Повторна доставка після загубленого ack отримує `DUPLICATE_DELIVERY` і не обробляється.
+- **Ретраї.** Спроби рахує Metadata (`JOB_MAX_ATTEMPTS = 5`), затримка між ними — exponential
+  backoff з full jitter. Crash loop теж закінчується `dead / exhausted`.
+- **DLQ і redrive.** Кожна `dead`-задача потрапляє в стрім `JOBS_DLQ`;
+  `POST /v1/jobs/:id/redrive` (кнопка «Запустити знову» в UI) запускає її новим поколінням спроб.
+- **Метрики.** `/metrics` (Prometheus) на metadata, scheduler і worker:
+  `jobs_duplicates_total{source}`, `jobs_retries_total{type}`, `jobs_dlq_total{type,reason}`.
 
 ### Структура репозиторію
 
@@ -246,6 +262,65 @@ echo "$KEY"            # цей ключ вставляється у Web UI
 8. Документи: [ADR-005](docs/adr/0005-rate-limiting.md) (GCRA проти token bucket, fail-open),
    [план етапу](docs/plan/stage-2.md), [звіт](perf/reports/stage-2.md).
 
+### Етап 3a. Надійність
+
+**Критерій PDP:** задача не губиться і не виконується двічі з видимим ефектом, коли падає воркер;
+повторний `POST /jobs` з тим самим ключем не створює нової задачі; невдалі задачі видно в DLQ.
+
+Підготовка: `KEY` з розділу «Запуск» і хелпер для завантаження файлу.
+
+```bash
+up() { local UP=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+    -d "{\"contentType\":\"image/png\",\"size\":$(wc -c < $1 | tr -d ' ')}" localhost:18080/v1/uploads)
+  curl -s -X PUT -H 'content-type: image/png' --data-binary @$1 "$(jq -r .uploadUrl <<<"$UP")"
+  jq -r .sourceKey <<<"$UP"; }
+SRC=$(up perf/k6/fixtures/source.png)
+```
+
+1. Idempotency-Key — двічі `202` з тим самим `jobId`, друга відповідь з
+   `idempotent-replayed: true`; інше тіло з тим самим ключем — `422 IDEMPOTENCY_KEY_REUSED`:
+   ```bash
+   job() { curl -s -i -H "x-api-key: $KEY" -H 'content-type: application/json' -H 'idempotency-key: demo-1' \
+     -d "{\"type\":\"image.resize\",\"sourceKey\":\"$SRC\",\"presets\":[\"$1\"]}" localhost:18080/v1/jobs \
+     | grep -iE '^HTTP|idempotent|jobId|code'; }
+   job thumb; job thumb; job medium
+   ```
+2. Permanent-помилка → `dead` і DLQ:
+   ```bash
+   printf 'not a png' > /tmp/garbage.png
+   BAD=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"image.resize\",\"sourceKey\":\"$(up /tmp/garbage.png)\",\"presets\":[\"thumb\"]}" \
+     localhost:18080/v1/jobs | jq -r .jobId)
+   sleep 2; curl -s -H "x-api-key: $KEY" localhost:18080/v1/jobs/$BAD | jq -c '{status, deadReason, attempts, lastError}'
+   curl -s 'localhost:58222/jsz?streams=true' | jq -c '[.account_details[0].stream_detail[] | select(.name == "JOBS_DLQ") | .state.messages]'
+   ```
+   Очікувано: `"status":"dead","deadReason":"permanent","attempts":1` і `unreadable image` в
+   `lastError`; у `JOBS_DLQ` з'явилось повідомлення.
+3. Redrive — `dead`-задача стає `queued` з новим поколінням спроб (знову впаде як permanent,
+   але вже з `attempts` = 3); задача, що не в стані `dead`, — `409 NOT_REDRIVABLE`:
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "x-api-key: $KEY" localhost:18080/v1/jobs/$BAD/redrive   # 202
+   sleep 2; curl -s -H "x-api-key: $KEY" localhost:18080/v1/jobs/$BAD | jq -c '{status, deadReason, attempts}'
+   ```
+   У Web UI картка такої задачі показує «Цей файл неможливо обробити.» з текстом помилки і кнопку
+   «Запустити знову».
+4. Метрики (gateway їх не віддає назовні, `localhost:18080/metrics` — `404`):
+   ```bash
+   curl -s localhost:18081/metrics | grep '^jobs_'
+   ```
+   Очікувано: `jobs_dlq_total{type="image.resize",reason="permanent"}` з кількістю `dead`-задач.
+5. Падіння воркера посеред обробки, як в Етапі 1, п. 6: задачі доходять до «Done», а в
+   `job_executions` перервана спроба має `outcome = abandoned`.
+6. Інтеграційні тести етапу (`pnpm test:int`):
+   - `test/reliability.int-spec.ts`: crash loop → `dead / exhausted`; загублений ack після успіху →
+     inbox відкидає повторну доставку; збій S3 через TCP-проксі → ретраї з jitter →
+     `exhausted` → redrive → `succeeded`;
+   - `test/metadata.int-spec.ts`: Idempotency-Key — повтор, `422`, `409` при утриманому lock,
+     10 конкурентних запитів створюють одну задачу;
+   - `test/pipeline.int-spec.ts`: permanent → `dead` + запис у `JOBS_DLQ`, replay через gateway.
+7. Документи: [ADR-006](docs/adr/0006-idempotency-and-delivery.md),
+   [ADR-007](docs/adr/0007-retries-and-dlq.md), [план етапу](docs/plan/stage-3.md).
+
 ## Конфігурація Етапу 2
 
 Ліміти й пороги задаються через env gateway; у `docker-compose.yml` їх можна перевизначити
@@ -263,9 +338,18 @@ echo "$KEY"            # цей ключ вставляється у Web UI
 | `QUEUE_DEPTH_CACHE_MS`               | 1000             | Як довго кешується глибина черги                    |
 | `WORKER_MAX_ACK_PENDING` (worker)    | 256              | Спільний для всіх реплік ліміт повідомлень у роботі |
 
+## Конфігурація Етапу 3a
+
+| Змінна                             | За замовчуванням | Що робить                                          |
+| ---------------------------------- | ---------------- | -------------------------------------------------- |
+| `JOB_MAX_ATTEMPTS` (metadata)      | 5                | Скільки виконань може почати одне покоління задачі |
+| `IDEMPOTENCY_TTL_HOURS` (metadata) | 24               | Скільки живе `Idempotency-Key`                     |
+| `WORKER_RETRY_BASE_MS` (worker)    | 1000             | База backoff між спробами                          |
+| `WORKER_RETRY_MAX_MS` (worker)     | 60000            | Стеля backoff                                      |
+
 ## Документація
 
-- Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md)
+- Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md)
 - ADR: [docs/adr](docs/adr/README.md)
 - Спайк JetStream проти BullMQ: [docs/spikes](docs/spikes/01-jetstream-vs-bullmq.md)
 - Звіти навантаження: [perf/reports](perf/reports/stage-2.md)

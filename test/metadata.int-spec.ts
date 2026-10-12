@@ -28,11 +28,13 @@ describe('metadata (Postgres + NATS)', () => {
   });
 
   const createJob = () =>
-    client.createJob({
-      userId,
-      type: 'image.resize',
-      input: { sourceKey: `uploads/${userId}/a.png`, presets: ['thumb'] },
-    });
+    client
+      .createJob({
+        userId,
+        type: 'image.resize',
+        input: { sourceKey: `uploads/${userId}/a.png`, presets: ['thumb'] },
+      })
+      .then((r) => r.job);
 
   it('applies a transition exactly once under concurrent identical calls', async () => {
     const job = await createJob();
@@ -104,5 +106,69 @@ describe('metadata (Postgres + NATS)', () => {
       JobCreatedV1.parse(e),
     );
     expect(events.filter((e) => e.payload.jobId === job.id)).toHaveLength(1);
+  });
+
+  describe('Idempotency-Key', () => {
+    const request = (key: string, presets: ['thumb'] | ['medium'] = ['thumb']) => ({
+      userId,
+      type: 'image.resize' as const,
+      input: { sourceKey: `uploads/${userId}/a.png`, presets },
+      idempotency: { key, requestHash: (presets[0] === 'thumb' ? 'a' : 'b').repeat(64) },
+    });
+    const jobsWithKey = (key: string) =>
+      pool
+        .query<{ job_id: string }>('select job_id from idempotency_keys where key = $1', [key])
+        .then((r) => r.rows);
+
+    it('replays the stored response for a repeated request', async () => {
+      const first = await client.createJob(request('replay'));
+      const second = await client.createJob(request('replay'));
+      expect(first.replayed).toBe(false);
+      expect(second).toEqual({ job: first.job, replayed: true });
+      expect(await jobsWithKey('replay')).toEqual([{ job_id: first.job.id }]);
+    });
+
+    it('rejects the same key with a different body', async () => {
+      await client.createJob(request('reused'));
+      await expect(client.createJob(request('reused', ['medium']))).rejects.toMatchObject({
+        status: 422,
+        code: 'IDEMPOTENCY_KEY_REUSED',
+      });
+    });
+
+    it('answers 409 while another request holds the key', async () => {
+      const holder = await pool.connect();
+      try {
+        await holder.query('begin');
+        await holder.query('select pg_advisory_xact_lock(hashtextextended($1, 0))', [
+          `${userId}:busy`,
+        ]);
+        await expect(client.createJob(request('busy'))).rejects.toMatchObject({
+          status: 409,
+          code: 'IDEMPOTENCY_KEY_IN_PROGRESS',
+        });
+      } finally {
+        await holder.query('rollback');
+        holder.release();
+      }
+      await expect(client.createJob(request('busy'))).resolves.toMatchObject({ replayed: false });
+    });
+
+    it('creates one job for concurrent requests with the same key', async () => {
+      const outcomes = await Promise.allSettled(
+        Array.from({ length: 10 }, () => client.createJob(request('race'))),
+      );
+      const created = outcomes.flatMap((o) =>
+        o.status === 'fulfilled' && !o.value.replayed ? [o.value.job.id] : [],
+      );
+      expect(created).toHaveLength(1);
+      for (const o of outcomes) {
+        if (o.status === 'rejected') {
+          expect(o.reason).toMatchObject({ code: 'IDEMPOTENCY_KEY_IN_PROGRESS' });
+        } else {
+          expect(o.value.job.id).toBe(created[0]);
+        }
+      }
+    });
   });
 });

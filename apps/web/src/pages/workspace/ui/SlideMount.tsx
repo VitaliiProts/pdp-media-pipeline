@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type JobResult } from '../../../features/jobs';
 import { IMAGE_PRESETS, type ImagePreset, PRESET_LABEL_KEY } from '../../../features/upload';
@@ -14,6 +14,8 @@ type SlideMountProps = {
   attempts: number;
   results: readonly JobResult[];
   onDismiss?: () => void;
+  /** Extra controls under the caption, e.g. a redrive button. */
+  action?: ReactNode;
 };
 
 const isPreset = (value: string): value is ImagePreset =>
@@ -26,6 +28,7 @@ export function SlideMount({
   attempts,
   results,
   onDismiss,
+  action,
 }: SlideMountProps) {
   const { t, i18n } = useTranslation(['workspace', 'jobs', 'upload']);
   const { tone, label, progress, retryAt, problem } = description;
@@ -92,6 +95,8 @@ export function SlideMount({
             ))}
           </ul>
         )}
+
+        {action}
 
         {onDismiss && (
           <button type="button" className={styles.dismiss} onClick={onDismiss}>

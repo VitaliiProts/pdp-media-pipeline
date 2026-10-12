@@ -1,6 +1,7 @@
 export * from './api-key';
 export * from './envelope';
 export * from './events';
+export * from './idempotency';
 export * from './image-resize';
 export * from './job-class';
 export * from './jobs';
