@@ -58,6 +58,8 @@ const error = (code: MetadataErrorBody['code'], message: string): MetadataErrorB
 type AppliedDecision = Extract<Decision, { kind: 'apply' }>;
 type Idempotency = NonNullable<CreateJobRequest['idempotency']>;
 
+const seconds = (from: Date, to: Date) => Math.max(0, (to.getTime() - from.getTime()) / 1000);
+
 @Injectable()
 export class JobsService {
   private readonly policy: RetryPolicy;
@@ -82,7 +84,7 @@ export class JobsService {
       throw new BadRequestException(error('VALIDATION_FAILED', z.prettifyError(input.error)));
     }
 
-    return this.pg.db.transaction(async (tx) => {
+    const created = await this.pg.db.transaction(async (tx) => {
       if (req.idempotency) {
         const replay = await this.claimIdempotencyKey(tx, req.userId, req.idempotency);
         if (replay) return { job: replay, replayed: true };
@@ -108,6 +110,8 @@ export class JobsService {
       }
       return { job: dto, replayed: false };
     });
+    if (!created.replayed) jobMetrics.created(created.job.type);
+    return created;
   }
 
   /**
@@ -219,7 +223,7 @@ export class JobsService {
         );
 
       if (!existing && req.inbox && (await this.inInbox(tx, req.inbox))) {
-        jobMetrics.duplicates.inc({ source: 'inbox' });
+        jobMetrics.duplicate('inbox');
         throw new ConflictException(
           error('DUPLICATE_DELIVERY', `message ${req.inbox.messageId} was already processed`),
         );
@@ -229,8 +233,9 @@ export class JobsService {
         .select({ n: count() })
         .from(jobExecutions)
         .where(and(eq(jobExecutions.jobId, id), gt(jobExecutions.attempt, job.attemptBase)));
+      const startedInGeneration = started?.n ?? 0;
       const decision = decide(
-        { ...job, startedInGeneration: started?.n ?? 0 },
+        { ...job, startedInGeneration },
         req,
         existing !== undefined,
         this.policy,
@@ -238,7 +243,7 @@ export class JobsService {
       if (decision.kind === 'reject') {
         throw new ConflictException(error(decision.code, decision.message));
       }
-      if (decision.kind === 'noop') return { applied: false, job, decision };
+      if (decision.kind === 'noop') return { applied: false as const, job };
 
       const updated = await this.applyEffect(tx, job, req, decision);
       await tx.insert(jobTransitions).values({
@@ -282,20 +287,31 @@ export class JobsService {
         );
       }
       // Deliveries do not notify about themselves, or a failing endpoint would feed itself.
+      let deliveries = 0;
       if (
         isMediaJobType(updated.type) &&
         (decision.effect === 'succeed' || decision.effect === 'dead')
       ) {
-        await this.webhooks.enqueueDeliveries(
+        deliveries = await this.webhooks.enqueueDeliveries(
           tx,
           updated,
           decision.effect === 'succeed' ? 'job.succeeded' : 'job.dead',
         );
       }
-      return { applied: true, job: updated, decision };
+      return {
+        applied: true as const,
+        job: updated,
+        decision,
+        before: job,
+        startedInGeneration,
+        deliveries,
+      };
     });
 
-    if (result.decision.kind === 'apply') this.countEffect(result.job, result.decision);
+    if (result.applied) {
+      this.countEffect(result.before, result.job, result.decision, result.startedInGeneration);
+      if (result.deliveries > 0) jobMetrics.created('webhook.deliver', result.deliveries);
+    }
     return { applied: result.applied, job: toJobDto(result.job) };
   }
 
@@ -383,10 +399,32 @@ export class JobsService {
     return row !== undefined;
   }
 
-  private countEffect(job: JobRow, decision: AppliedDecision): void {
-    if (decision.effect === 'retry') jobMetrics.retries.inc({ type: job.type });
-    if (decision.effect === 'dead' && decision.deadReason) {
-      jobMetrics.deadLettered.inc({ type: job.type, reason: decision.deadReason });
+  /** Runs after commit, so a rolled back transition is not counted. */
+  private countEffect(
+    before: JobRow,
+    job: JobRow,
+    decision: AppliedDecision,
+    startedInGeneration: number,
+  ): void {
+    switch (decision.effect) {
+      case 'start':
+        // Later attempts would add the retry backoff to the wait.
+        if (startedInGeneration === 0) {
+          jobMetrics.queueWait(job, seconds(before.updatedAt, job.updatedAt));
+        }
+        break;
+      case 'retry':
+        jobMetrics.retry(job.type);
+        break;
+      case 'succeed':
+      case 'dead': {
+        const reason = decision.deadReason ?? 'permanent';
+        if (decision.effect === 'dead') jobMetrics.deadLettered(job.type, reason);
+        const e2e =
+          job.attemptBase === 0 && job.finishedAt ? seconds(job.createdAt, job.finishedAt) : null;
+        jobMetrics.finished(job, decision.effect === 'succeed' ? 'succeeded' : reason, e2e);
+        break;
+      }
     }
   }
 

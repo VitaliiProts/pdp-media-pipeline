@@ -6,8 +6,11 @@ import { createReceiver, type ReceivedDelivery } from './receiver';
 let server: Server;
 let base: string;
 
+const logged: string[] = [];
+
 beforeEach(async () => {
-  server = createReceiver();
+  logged.length = 0;
+  server = createReceiver({ log: (line) => logged.push(line) });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -36,6 +39,10 @@ describe('webhook receiver', () => {
     ['/unknown', 404],
   ])('%s answers %i', async (path, status) => {
     expect((await post(path)).status).toBe(status);
+  });
+
+  it('answers GET the same way, for use as a source URL', async () => {
+    expect((await fetch(`${base}/fail`)).status).toBe(500);
   });
 
   it('fails the first N attempts of each webhook-id on /flaky', async () => {
@@ -81,6 +88,33 @@ describe('webhook receiver', () => {
     expect((await deliveries(generateWebhookSecret()))[0]?.signatureValid).toBe(false);
 
     await fetch(`${base}/deliveries`, { method: 'DELETE' });
+    expect(await deliveries()).toEqual([]);
+  });
+
+  it('logs and lists alerts from Alertmanager', async () => {
+    const notification = {
+      status: 'firing',
+      alerts: [
+        {
+          status: 'firing',
+          labels: { alertname: 'JobSloBurnRateFast', type: 'image.resize' },
+          annotations: { summary: 'burning' },
+          startsAt: '2026-10-12T10:00:00Z',
+        },
+      ],
+    };
+    const res = await fetch(`${base}/alerts`, {
+      method: 'POST',
+      body: JSON.stringify(notification),
+    });
+    expect(res.status).toBe(200);
+    expect(logged).toEqual(['alert firing: alertname=JobSloBurnRateFast type=image.resize']);
+
+    const listed = await fetch(`${base}/alerts`).then((r) => r.json());
+    expect(listed).toEqual({
+      items: [{ ...notification.alerts[0], receivedAt: expect.any(String) as string }],
+    });
+    // Webhook traffic must not push alerts out of a shared buffer.
     expect(await deliveries()).toEqual([]);
   });
 });

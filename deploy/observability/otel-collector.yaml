@@ -21,6 +21,13 @@ processors:
       - { key: process.command_args, action: delete }
       - { key: process.executable.path, action: delete }
       - { key: process.owner, action: delete }
+  # VictoriaMetrics turns every resource attribute into a label. Only these name a series:
+  # with the pid or runtime version in it, every restart would start new series.
+  transform/metrics:
+    metric_statements:
+      - context: resource
+        statements:
+          - keep_keys(attributes, ["service.name", "deployment.environment.name", "host.name"])
 
 exporters:
   otlp_grpc/tempo:
@@ -32,6 +39,8 @@ exporters:
     headers:
       # One log stream per service; everything else stays a regular, searchable field.
       VL-Stream-Fields: service.name,deployment.environment.name
+  otlp_http/victoriametrics:
+    metrics_endpoint: http://victoriametrics:8428/opentelemetry/v1/metrics
 
 extensions:
   health_check:
@@ -48,3 +57,7 @@ service:
       receivers: [otlp]
       processors: [memory_limiter, resource/slim, batch]
       exporters: [otlp_http/victorialogs]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/metrics, batch]
+      exporters: [otlp_http/victoriametrics]

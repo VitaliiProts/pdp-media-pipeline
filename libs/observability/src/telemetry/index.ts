@@ -2,6 +2,7 @@ import { type Context, type TextMapPropagator } from '@opentelemetry/api';
 import { BaggageSpanProcessor } from '@opentelemetry/baggage-span-processor';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-proto';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-proto';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
 import { type Instrumentation } from '@opentelemetry/instrumentation';
 import { AwsInstrumentation } from '@opentelemetry/instrumentation-aws-sdk';
@@ -10,9 +11,11 @@ import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis';
 import { NestInstrumentation } from '@opentelemetry/instrumentation-nestjs-core';
 import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
 import { PinoInstrumentation } from '@opentelemetry/instrumentation-pino';
+import { RuntimeNodeInstrumentation } from '@opentelemetry/instrumentation-runtime-node';
 import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
@@ -28,7 +31,7 @@ export interface TelemetryOptions {
   edge?: boolean;
 }
 
-const NOISY_PATHS = /^\/(health|metrics)\b/;
+const NOISY_PATHS = /^\/health\b/;
 
 /** Injects like W3C trace context, but never takes context from the caller. */
 class OutboundOnlyPropagator implements TextMapPropagator {
@@ -39,10 +42,21 @@ class OutboundOnlyPropagator implements TextMapPropagator {
   fields = (): string[] => this.inner.fields();
 }
 
+/** Exports to the collector would otherwise show up in the HTTP client metrics. */
+function collectorHost(): string | undefined {
+  try {
+    return new URL(process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4318').hostname;
+  } catch {
+    return undefined;
+  }
+}
+
 function instrumentations(): Instrumentation[] {
+  const collector = collectorHost();
   return [
     new HttpInstrumentation({
       ignoreIncomingRequestHook: (req) => NOISY_PATHS.test(req.url ?? ''),
+      ignoreOutgoingRequestHook: (req) => (req.hostname ?? req.host) === collector,
       requireParentforOutgoingSpans: true,
     }),
     // Background loops (outbox polling, readiness pings) would otherwise start a root
@@ -53,6 +67,7 @@ function instrumentations(): Instrumentation[] {
     new AwsInstrumentation({ suppressInternalInstrumentation: true }),
     new PinoInstrumentation(),
     new NestInstrumentation(),
+    new RuntimeNodeInstrumentation(),
   ];
 }
 
@@ -67,6 +82,12 @@ let sdk: NodeSDK | undefined;
 export function startTelemetry({ serviceName, edge = false }: TelemetryOptions): void {
   if (sdk || process.env.OTEL_SDK_DISABLED === 'true') return;
   sdk = new NodeSDK({
+    metricReaders: [
+      new PeriodicExportingMetricReader({
+        exporter: new OTLPMetricExporter(),
+        exportIntervalMillis: Number(process.env.OTEL_METRIC_EXPORT_INTERVAL ?? 15_000),
+      }),
+    ],
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: serviceName,
       [ATTR_SERVICE_VERSION]: process.env.SERVICE_VERSION ?? 'dev',
@@ -83,7 +104,7 @@ export function startTelemetry({ serviceName, edge = false }: TelemetryOptions):
   sdk.start();
 }
 
-/** Flushes buffered spans and logs; called on application shutdown. */
+/** Flushes buffered spans, logs and metrics; called on application shutdown. */
 export async function shutdownTelemetry(): Promise<void> {
   const running = sdk;
   sdk = undefined;

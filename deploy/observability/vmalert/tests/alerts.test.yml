@@ -1,0 +1,102 @@
+# pnpm alerts:test — vmalert-tool feeds these series through the real rules.
+rule_files:
+  - ../rules/slo.yml
+  - ../rules/alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # 60 images a minute, 30% of them exhausted: both windows burn at 30x the budget.
+  # 100 permanent failures a minute would dilute that to 11% if they counted.
+  - name: fast burn on image.resize, permanent failures left out
+    interval: 1m
+    input_series:
+      - series: 'job_e2e_duration_seconds_bucket{type="image.resize",outcome="succeeded",le="300"}'
+        values: '0+42x70'
+      - series: 'job_e2e_duration_seconds_count{type="image.resize",outcome="succeeded"}'
+        values: '0+42x70'
+      - series: 'job_e2e_duration_seconds_count{type="image.resize",outcome="exhausted"}'
+        values: '0+18x70'
+      - series: 'job_e2e_duration_seconds_count{type="image.resize",outcome="permanent"}'
+        values: '0+100x70'
+    alert_rule_test:
+      - eval_time: 70m
+        groupname: job-alerts
+        alertname: JobSloBurnRateFast
+        exp_alerts:
+          - exp_labels: { type: image.resize, severity: page }
+            exp_annotations:
+              summary: 'image.resize: error budget burns over 14.4x (1h and 5m)'
+              description: >-
+                At this rate the 30-day budget is gone in about two days. Slow and failed jobs
+                are on the SLO and Overview dashboards; their traces are one click away.
+    metricsql_expr_test:
+      - expr: job:slo_burn_rate:rate1h
+        eval_time: 70m
+        exp_samples:
+          - labels: 'job:slo_burn_rate:rate1h{type="image.resize"}'
+            value: 30
+
+  # Videos slower than 5 minutes count against the SLO even though they succeeded:
+  # 40% slow is 8x the 5% budget, a ticket but not a page.
+  - name: slow burn on video.frames from latency alone
+    interval: 5m
+    input_series:
+      - series: 'job_e2e_duration_seconds_bucket{type="video.frames",outcome="succeeded",le="300"}'
+        values: '0+6x90'
+      - series: 'job_e2e_duration_seconds_count{type="video.frames",outcome="succeeded"}'
+        values: '0+10x90'
+    alert_rule_test:
+      - eval_time: 7h
+        groupname: job-alerts
+        alertname: JobSloBurnRateSlow
+        exp_alerts:
+          - exp_labels: { type: video.frames, severity: ticket }
+            exp_annotations:
+              summary: 'video.frames: error budget burns over 6x (6h and 30m)'
+              description: At this rate the 30-day budget is gone in about five days.
+      - eval_time: 7h
+        groupname: job-alerts
+        alertname: JobSloBurnRateFast
+        exp_alerts: []
+
+  # 2% of images dead-lettered alerts; every one of a handful of videos does not.
+  - name: dead letter share above 1% with enough volume
+    interval: 1m
+    input_series:
+      - series: 'jobs_dlq_total{type="image.resize",reason="exhausted"}'
+        values: '0+1x30'
+      - series: 'jobs_finished_total{type="image.resize",class="cpu",outcome="succeeded"}'
+        values: '0+49x30'
+      - series: 'jobs_finished_total{type="image.resize",class="cpu",outcome="exhausted"}'
+        values: '0+1x30'
+      - series: 'jobs_dlq_total{type="video.frames",reason="permanent"}'
+        values: '0+1x30'
+      - series: 'jobs_finished_total{type="video.frames",class="cpu",outcome="permanent"}'
+        values: '0+1x30'
+    alert_rule_test:
+      - eval_time: 30m
+        groupname: job-alerts
+        alertname: JobDeadLetterShareHigh
+        exp_alerts:
+          - exp_labels: { type: image.resize, severity: ticket }
+            exp_annotations:
+              summary: 'image.resize: over 1% of finished jobs went to the DLQ (15m)'
+              description: Reasons are in jobs_dlq_total{reason}; the jobs can be redriven from the UI.
+
+  - name: backlog over 100 and growing
+    interval: 1m
+    input_series:
+      - series: 'nats_consumer_pending{stream="JOBS_CPU",consumer="worker-cpu",service_name="scheduler"}'
+        values: '0+10x30'
+      - series: 'nats_consumer_pending{stream="JOBS_IO",consumer="worker-io",service_name="scheduler"}'
+        values: '500x30'
+    alert_rule_test:
+      - eval_time: 30m
+        groupname: job-alerts
+        alertname: JobQueueGrowing
+        exp_alerts:
+          - exp_labels: { stream: JOBS_CPU, consumer: worker-cpu, severity: ticket }
+            exp_annotations:
+              summary: 'JOBS_CPU/worker-cpu: backlog over 100 and growing'
+              description: See the Queues dashboard; the gateway starts answering 503 at its backpressure limit.

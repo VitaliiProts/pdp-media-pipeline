@@ -35,3 +35,25 @@ datasources:
           url: '$${__value.raw}'
           urlDisplayLabel: View trace
           datasourceUid: tempo
+
+  # Prometheus-compatible API; the rules and alerts of vmalert come through it as well.
+  - name: VictoriaMetrics
+    uid: victoriametrics
+    type: prometheus
+    access: proxy
+    url: http://victoriametrics:8428
+    jsonData:
+      prometheusType: Prometheus
+      # The SDK exports every 15 s; a shorter step only repeats points.
+      timeInterval: 15s
+      manageAlerts: true
+      alertmanagerUid: alertmanager
+
+  - name: Alertmanager
+    uid: alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false

@@ -1,0 +1,51 @@
+# `severity: page` wakes someone up, `severity: ticket` can wait for working hours.
+# Alertmanager sends both to webhook-receiver in the compose stack.
+groups:
+  - name: job-alerts
+    interval: 15s
+    rules:
+      # Multi-window, multi-burn-rate: the long window proves the burn is significant,
+      # the short one that it is still going on, so the alert resolves soon after a fix.
+      - alert: JobSloBurnRateFast
+        expr: job:slo_burn_rate:rate1h > 14.4 and job:slo_burn_rate:rate5m > 14.4
+        for: 1m
+        labels: { severity: page }
+        annotations:
+          summary: '{{ $labels.type }}: error budget burns over 14.4x (1h and 5m)'
+          description: >-
+            At this rate the 30-day budget is gone in about two days. Slow and failed jobs
+            are on the SLO and Overview dashboards; their traces are one click away.
+
+      - alert: JobSloBurnRateSlow
+        expr: job:slo_burn_rate:rate6h > 6 and job:slo_burn_rate:rate30m > 6
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: '{{ $labels.type }}: error budget burns over 6x (6h and 30m)'
+          description: At this rate the 30-day budget is gone in about five days.
+
+      # At least 20 finished jobs, so one bad file in a quiet hour does not alert.
+      - alert: JobDeadLetterShareHigh
+        expr: |
+          (
+            sum by (type) (increase(jobs_dlq_total[15m]))
+            /
+            sum by (type) (increase(jobs_finished_total[15m]))
+          ) > 0.01
+          and sum by (type) (increase(jobs_finished_total[15m])) >= 20
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: '{{ $labels.type }}: over 1% of finished jobs went to the DLQ (15m)'
+          description: Reasons are in jobs_dlq_total{reason}; the jobs can be redriven from the UI.
+
+      # Messages no consumer has picked up yet: workers down, too slow, or out of slots.
+      - alert: JobQueueGrowing
+        expr: |
+          max by (stream, consumer) (nats_consumer_pending) > 100
+          and max by (stream, consumer) (deriv(nats_consumer_pending[5m])) > 0
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: '{{ $labels.stream }}/{{ $labels.consumer }}: backlog over 100 and growing'
+          description: See the Queues dashboard; the gateway starts answering 503 at its backpressure limit.

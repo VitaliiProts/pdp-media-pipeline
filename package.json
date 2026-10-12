@@ -15,6 +15,7 @@
     "format:check": "prettier --check .",
     "depcruise": "depcruise apps libs --config .dependency-cruiser.cjs",
     "helm:lint": "for c in deploy/helm/*/; do helm lint \"$c\" || exit 1; done",
+    "alerts:test": "docker run --rm -v \"$PWD/deploy/observability/vmalert:/vmalert:ro\" victoriametrics/vmalert-tool:v1.154.0 unittest --files=/vmalert/tests/alerts.test.yml",
     "stack:up": "docker compose up -d --build --wait",
     "stack:down": "docker compose down",
     "prepare": "husky",

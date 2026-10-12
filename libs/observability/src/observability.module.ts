@@ -33,7 +33,7 @@ export class ObservabilityModule {
                 base: { service: serviceName },
                 mixin: jobLogFields,
                 redact: ['req.headers.authorization', 'req.headers["x-api-key"]'],
-                autoLogging: { ignore: (req) => /^\/(health|metrics)\b/.test(req.url ?? '') },
+                autoLogging: { ignore: (req) => /^\/health\b/.test(req.url ?? '') },
                 transport: pretty
                   ? { target: 'pino-pretty', options: { singleLine: true } }
                   : undefined,

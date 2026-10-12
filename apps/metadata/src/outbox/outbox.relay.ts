@@ -62,7 +62,7 @@ export class OutboxRelay implements OnApplicationBootstrap, BeforeApplicationShu
         const ack = await withStoredTraceContext(row.traceContext, () =>
           this.nats.publishJson(row.subject, row.payload, row.id),
         );
-        if (ack.duplicate) jobMetrics.duplicates.inc({ source: 'outbox' });
+        if (ack.duplicate) jobMetrics.duplicate('outbox');
       }
       await tx
         .update(outbox)

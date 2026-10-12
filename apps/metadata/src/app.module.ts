@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
-import { HealthModule, MetricsModule, ObservabilityModule } from '@pdp/observability';
+import { HealthModule, ObservabilityModule } from '@pdp/observability';
 import { AuthController } from './auth/auth.controller';
 import { envSchema } from './config';
 import { DatabaseModule } from './database/database.module';
@@ -17,7 +17,6 @@ import { WebhooksService } from './webhooks/webhooks.service';
   imports: [
     createConfigModule(envSchema),
     ObservabilityModule.forRoot('metadata'),
-    MetricsModule,
     DatabaseModule,
     NatsModule.forRoot('metadata'),
     HealthModule.forRootAsync({

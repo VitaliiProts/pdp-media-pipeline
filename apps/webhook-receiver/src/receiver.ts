@@ -39,6 +39,31 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+export interface ReceivedAlert {
+  receivedAt: string;
+  status: string;
+  labels: Record<string, string>;
+  annotations: Record<string, string>;
+  startsAt: string | null;
+}
+
+/** The alerts of one Alertmanager webhook notification; nothing when the body is not one. */
+function parseAlerts(body: string): ReceivedAlert[] {
+  const receivedAt = new Date().toISOString();
+  try {
+    const notification = JSON.parse(body) as { alerts?: Partial<ReceivedAlert>[] };
+    return (notification.alerts ?? []).map((alert) => ({
+      receivedAt,
+      status: alert.status ?? 'unknown',
+      labels: alert.labels ?? {},
+      annotations: alert.annotations ?? {},
+      startsAt: alert.startsAt ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body));
 }
@@ -52,12 +77,19 @@ function json(res: ServerResponse, status: number, body: unknown): void {
  * - `POST /status/<code>` answers that status, e.g. 410 for a permanent failure;
  * - `POST /slow?ms=15000` waits before answering 200;
  * - `POST /drop` closes the connection without an answer;
- * - `POST /flaky?failures=2` answers 500 to the first N attempts of each `webhook-id`.
+ * - `POST /flaky?failures=2` answers 500 to the first N attempts of each `webhook-id`;
+ * - `POST /alerts` takes Alertmanager notifications and logs each alert.
+ *
+ * The same paths answer `GET`, so they also work as a failing `sourceUrl` of a job.
  *
  * `GET /deliveries?secret=whsec_…` lists what arrived, newest first, with a signature check.
+ * `GET /alerts` lists the alerts from Alertmanager notifications, newest first.
  */
-export function createReceiver(): http.Server {
+export function createReceiver({
+  log = (line: string) => console.log(line),
+}: { log?: (line: string) => void } = {}): http.Server {
   const deliveries: ReceivedDelivery[] = [];
+  const alerts: ReceivedAlert[] = [];
   const attemptsById = new Map<string, number>();
 
   return http.createServer((req, res) => {
@@ -83,13 +115,31 @@ export function createReceiver(): http.Server {
         })),
       });
     }
+    if (req.method === 'GET' && path === '/alerts') return json(res, 200, { items: alerts });
+    // Kept apart from deliveries, so webhook traffic under load does not push alerts out.
+    if (req.method === 'POST' && path === '/alerts') {
+      void readBody(req).then(
+        (body) => {
+          for (const alert of parseAlerts(body)) {
+            const labels = Object.entries(alert.labels).map(([k, v]) => `${k}=${v}`);
+            log(`alert ${alert.status}: ${labels.join(' ')}`);
+            alerts.unshift(alert);
+          }
+          alerts.length = Math.min(alerts.length, MAX_KEPT);
+          res.writeHead(200).end();
+        },
+        () => res.destroy(),
+      );
+      return;
+    }
     if (req.method === 'DELETE' && path === '/deliveries') {
       deliveries.length = 0;
       attemptsById.clear();
       res.writeHead(204).end();
       return;
     }
-    if (req.method !== 'POST') return json(res, 404, { error: 'not found' });
+    if (req.method !== 'POST' && req.method !== 'GET')
+      return json(res, 404, { error: 'not found' });
 
     void readBody(req).then(
       (body) => {

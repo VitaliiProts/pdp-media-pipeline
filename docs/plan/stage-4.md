@@ -1,7 +1,7 @@
 # Етап 4. Observability
 
 - Тижні 11–12: 21 грудня 2026 – 3 січня 2027
-- Статус: в роботі. Етап розбито на два PR:
+- Статус: готово. Етап розбито на два PR:
   - **4a «Трейси і логи»**, гілка `feature/stage-4a-tracing-logs`;
   - **4b «Метрики, дашборди, SLO і алерти»**, після мерджу 4a.
 
@@ -62,10 +62,10 @@
 
 ### 4b. Метрики, дашборди, SLO і алерти
 
-- [ ] Метрики на OTel SDK замість `prom-client`; VictoriaMetrics у compose.
-- [ ] `job_e2e_duration_seconds`, `job_queue_wait_seconds`, throughput, error rate, retries, DLQ, duplicates, глибина кожного стріму, `http_server_duration` для API.
-- [ ] Дашборди як код: Overview, SLO, Queues, Per-service; data links з latency у трейси й логи.
-- [ ] SLO: `image.resize` 99% < 5 хв, `video.frames` 95% < 5 хв (ADR-008); error budget на дашборді.
-- [ ] `vmalert`: recording-правила, burn-rate алерти, DLQ > 1%, ріст черги; Alertmanager → `webhook-receiver`.
-- [ ] k6-сценарій для демо, що наповнює дашборди і викликає burn-rate алерт.
-- [ ] README: як знайти трейс і логи за `jobId`, де дивитись SLO і алерти.
+- [x] Метрики на OTel SDK замість `prom-client`; VictoriaMetrics у compose.
+- [x] `job_e2e_duration_seconds`, `job_queue_wait_seconds`, throughput, error rate, retries, DLQ, duplicates, глибина кожного стріму, `http_server_duration` для API (за semconv — `http_server_request_duration_seconds`).
+- [x] Дашборди як код: Overview, SLO, Queues, Per-service; data links з latency у трейси й логи.
+- [x] SLO: `image.resize` 99% < 5 хв, `video.frames` 95% < 5 хв (ADR-008); error budget на дашборді.
+- [x] `vmalert`: recording-правила, burn-rate алерти, DLQ > 1%, ріст черги; Alertmanager → `webhook-receiver`.
+- [x] k6-сценарій для демо, що наповнює дашборди і викликає burn-rate алерт.
+- [x] README: як знайти трейс і логи за `jobId`, де дивитись SLO і алерти.
