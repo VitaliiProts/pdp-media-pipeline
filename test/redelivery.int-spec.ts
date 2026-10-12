@@ -40,7 +40,7 @@ describe('redelivery after a lost ack', () => {
     await jetstreamManager(nc).then((jsm) =>
       jsm.consumers.add('JOBS_CPU', {
         durable_name: 'worker-cpu',
-        filter_subject: 'jobs.cpu.>',
+        filter_subject: 'jobs.cpu.image.resize',
         ack_policy: AckPolicy.Explicit,
         ack_wait: ACK_WAIT_MS * 1_000_000,
         max_deliver: -1,

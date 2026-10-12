@@ -14,7 +14,12 @@ import { ApiKeyGuard, UserId } from '../auth/api-key.guard';
 import { type Env } from '../config';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { StorageService } from '../storage/storage.service';
-import { CreateUploadDto, type UploadContentType, UploadResponseDto } from './uploads.dto';
+import {
+  CreateUploadDto,
+  isVideoContentType,
+  type UploadContentType,
+  UploadResponseDto,
+} from './uploads.dto';
 
 export const UPLOAD_URL_TTL_S = 10 * 60;
 
@@ -22,6 +27,9 @@ const EXTENSIONS: Record<UploadContentType, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
 };
 
 @ApiTags('uploads')
@@ -30,13 +38,15 @@ const EXTENSIONS: Record<UploadContentType, string> = {
 @UseGuards(ApiKeyGuard, RateLimitGuard)
 @Controller('v1/uploads')
 export class UploadsController {
-  private readonly maxBytes: number;
+  private readonly maxImageBytes: number;
+  private readonly maxVideoBytes: number;
 
   constructor(
     private readonly storage: StorageService,
     config: ConfigService<Env, true>,
   ) {
-    this.maxBytes = config.get('MAX_UPLOAD_BYTES', { infer: true });
+    this.maxImageBytes = config.get('MAX_UPLOAD_BYTES', { infer: true });
+    this.maxVideoBytes = config.get('MAX_VIDEO_UPLOAD_BYTES', { infer: true });
   }
 
   @Post()
@@ -46,8 +56,9 @@ export class UploadsController {
     @UserId() userId: string,
     @Body() body: CreateUploadDto,
   ): Promise<UploadResponseDto> {
-    if (body.size > this.maxBytes) {
-      throw new PayloadTooLargeException(`file exceeds ${this.maxBytes} bytes`);
+    const maxBytes = isVideoContentType(body.contentType) ? this.maxVideoBytes : this.maxImageBytes;
+    if (body.size > maxBytes) {
+      throw new PayloadTooLargeException(`file exceeds ${maxBytes} bytes`);
     }
     const sourceKey = `${uploadKeyPrefix(userId)}${randomUUID()}.${EXTENSIONS[body.contentType]}`;
     const uploadUrl = await this.storage.presignPut(

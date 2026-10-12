@@ -1,6 +1,6 @@
 import { IMAGE_PRESETS, type ImagePreset } from '@pdp/contracts';
 import sharp from 'sharp';
-import { PermanentError } from './permanent-error';
+import { PermanentError } from '@pdp/worker-kit';
 
 // libvips threads would multiply on top of our own per-message concurrency.
 sharp.concurrency(1);

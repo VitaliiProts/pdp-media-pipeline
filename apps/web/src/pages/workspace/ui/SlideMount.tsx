@@ -1,9 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type JobResult } from '../../../features/jobs';
+import { type JobResult, type VideoFrame } from '../../../features/jobs';
 import { IMAGE_PRESETS, type ImagePreset, PRESET_LABEL_KEY } from '../../../features/upload';
 import { formatBytes } from '../../../shared/lib/format-bytes';
 import { type ItemDescription } from '../model/describe-item';
+import { formatTimecode } from '../model/timecode';
 import { Countdown } from './Countdown';
 import styles from './SlideMount.module.css';
 
@@ -13,6 +14,7 @@ type SlideMountProps = {
   description: ItemDescription;
   attempts: number;
   results: readonly JobResult[];
+  frames: readonly VideoFrame[];
   onDismiss?: () => void;
   /** Extra controls under the caption, e.g. a redrive button. */
   action?: ReactNode;
@@ -27,6 +29,7 @@ export function SlideMount({
   description,
   attempts,
   results,
+  frames,
   onDismiss,
   action,
 }: SlideMountProps) {
@@ -93,6 +96,27 @@ export function SlideMount({
                 </a>
               </li>
             ))}
+          </ul>
+        )}
+
+        {frames.length > 0 && (
+          <ul className={styles.frames} aria-label={t('frames')}>
+            {frames.map((frame) => {
+              const frameLabel = t('frameAt', { time: formatTimecode(frame.atSeconds) });
+              return (
+                <li key={frame.url}>
+                  <a
+                    className={styles.frame}
+                    href={frame.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={frameLabel}
+                  >
+                    <img src={frame.url} alt={frameLabel} loading="lazy" />
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         )}
 

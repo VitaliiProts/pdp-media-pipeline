@@ -1,10 +1,10 @@
 {
   "drop": {
-    "title": "Drop images here or choose files",
-    "limits": "JPEG, PNG or WebP, up to {{maxMb}} MB each"
+    "title": "Drop images or videos here, or choose files",
+    "limits": "Images: JPEG, PNG or WebP up to {{maxMb}} MB. Videos: MP4, WebM or MOV up to {{maxVideoMb}} MB and 60 seconds."
   },
   "presets": {
-    "legend": "Sizes to produce",
+    "legend": "Image sizes to produce",
     "width": "{{width}} px wide",
     "required": "Pick at least one size.",
     "thumb": "Thumbnail",

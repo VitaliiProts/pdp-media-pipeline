@@ -1,11 +1,13 @@
 # PDP Media Pipeline
 
-Розподілена система обробки медіа: користувач завантажує картинку, отримує `jobId`, а через
-кілька секунд бачить статус `succeeded` і посилання на готові розміри. Сервіси зв'язані через
+Розподілена система обробки медіа: користувач завантажує картинку чи відео, отримує `jobId`, а через
+кілька секунд бачить статус `succeeded` і посилання на готові розміри або кадри. Про завершення
+задачі система може сповістити підписаним вебхуком. Сервіси зв'язані через
 NATS JetStream, стан задач живе в PostgreSQL, файли в S3-сумісному сховищі (MinIO).
 
-Проєкт іде за PDP-планом з 10 етапів. Зараз готові **Етапи 0, 1, 2** і перша половина Етапу 3 (**3a, надійність**). Нижче описано, як усе
-працює, і як руками перевірити кожен етап.
+Проєкт іде за PDP-планом з 10 етапів. Зараз готові **Етапи 0, 1, 2 і 3** (3a — надійність,
+3b — `video.frames`, завантаження за URL і вебхуки). Нижче описано, як усе працює, і як руками
+перевірити кожен етап.
 
 ## Як це працює
 
@@ -21,8 +23,12 @@ flowchart LR
   NATS -->|EVENTS| SCH[Scheduler]
   SCH -->|JOBS_CPU / JOBS_IO / JOBS_PRIORITY| NATS
   NATS -->|pull consumer| W[Worker]
+  NATS -->|pull consumer| VW[Video worker]
   W -->|sharp: thumb / medium / large| S3
+  VW -->|ffmpeg: превʼю і кадри| S3
   W -->|переходи статусів| META
+  VW -->|переходи статусів| META
+  W -->|webhook.deliver, підпис HMAC| RCV[Приймач вебхуків]
 ```
 
 1. `POST /v1/uploads` повертає presigned URL; браузер кладе оригінал прямо в MinIO.
@@ -32,7 +38,8 @@ flowchart LR
    у стрім класу з `Nats-Msg-Id` для дедупу.
 4. Worker бере повідомлення pull-консюмером, робить пресети WebP завширшки 200, 800 і 1600 px (менші оригінали не збільшуються),
    кладе їх у `results/{jobId}/{preset}.webp` і переводить задачу в `succeeded`.
-   Кожна спроба пишеться в `job_executions`.
+   Кожна спроба пишеться в `job_executions`. Відео (`video.frames`) бере окремий video-worker:
+   ffprobe перевіряє файл, ffmpeg робить превʼю і кадри в `results/{jobId}/frames/NNNN.jpg`.
 5. Статуси: `queued → scheduled → running → succeeded | dead`, переходи лише через
    машину станів у Metadata. Невдача — це `dead` з причиною: `permanent` (файл непридатний) або
    `exhausted` (усі спроби вичерпано).
@@ -63,6 +70,23 @@ flowchart LR
 - **Метрики.** `/metrics` (Prometheus) на metadata, scheduler і worker:
   `jobs_duplicates_total{source}`, `jobs_retries_total{type}`, `jobs_dlq_total{type,reason}`.
 
+Відео, джерела за URL і вебхуки (Етап 3b, [ADR-008](docs/adr/0008-video-worker.md),
+[ADR-009](docs/adr/0009-egress-and-webhooks.md)):
+
+- **`video.frames`.** Відео до 60 с і 100 МБ (h264, hevc, vp8, vp9, av1, mpeg4): кадр-превʼю
+  і кадри з інтервалом `intervalSeconds` (2 с), не більше `maxFrames` (10), шириною до 640 px.
+  ffmpeg запускається з таймаутом і `SIGKILL`.
+- **Джерело за URL.** Замість `sourceKey` можна передати `sourceUrl`. Дозволені лише публічні
+  http(s)-адреси: IP перевіряється після DNS-резолву, з'єднання йде саме на перевірену адресу,
+  редиректи перевіряються заново, є ліміт розміру й таймаут.
+- **Вебхуки.** `POST /v1/webhooks` реєструє адресу для подій `job.succeeded` і `job.dead`
+  (до 5 на користувача). Секрет `whsec_…` показується один раз. Доставка — задача
+  `webhook.deliver` з тими самими ретраями, DLQ і redrive; заголовки за
+  [Standard Webhooks](https://www.standardwebhooks.com/): `webhook-id`, `webhook-timestamp`,
+  `webhook-signature`.
+- **Web UI.** Відео можна перетягнути так само, як картинку; на картці видно превʼю і кадри.
+  Розділ «Вебхуки» в шапці: додати адресу, побачити доставки і надіслати «мертву» ще раз.
+
 ### Структура репозиторію
 
 | Шлях                                   | Що там                                                              |
@@ -70,9 +94,13 @@ flowchart LR
 | `apps/api-gateway`                     | Публічний REST API, auth за API-ключем, rate limiting, backpressure |
 | `apps/metadata`                        | PostgreSQL (Drizzle), машина станів, outbox, внутрішній REST        |
 | `apps/scheduler`                       | `job.created` → стрім класу                                         |
-| `apps/worker`                          | `image.resize` через sharp, concurrency і `max_ack_pending`         |
-| `apps/web`                             | React + Redux Toolkit, завантаження і перегляд задач                |
-| `libs/*`                               | Контракти (zod), messaging, клієнт Metadata, config, observability  |
+| `apps/worker`                          | `image.resize` через sharp і доставка вебхуків `webhook.deliver`    |
+| `apps/video-worker`                    | `video.frames` через ffmpeg, окремий образ                          |
+| `apps/webhook-receiver`                | Тестовий «поганий» приймач вебхуків для compose і тестів            |
+| `apps/web`                             | React + Redux Toolkit, завантаження, задачі, вебхуки                |
+| `libs/egress`                          | Безпечні вихідні запити: SSRF-захист, ліміти, ліміт на хост         |
+| `libs/worker-kit`                      | Спільне для воркерів: `JobRunner`, `PermanentError`, S3, джерела    |
+| `libs/*` (решта)                       | Контракти (zod), messaging, клієнт Metadata, config, observability  |
 | `deploy/helm`                          | Helm-чарти сервісів                                                 |
 | `perf/k6`, `perf/reports`              | Навантажувальні сценарії і звіти                                    |
 | `docs/adr`, `docs/plan`, `docs/spikes` | Рішення, плани етапів, нотатки спайку                               |
@@ -98,14 +126,15 @@ KEY=$(docker compose exec -T metadata node dist/seed-user.js --name me | jq -r .
 echo "$KEY"            # цей ключ вставляється у Web UI
 ```
 
-| Що                            | Адреса                                                      |
-| ----------------------------- | ----------------------------------------------------------- |
-| Web UI                        | http://localhost:18090                                      |
-| API Gateway і Swagger         | http://localhost:18080, http://localhost:18080/docs         |
-| Metadata / Scheduler / Worker | http://localhost:18081, :18082, :18083                      |
-| Консоль MinIO                 | http://localhost:59001 (`minioadmin` / `minioadmin`)        |
-| Моніторинг NATS               | http://localhost:58222                                      |
-| PostgreSQL                    | `localhost:55432`, користувач і пароль `pdp`, БД `metadata` |
+| Що                              | Адреса                                                      |
+| ------------------------------- | ----------------------------------------------------------- |
+| Web UI                          | http://localhost:18090                                      |
+| API Gateway і Swagger           | http://localhost:18080, http://localhost:18080/docs         |
+| Metadata / Scheduler / Worker   | http://localhost:18081, :18082, :18083                      |
+| Приймач вебхуків / Video worker | http://localhost:18084, :18085                              |
+| Консоль MinIO                   | http://localhost:59001 (`minioadmin` / `minioadmin`)        |
+| Моніторинг NATS                 | http://localhost:58222                                      |
+| PostgreSQL                      | `localhost:55432`, користувач і пароль `pdp`, БД `metadata` |
 
 Порти можна змінити через `.env` (наприклад, `GATEWAY_HOST_PORT=8080`). Зупинити:
 `pnpm stack:down`; разом з даними: `docker compose down -v`.
@@ -121,9 +150,9 @@ echo "$KEY"            # цей ключ вставляється у Web UI
 
 1. Health-check'и:
    ```bash
-   for p in 18080 18081 18082 18083; do echo "$p $(curl -s -o /dev/null -w '%{http_code}' localhost:$p/health/ready)"; done
+   for p in 18080 18081 18082 18083 18085; do echo "$p $(curl -s -o /dev/null -w '%{http_code}' localhost:$p/health/ready)"; done
    ```
-   Очікувано: чотири рази `200`.
+   Очікувано: п'ять разів `200` (18085 — video-worker з Етапу 3b).
 2. Якість коду (усе має пройти без помилок):
    ```bash
    pnpm lint && pnpm typecheck && pnpm format:check && pnpm depcruise && pnpm helm:lint && pnpm build
@@ -321,6 +350,100 @@ SRC=$(up perf/k6/fixtures/source.png)
 7. Документи: [ADR-006](docs/adr/0006-idempotency-and-delivery.md),
    [ADR-007](docs/adr/0007-retries-and-dlq.md), [план етапу](docs/plan/stage-3.md).
 
+### Етап 3b. `video.frames`, завантаження за URL і вебхуки
+
+**Критерій PDP:** вебхук на «поганий» приймач доходить після ретраїв або коректно потрапляє в DLQ.
+
+Підготовка: `KEY` і хелпер `up` з Етапу 3a, плюс тестове відео (ffmpeg із `node_modules`):
+
+```bash
+FFMPEG=$(node -p "require('ffmpeg-static')")
+$FFMPEG -loglevel error -y -f lavfi -i testsrc=duration=6:size=1280x720:rate=25 -pix_fmt yuv420p /tmp/clip.mp4
+upv() { local UP=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+    -d "{\"contentType\":\"video/mp4\",\"size\":$(wc -c < $1 | tr -d ' ')}" localhost:18080/v1/uploads)
+  curl -s -X PUT -H 'content-type: video/mp4' --data-binary @$1 "$(jq -r .uploadUrl <<<"$UP")"
+  jq -r .sourceKey <<<"$UP"; }
+hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+  -d "{\"url\":\"http://webhook-receiver:3000$1\"}" localhost:18080/v1/webhooks; }
+```
+
+1. `video.frames` — превʼю і кадри кожні 2 с:
+   ```bash
+   VID=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"video.frames\",\"sourceKey\":\"$(upv /tmp/clip.mp4)\"}" localhost:18080/v1/jobs | jq -r .jobId)
+   sleep 5; curl -s -H "x-api-key: $KEY" localhost:18080/v1/jobs/$VID \
+     | jq -c '{status, video: (.video | {durationSeconds, codec, frames: [.frames[].atSeconds]})}'
+   ```
+   Очікувано: `"status":"succeeded"`, `"codec":"h264"`, кадри `[0,2,4]`. У Web UI відео можна
+   просто перетягнути: на картці з'являються превʼю і рядок кадрів.
+2. Ліміти відео: ролик довший за 60 с закінчується `dead / permanent` з причиною в `lastError`:
+   ```bash
+   $FFMPEG -loglevel error -y -f lavfi -i testsrc=duration=61:size=320x240:rate=5 -pix_fmt yuv420p /tmp/long.mp4
+   LONG=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"video.frames\",\"sourceKey\":\"$(upv /tmp/long.mp4)\"}" localhost:18080/v1/jobs | jq -r .jobId)
+   sleep 3; curl -s -H "x-api-key: $KEY" localhost:18080/v1/jobs/$LONG | jq -c '{status, deadReason, lastError}'
+   ```
+3. SSRF — приватні адреси відхиляються одразу з `400`, і для джерела, і для вебхука:
+   ```bash
+   for u in http://169.254.169.254/latest/meta-data http://localhost:5432 http://10.0.0.1/x.png; do
+     curl -s -o /dev/null -w "%{http_code} $u\n" -H "x-api-key: $KEY" -H 'content-type: application/json' \
+       -d "{\"type\":\"image.resize\",\"sourceUrl\":\"$u\",\"presets\":[\"thumb\"]}" localhost:18080/v1/jobs
+   done
+   curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d '{"url":"http://127.0.0.1:3000/hook"}' localhost:18080/v1/webhooks | jq -c '{statusCode, message}'
+   ```
+   Публічний URL працює (потрібен інтернет), наприклад
+   `"sourceUrl":"https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png"`.
+4. Вебхук на справний приймач — підпис валідний:
+   ```bash
+   curl -s -X DELETE localhost:18084/deliveries
+   OK_SECRET=$(hook /ok | jq -r .secret)
+   curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"image.resize\",\"sourceKey\":\"$SRC\",\"presets\":[\"thumb\"]}" localhost:18080/v1/jobs >/dev/null
+   sleep 3; curl -s "localhost:18084/deliveries?secret=$OK_SECRET" \
+     | jq -c '.items[] | {path, webhookId, signatureValid, type: (.body | fromjson | .type)}'
+   ```
+   Очікувано: `"path":"/ok","signatureValid":true,"type":"job.succeeded"`.
+5. «Поганий» приймач, **критерій етапу**. Адреси за замовчуванням ловлять обидві події, тож
+   кожна задача дає доставку на кожну адресу:
+   - `/flaky?failures=2` — дві відповіді `500`, потім `200`: доставка `succeeded` з `attempts = 3`;
+   - `/fail` (500), `/drop` (обрив), `/slow?ms=15000` (довше за `WEBHOOK_TIMEOUT_MS` = 5 с) —
+     транзієнтні помилки, після 5 спроб `dead / exhausted` і запис у `JOBS_DLQ`;
+   - `/status/410` — permanent: `dead / permanent` після першої спроби.
+
+   ```bash
+   # Ліміт — 5 адрес на користувача, тож спершу прибираємо адресу /ok з п. 4
+   OKID=$(curl -s -H "x-api-key: $KEY" localhost:18080/v1/webhooks | jq -r '.items[0].id')
+   curl -s -o /dev/null -w '%{http_code}\n' -X DELETE -H "x-api-key: $KEY" localhost:18080/v1/webhooks/$OKID   # 204
+   for p in '/flaky?failures=2' /fail /drop '/slow?ms=15000' /status/410; do hook "$p" | jq -r '.id + "  " + .url'; done
+   curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"image.resize\",\"sourceKey\":\"$SRC\",\"presets\":[\"thumb\"]}" localhost:18080/v1/jobs >/dev/null
+   sleep 150
+   for id in $(curl -s -H "x-api-key: $KEY" localhost:18080/v1/webhooks | jq -r '.items[].id'); do
+     curl -s -H "x-api-key: $KEY" localhost:18080/v1/webhooks/$id/deliveries \
+       | jq -c --arg id "$id" '.items[] | {endpoint: $id[0:8], status, deadReason, attempts, responseStatus, lastError}'
+   done
+   curl -s localhost:18081/metrics | grep 'jobs_dlq_total{type="webhook.deliver"'
+   ```
+
+   Очікувано: `flaky` — `succeeded`, `attempts: 3`, `responseStatus: 200`; `fail`, `drop` і `slow` —
+   `dead / exhausted` з `attempts: 5` і помилками `endpoint responded 500`, `socket hang up`,
+   `timed out`; `410` — `dead / permanent` з `attempts: 1`. У метриках
+   `jobs_dlq_total{type="webhook.deliver",reason="exhausted"} 3` і `reason="permanent"} 1`.
+   Backoff з full jitter і cap 60 с, тож `exhausted` настає за 1–3 хвилини. Те саме видно в Web UI:
+   «Вебхуки» в шапці → адреса → таблиця доставок зі статусом, спробами, кодом відповіді й помилкою.
+   «Мертву» доставку можна надіслати знову кнопкою «Запустити знову» (або
+   `POST /v1/jobs/<id доставки>/redrive`); `webhook-id` при цьому той самий.
+
+6. Інтеграційні тести етапу (`pnpm test:int`):
+   - `test/media-sources.int-spec.ts`: `video.frames` наскрізно, ліміти відео, `sourceUrl` з
+     локального файлового сервера, SSRF і редиректи на приватні адреси;
+   - `test/webhooks.int-spec.ts`: реєстрація, ліміт і SSRF; підписана доставка; `job.dead`;
+     flaky → успіх після ретраїв; `500` / обрив / повільний → `exhausted` + DLQ; `410` → permanent →
+     redrive.
+7. Документи: [ADR-008](docs/adr/0008-video-worker.md), [ADR-009](docs/adr/0009-egress-and-webhooks.md),
+   [план етапу](docs/plan/stage-3.md).
+
 ## Конфігурація Етапу 2
 
 Ліміти й пороги задаються через env gateway; у `docker-compose.yml` їх можна перевизначити
@@ -346,6 +469,21 @@ SRC=$(up perf/k6/fixtures/source.png)
 | `IDEMPOTENCY_TTL_HOURS` (metadata) | 24               | Скільки живе `Idempotency-Key`                     |
 | `WORKER_RETRY_BASE_MS` (worker)    | 1000             | База backoff між спробами                          |
 | `WORKER_RETRY_MAX_MS` (worker)     | 60000            | Стеля backoff                                      |
+
+## Конфігурація Етапу 3b
+
+| Змінна                                      | За замовчуванням | Що робить                                                   |
+| ------------------------------------------- | ---------------- | ----------------------------------------------------------- |
+| `EGRESS_TIMEOUT_MS` (gateway, воркери)      | 15000            | Дедлайн вихідного запиту за замовчуванням                   |
+| `EGRESS_PER_HOST_CONCURRENCY`               | 4                | Скільки одночасних запитів на один хост                     |
+| `EGRESS_PRIVATE_HOSTS`                      | порожньо         | Хости, яким дозволено приватні адреси (у compose — приймач) |
+| `MAX_VIDEO_UPLOAD_BYTES` (gateway)          | 104857600        | Ліміт розміру відео в `POST /v1/uploads`                    |
+| `WEBHOOK_CONCURRENCY` (worker)              | 16               | Скільки доставок одночасно                                  |
+| `WEBHOOK_TIMEOUT_MS` (worker)               | 10000            | Таймаут однієї доставки (у compose 5000)                    |
+| `VIDEO_CONCURRENCY` (video-worker)          | 1                | Скільки відео одночасно на под                              |
+| `FFMPEG_TIMEOUT_MS` (video-worker)          | 120000           | Після нього ffmpeg / ffprobe отримує `SIGKILL`              |
+| `MAX_VIDEO_BYTES` (video-worker)            | 104857600        | Ліміт розміру джерела, зокрема за URL                       |
+| `VIDEO_MAX_DURATION_SECONDS` (video-worker) | 60               | Максимальна тривалість відео                                |
 
 ## Документація
 

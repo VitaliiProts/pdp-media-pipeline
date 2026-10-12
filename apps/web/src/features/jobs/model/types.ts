@@ -25,13 +25,32 @@ export type JobResult = {
   url: string;
 };
 
+export type VideoFrame = {
+  atSeconds: number;
+  width: number;
+  height: number;
+  bytes: number;
+  url: string;
+};
+
+export type VideoResult = {
+  durationSeconds: number;
+  width: number;
+  height: number;
+  codec: string;
+  preview: VideoFrame;
+  frames: VideoFrame[];
+};
+
 export type Job = {
   id: string;
+  type: string;
   status: JobStatus;
   attempts: number;
   lastError: string | null;
   deadReason: DeadReason | null;
   results?: JobResult[];
+  video?: VideoResult;
   createdAt: string;
 };
 

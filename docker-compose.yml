@@ -134,6 +134,8 @@ services:
       BACKPRESSURE_MAX_DEPTH_CPU: ${BACKPRESSURE_MAX_DEPTH_CPU:-2000}
       BACKPRESSURE_MAX_DEPTH_IO: ${BACKPRESSURE_MAX_DEPTH_IO:-2000}
       BACKPRESSURE_MAX_DEPTH_PRIORITY: ${BACKPRESSURE_MAX_DEPTH_PRIORITY:-500}
+      # The only host allowed to resolve to a private address, so webhooks can reach it.
+      EGRESS_PRIVATE_HOSTS: webhook-receiver
     ports: ['${GATEWAY_HOST_PORT:-18080}:3000']
     depends_on:
       redis: { condition: service_healthy }
@@ -163,11 +165,42 @@ services:
       NATS_URL: nats://nats:4222
       METADATA_URL: http://metadata:3000
       WORKER_CONCURRENCY: 2
+      EGRESS_PRIVATE_HOSTS: webhook-receiver
+      # Short enough to see /slow time out without waiting long.
+      WEBHOOK_TIMEOUT_MS: ${WEBHOOK_TIMEOUT_MS:-5000}
     ports: ['${WORKER_HOST_PORT:-18083}:3000']
     depends_on:
       nats: { condition: service_healthy }
       metadata: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
+
+  video-worker:
+    <<: *app
+    build: { context: ., dockerfile: apps/video-worker/Dockerfile }
+    image: pdp/video-worker:dev
+    environment:
+      <<: [*app-env, *s3-env]
+      NATS_URL: nats://nats:4222
+      METADATA_URL: http://metadata:3000
+      VIDEO_CONCURRENCY: 1
+    ports: ['${VIDEO_WORKER_HOST_PORT:-18085}:3000']
+    depends_on:
+      # The image worker must narrow its consumer filters first: filters on one
+      # work-queue stream may not overlap.
+      worker: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+
+  # Test endpoint for webhooks: /ok, /fail, /status/<code>, /slow?ms=, /drop, /flaky?failures=.
+  webhook-receiver:
+    <<: *app
+    build: { context: ., dockerfile: apps/webhook-receiver/Dockerfile }
+    image: pdp/webhook-receiver:dev
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/health/live >/dev/null || exit 1']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    ports: ['${WEBHOOK_RECEIVER_HOST_PORT:-18084}:3000']
 
   web:
     build: { context: ., dockerfile: apps/web/Dockerfile }

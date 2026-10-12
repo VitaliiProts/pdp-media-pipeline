@@ -1,4 +1,11 @@
-import { DEAD_REASONS, JOB_CLASSES, JOB_STATUSES, JOB_TYPES, type JobDto } from '@pdp/contracts';
+import {
+  DEAD_REASONS,
+  JOB_CLASSES,
+  JOB_STATUSES,
+  JOB_TYPES,
+  type JobDto,
+  WEBHOOK_EVENTS,
+} from '@pdp/contracts';
 import { sql } from 'drizzle-orm';
 import {
   index,
@@ -21,6 +28,7 @@ export const jobStatus = pgEnum('job_status', JOB_STATUSES);
 export const jobClass = pgEnum('job_class', JOB_CLASSES);
 export const jobType = pgEnum('job_type', JOB_TYPES);
 export const deadReason = pgEnum('dead_reason', DEAD_REASONS);
+export const webhookEvent = pgEnum('webhook_event', WEBHOOK_EVENTS);
 export const executionOutcome = pgEnum('execution_outcome', [
   'succeeded',
   'retry',
@@ -65,6 +73,11 @@ export const jobs = pgTable(
     index('jobs_active_status_idx')
       .on(t.status)
       .where(sql`${t.status} in ('queued', 'scheduled', 'running')`),
+    // Delivery history of one webhook endpoint. The predicate avoids the `webhook.deliver`
+    // enum value, which cannot be used in the transaction that adds it.
+    index('jobs_webhook_endpoint_idx')
+      .on(sql`(${t.input}->>'endpointId')`, t.createdAt.desc(), t.id.desc())
+      .where(sql`(${t.input}->>'endpointId') is not null`),
   ],
 );
 
@@ -170,4 +183,21 @@ export const idempotencyKeys = pgTable(
   ],
 );
 
+export const webhookEndpoints = pgTable(
+  'webhook_endpoints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    url: text('url').notNull(),
+    /** Needed in plain form to sign deliveries, so it cannot be hashed like API keys. */
+    secret: text('secret').notNull(),
+    events: webhookEvent('events').array().notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('webhook_endpoints_user_idx').on(t.userId, t.createdAt)],
+);
+
 export type JobRow = typeof jobs.$inferSelect;
+export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;

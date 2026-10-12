@@ -1,6 +1,6 @@
 {
   "title": "Media pipeline",
-  "subtitle": "Every image becomes a resize job: the scheduler queues it, a worker processes it, results land in storage.",
+  "subtitle": "Every image becomes a resize job and every video a frames job: the scheduler queues it, a worker processes it, results land in storage.",
   "apiDocs": "API docs",
   "changeKey": "Change key",
   "language": "Language",
@@ -9,7 +9,7 @@
     "loading": "Loading jobs…",
     "error": "Could not load jobs. Is the gateway running?",
     "retry": "Try again",
-    "empty": "No jobs yet. Drop an image above to start one.",
+    "empty": "No jobs yet. Drop an image or a video above to start one.",
     "emptyFiltered": "No jobs with this status.",
     "tooManyRequests_one": "Too many requests. Refreshing in {{count}} second.",
     "tooManyRequests_other": "Too many requests. Refreshing in {{count}} seconds."
@@ -38,14 +38,15 @@
   "attempt_one": "Attempt {{count}}",
   "attempt_other": "Attempt {{count}}",
   "results": "Results",
+  "frames": "Frames",
+  "frameAt": "Frame at {{time}}",
   "dimensions": "{{width}} × {{height}}",
   "dismiss": "Remove",
   "retryIn_one": "retry in {{count}} s",
   "retryIn_other": "retry in {{count}} s",
-  "redrive": {
-    "action": "Run again",
-    "pending": "Sending…",
-    "failed": "Could not send the job again.",
-    "busy": "The queue is busy, try again in a moment."
+  "views": {
+    "label": "View",
+    "jobs": "Jobs",
+    "webhooks": "Webhooks"
   }
 }

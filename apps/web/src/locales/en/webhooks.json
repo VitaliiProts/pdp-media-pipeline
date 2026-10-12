@@ -1,0 +1,60 @@
+{
+  "form": {
+    "title": "Add an endpoint",
+    "url": "URL that receives POST requests",
+    "events": "Events",
+    "eventsRequired": "Pick at least one event.",
+    "limit": "You have the maximum of 5 endpoints. Delete one to add another.",
+    "submit": "Add endpoint",
+    "pending": "Adding…"
+  },
+  "event": {
+    "succeeded": "Job finished",
+    "dead": "Job gave up"
+  },
+  "secret": {
+    "title": "Signing secret",
+    "hint": "Shown only now. Store it to verify the webhook-signature header (Standard Webhooks, HMAC-SHA256).",
+    "done": "I saved it"
+  },
+  "list": {
+    "title": "Endpoints",
+    "loading": "Loading endpoints…",
+    "empty": "No endpoints yet. Add one to be notified when a job finishes.",
+    "retry": "Try again",
+    "delete": "Delete",
+    "deleteLabel": "Delete {{url}}",
+    "confirmDelete": "Delete for good",
+    "cancel": "Cancel"
+  },
+  "deliveries": {
+    "title": "Deliveries",
+    "lead": "Every attempt to notify {{url}}. Failed ones are retried with backoff; dead ones can be sent again.",
+    "none": "Pick an endpoint to see its deliveries.",
+    "loading": "Loading deliveries…",
+    "empty": "Nothing sent yet. Deliveries appear when a job finishes.",
+    "retry": "Try again",
+    "event": "Event",
+    "status": "Status",
+    "attempts": "Attempts",
+    "response": "Response",
+    "updated": "Updated",
+    "actions": "Actions"
+  },
+  "status": {
+    "queued": "Waiting",
+    "scheduled": "Retry scheduled",
+    "running": "Sending",
+    "succeeded": "Delivered",
+    "failed": "Failed",
+    "dead": "Gave up"
+  },
+  "problem": {
+    "network": "Network error, check the connection to the gateway.",
+    "busy": "Too many requests, try again in a moment.",
+    "limit": "You already have the maximum of 5 endpoints.",
+    "notFound": "This endpoint no longer exists.",
+    "invalid": "The gateway rejected the endpoint.",
+    "unknown": "Something went wrong."
+  }
+}

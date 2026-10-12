@@ -15,6 +15,13 @@
       "when": 1791811383866,
       "tag": "0001_reliability",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791813798665,
+      "tag": "0002_video_webhooks",
+      "breakpoints": true
     }
   ]
 }

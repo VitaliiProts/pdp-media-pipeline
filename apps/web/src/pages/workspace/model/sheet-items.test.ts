@@ -6,6 +6,7 @@ const base = { fileName: 'cat.png', previewUrl: 'blob:cat', createdAt: 1 };
 
 const job = (overrides: Partial<Job> = {}): Job => ({
   id: 'job-1',
+  type: 'image.resize',
   status: 'running',
   attempts: 1,
   lastError: null,
@@ -36,6 +37,27 @@ describe('buildSheetItems', () => {
     ];
     const [item] = buildSheetItems([job({ status: 'succeeded', results })], []);
     expect(item).toMatchObject({ previewUrl: 'https://s3/medium', title: null });
+  });
+
+  it('shows the preview and frames of a finished video', () => {
+    const frame = (atSeconds: number) => ({
+      atSeconds,
+      width: 640,
+      height: 360,
+      bytes: 100,
+      url: `https://s3/frame-${atSeconds}`,
+    });
+    const video = {
+      durationSeconds: 4,
+      width: 1280,
+      height: 720,
+      codec: 'h264',
+      preview: { ...frame(1), url: 'https://s3/preview' },
+      frames: [frame(0), frame(2)],
+    };
+    const [item] = buildSheetItems([job({ type: 'video.frames', status: 'succeeded', video })], []);
+    expect(item).toMatchObject({ previewUrl: 'https://s3/preview', results: [] });
+    expect(item?.kind === 'job' && item.frames.map((f) => f.atSeconds)).toEqual([0, 2]);
   });
 
   it('keeps failed uploads with their problem', () => {

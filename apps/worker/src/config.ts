@@ -1,5 +1,6 @@
 import {
   baseEnvSchema,
+  egressEnvSchema,
   metadataClientEnvSchema,
   natsEnvSchema,
   s3EnvSchema,
@@ -13,6 +14,7 @@ export const envSchema = baseEnvSchema.extend({
   ...s3EnvSchema.shape,
   ...metadataClientEnvSchema.shape,
   ...uploadLimitsEnvSchema.shape,
+  ...egressEnvSchema.shape,
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).default(os.availableParallelism()),
   WORKER_ID: z.string().min(1).default(os.hostname()),
   MAX_INPUT_PIXELS: z.coerce.number().int().min(1).default(50_000_000),
@@ -26,5 +28,8 @@ export const envSchema = baseEnvSchema.extend({
   /** Full-jitter backoff between attempts: random(0, min(max, base × 2^(n−1))). */
   WORKER_RETRY_BASE_MS: z.coerce.number().int().min(0).default(1000),
   WORKER_RETRY_MAX_MS: z.coerce.number().int().min(0).default(60_000),
+  /** Webhook deliveries wait on the network, so they get their own, larger pool. */
+  WEBHOOK_CONCURRENCY: z.coerce.number().int().min(1).default(16),
+  WEBHOOK_TIMEOUT_MS: z.coerce.number().int().min(100).default(10_000),
 });
 export type Env = z.infer<typeof envSchema>;

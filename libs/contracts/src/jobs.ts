@@ -1,8 +1,14 @@
 import { z } from 'zod';
 
-export const JOB_TYPES = ['image.resize', 'video.frames', 'video.transcode'] as const;
+export const MEDIA_JOB_TYPES = ['image.resize', 'video.frames', 'video.transcode'] as const;
+export const JOB_TYPES = [...MEDIA_JOB_TYPES, 'webhook.deliver'] as const;
 export const JobTypeSchema = z.enum(JOB_TYPES);
 export type JobType = z.infer<typeof JobTypeSchema>;
+export type MediaJobType = (typeof MEDIA_JOB_TYPES)[number];
+
+/** Jobs the user submits; the rest (webhook deliveries) are created by the pipeline itself. */
+export const isMediaJobType = (type: JobType): type is MediaJobType =>
+  (MEDIA_JOB_TYPES as readonly JobType[]).includes(type);
 
 export const JOB_CLASSES = ['io', 'cpu', 'priority'] as const;
 export const JobClassSchema = z.enum(JOB_CLASSES);

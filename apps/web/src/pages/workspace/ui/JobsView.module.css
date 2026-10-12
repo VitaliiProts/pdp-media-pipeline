@@ -1,0 +1,25 @@
+.sheetSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sheetHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sheetTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-stretch: 72%;
+  font-weight: 720;
+}
+
+.retry {
+  composes: primary from '../../../shared/ui/button.module.css';
+  margin-top: var(--space-3);
+}

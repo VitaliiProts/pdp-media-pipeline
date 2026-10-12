@@ -1,62 +1,18 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiKeyCleared } from '../../features/api-key';
-import { retryAfterOf, StatusFilter, useLiveJobs } from '../../features/jobs';
-import { dismissUpload, selectUploads, UploadPanel } from '../../features/upload';
-import { useAppDispatch, useAppSelector } from '../../shared/lib/redux';
-import { useStatusParam } from './lib/use-status-param';
-import { buildSheetItems } from './model/sheet-items';
-import { ContactSheet, SheetMessage } from './ui/ContactSheet';
+import { useAppDispatch } from '../../shared/lib/redux';
+import { useViewParam, VIEWS } from './lib/use-view-param';
+import { JobsView } from './ui/JobsView';
 import { LanguageSwitch } from './ui/LanguageSwitch';
+import { WebhooksView } from './ui/WebhooksView';
 import styles from './WorkspacePage.module.css';
+
+const VIEW_LABEL_KEY = { jobs: 'views.jobs', webhooks: 'views.webhooks' } as const;
 
 export function WorkspacePage() {
   const { t } = useTranslation('workspace');
   const dispatch = useAppDispatch();
-  const [status, setStatus] = useStatusParam();
-  const uploads = useAppSelector(selectUploads);
-  const hasLocalActivity = uploads.some(
-    (u) => u.phase === 'uploading' || u.phase === 'creating' || u.phase === 'waiting',
-  );
-  const jobs = useLiveJobs({ status }, { hasLocalActivity });
-
-  const items = useMemo(
-    () => buildSheetItems(jobs.data?.items ?? [], uploads),
-    [jobs.data, uploads],
-  );
-
-  const handleDismiss = (uploadId: string) => {
-    const upload = uploads.find((u) => u.id === uploadId);
-    if (upload) dispatch(dismissUpload({ id: upload.id, previewUrl: upload.previewUrl }));
-  };
-
-  const retryAfterS = retryAfterOf(jobs.error);
-
-  const renderSheet = () => {
-    if (jobs.isLoading) return <SheetMessage>{t('sheet.loading')}</SheetMessage>;
-    if (jobs.isError && items.length === 0) {
-      return (
-        <SheetMessage tone="error">
-          <p>
-            {retryAfterS === null
-              ? t('sheet.error')
-              : t('sheet.tooManyRequests', { count: retryAfterS })}
-          </p>
-          <button type="button" className={styles.retry} onClick={() => void jobs.refetch()}>
-            {t('sheet.retry')}
-          </button>
-        </SheetMessage>
-      );
-    }
-    if (items.length === 0) {
-      return (
-        <SheetMessage>
-          <p>{status ? t('sheet.emptyFiltered') : t('sheet.empty')}</p>
-        </SheetMessage>
-      );
-    }
-    return <ContactSheet items={items} onDismiss={handleDismiss} />;
-  };
+  const [view, setView] = useViewParam();
 
   return (
     <div className={styles.page}>
@@ -64,6 +20,19 @@ export function WorkspacePage() {
         <h1 className={styles.title}>{t('title')}</h1>
         <p className={styles.subtitle}>{t('subtitle')}</p>
         <nav className={styles.tools}>
+          <div className={styles.views} role="group" aria-label={t('views.label')}>
+            {VIEWS.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className={styles.viewTab}
+                aria-pressed={view === name}
+                onClick={() => setView(name)}
+              >
+                {t(VIEW_LABEL_KEY[name])}
+              </button>
+            ))}
+          </div>
           <a className={styles.link} href="/docs" target="_blank" rel="noreferrer">
             {t('apiDocs')}
           </a>
@@ -78,19 +47,7 @@ export function WorkspacePage() {
         </nav>
       </header>
 
-      <main className={styles.main}>
-        <UploadPanel />
-
-        <section className={styles.sheetSection} aria-labelledby="sheet-title">
-          <div className={styles.sheetHeader}>
-            <h2 id="sheet-title" className={styles.sheetTitle}>
-              {t('sheet.title')}
-            </h2>
-            <StatusFilter value={status} onChange={setStatus} />
-          </div>
-          {renderSheet()}
-        </section>
-      </main>
+      <main className={styles.main}>{view === 'jobs' ? <JobsView /> : <WebhooksView />}</main>
     </div>
   );
 }

@@ -6,4 +6,7 @@ export * from './image-resize';
 export * from './job-class';
 export * from './jobs';
 export * from './metadata-api';
+export * from './source';
 export * from './topology';
+export * from './video-frames';
+export * from './webhooks';

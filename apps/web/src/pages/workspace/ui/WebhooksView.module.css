@@ -1,0 +1,44 @@
+.view {
+  display: grid;
+  grid-template-columns: minmax(18rem, 26rem) 1fr;
+  align-items: start;
+  gap: var(--space-6);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-stretch: 72%;
+  font-weight: 720;
+}
+
+.lead,
+.message {
+  margin: 0;
+  color: var(--graphite);
+  overflow-wrap: anywhere;
+}
+
+.retry {
+  composes: primary from '../../../shared/ui/button.module.css';
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 56rem) {
+  .view {
+    grid-template-columns: 1fr;
+  }
+}

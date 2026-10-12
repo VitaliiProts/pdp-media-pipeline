@@ -175,14 +175,37 @@
   font-size: var(--text-sm);
 }
 
-.action {
-  composes: dismiss;
-  border-color: var(--rule);
-  color: var(--ink);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .mount[data-tone='active'] .blank {
     animation: none;
   }
+}
+
+.frames {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.frame {
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-window);
+  background: var(--film);
+}
+
+.frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.frame:focus-visible {
+  outline: 2px solid var(--tone);
+  outline-offset: 2px;
 }

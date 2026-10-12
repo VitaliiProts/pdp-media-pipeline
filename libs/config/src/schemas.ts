@@ -40,4 +40,20 @@ export const uploadLimitsEnvSchema = z.object({
     .default(20 * 1024 * 1024),
 });
 
+/** Outbound requests to user-supplied URLs (job sources, webhooks). */
+export const egressEnvSchema = z.object({
+  EGRESS_TIMEOUT_MS: z.coerce.number().int().min(100).default(15_000),
+  EGRESS_PER_HOST_CONCURRENCY: z.coerce.number().int().min(1).default(4),
+  /** Comma-separated host names allowed to resolve to private addresses, e.g. a test receiver. */
+  EGRESS_PRIVATE_HOSTS: z
+    .string()
+    .default('')
+    .transform((s) =>
+      s
+        .split(',')
+        .map((h) => h.trim())
+        .filter(Boolean),
+    ),
+});
+
 export type BaseEnv = z.infer<typeof baseEnvSchema>;

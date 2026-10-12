@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { PermanentError } from './permanent-error';
+import { PermanentError } from '@pdp/worker-kit';
 import { resizeImage } from './resize';
 
 const png = (width: number, height: number) =>

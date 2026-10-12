@@ -27,6 +27,7 @@
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1147.0",
     "@eslint/js": "^10.0.1",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
     "@nats-io/jetstream": "^3.4",
     "@nats-io/transport-node": "^3.4",
     "@nestjs/common": "^11",
@@ -42,6 +43,7 @@
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "ffmpeg-static": "^5.3.0",
     "globals": "^17.13.0",
     "husky": "^9.1.7",
     "jest": "^30.5.2",

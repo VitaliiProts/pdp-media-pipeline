@@ -11,12 +11,12 @@ WORKDIR /repo
 FROM base AS build
 ARG APP=@pdp/worker
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm fetch
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked pnpm fetch
 COPY . .
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
     pnpm install --frozen-lockfile --offline --ignore-scripts --filter "${APP}..."
 RUN pnpm --filter "${APP}..." build
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
     pnpm --filter "${APP}" deploy --prod --prefer-offline /out
 
 FROM node:${NODE_VERSION}-alpine AS runtime

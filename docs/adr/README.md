@@ -15,3 +15,5 @@
 | [005](0005-rate-limiting.md)            | Rate limiting: GCRA у Redis          | Прийнято |
 | [006](0006-idempotency-and-delivery.md) | Ідемпотентність і семантика доставки | Прийнято |
 | [007](0007-retries-and-dlq.md)          | Стратегія ретраїв і DLQ              | Прийнято |
+| [008](0008-video-worker.md)             | Відео: окремий воркер з ffmpeg       | Прийнято |
+| [009](0009-egress-and-webhooks.md)      | Вихідні запити і вебхуки             | Прийнято |

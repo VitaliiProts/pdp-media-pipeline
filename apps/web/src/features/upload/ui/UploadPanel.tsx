@@ -1,9 +1,9 @@
 import { type ChangeEvent, type DragEvent, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch } from '../../../shared/lib/redux';
-import { ACCEPTED_TYPES, MAX_UPLOAD_BYTES } from '../lib/validate-file';
+import { ACCEPTED_TYPES, MAX_UPLOAD_BYTES, MAX_VIDEO_UPLOAD_BYTES } from '../lib/validate-file';
 import { IMAGE_PRESETS, type ImagePreset, PRESET_LABEL_KEY } from '../model/presets';
-import { uploadImages } from '../model/upload-images';
+import { uploadFiles } from '../model/upload-files';
 import styles from './UploadPanel.module.css';
 
 const ALL_PRESETS = IMAGE_PRESETS.map((preset) => preset.name);
@@ -18,7 +18,7 @@ export function UploadPanel() {
 
   const submit = (files: FileList | null) => {
     if (!files?.length || !hasPresets) return;
-    void dispatch(uploadImages({ files: Array.from(files), presets }));
+    void dispatch(uploadFiles({ files: Array.from(files), presets }));
   };
 
   const togglePreset = (name: ImagePreset) =>
@@ -57,7 +57,10 @@ export function UploadPanel() {
           {t('drop.title')}
         </span>
         <span className={styles.limits}>
-          {t('drop.limits', { maxMb: MAX_UPLOAD_BYTES / 1024 / 1024 })}
+          {t('drop.limits', {
+            maxMb: MAX_UPLOAD_BYTES / 1024 / 1024,
+            maxVideoMb: MAX_VIDEO_UPLOAD_BYTES / 1024 / 1024,
+          })}
         </span>
         <input
           id={inputId}
