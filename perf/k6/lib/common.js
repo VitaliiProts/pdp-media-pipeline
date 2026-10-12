@@ -33,9 +33,10 @@ export function uploadSource(key) {
   if (res.status !== 200) fail(`POST /v1/uploads: ${res.status} ${res.body}`);
   const { uploadUrl, sourceKey } = res.json();
 
-  const signed = new URL(uploadUrl);
-  const put = http.put(`${STORAGE_URL}${signed.pathname}${signed.search}`, source, {
-    headers: { 'content-type': 'image/png', Host: signed.host },
+  // k6 has no global URL.
+  const [, host, pathAndQuery] = /^https?:\/\/([^/]+)(\/.*)$/.exec(uploadUrl);
+  const put = http.put(`${STORAGE_URL}${pathAndQuery}`, source, {
+    headers: { 'content-type': 'image/png', Host: host },
     tags: { name: 'setup' },
   });
   if (put.status !== 200) fail(`PUT presigned: ${put.status} ${put.body}`);

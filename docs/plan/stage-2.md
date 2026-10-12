@@ -1,7 +1,7 @@
 # Етап 2. Rate limiting і backpressure
 
 - Тижні 6–7: 16–29 листопада 2026
-- Статус: в роботі, гілка `feature/stage-2-rate-limiting`
+- Статус: готово, гілка `feature/stage-2-rate-limiting`, звіт [perf/reports/stage-2.md](../../perf/reports/stage-2.md)
 
 ## Результат і критерій
 
@@ -54,9 +54,9 @@
 
 - [x] Unit: GCRA (межі burst, `Retry-After`, all-or-nothing), guard, backpressure.
 - [x] Інтеграційні (Testcontainers): ліміти на справжньому Redis, Redis зупинено (fail-open), забита черга дає `503`.
-- [ ] k6 у `perf/k6`: `api-baseline` (P95 < 150 мс), `rate-limit` (частка `429`), `spike`, `backpressure`.
-- [ ] autocannon на `GET /v1/jobs/:id`.
-- [ ] Звіт `perf/reports/stage-2.md`: цифри, графіки, висновки.
+- [x] k6 у `perf/k6`: `api-baseline` (P95 < 150 мс), `rate-limit` (частка `429`), `spike`, `backpressure`.
+- [x] autocannon на `GET /v1/jobs/:id`.
+- [x] Звіт `perf/reports/stage-2.md`: цифри, графіки, висновки.
 
 ## Що з'ясувалось під час реалізації
 
