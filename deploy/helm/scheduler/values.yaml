@@ -1,14 +1,10 @@
-replicaCount: 1
-
 image:
-  repository: ghcr.io/pdp/scheduler
+  repository: pdp/scheduler
   tag: ''
-  pullPolicy: IfNotPresent
-
-service:
-  port: 80
-  containerPort: 3000
-
+replicaCount: 1
+serviceVersionEnv: true
+resources:
+  requests: { cpu: 25m, memory: 96Mi }
+  limits: { cpu: 500m, memory: 192Mi }
 env: {}
-
-resources: {}
+secretEnv: {}

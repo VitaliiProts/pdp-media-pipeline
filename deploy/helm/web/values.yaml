@@ -1,0 +1,27 @@
+image:
+  repository: pdp/web
+  tag: ''
+replicaCount: 1
+component: frontend
+containerPort: 8080
+# nginx-unprivileged runs as uid 101.
+runAsUser: 101
+probes:
+  live: /healthz
+  ready: /healthz
+resources:
+  requests: { cpu: 10m, memory: 32Mi }
+  limits: { cpu: 250m, memory: 64Mi }
+env:
+  GATEWAY_URL: http://api-gateway:3000
+  GRAFANA_URL: ''
+secretEnv: {}
+# The entrypoint renders the config template into conf.d at start.
+extraVolumes:
+  - name: conf
+    emptyDir: { sizeLimit: 1Mi }
+extraVolumeMounts:
+  - name: conf
+    mountPath: /etc/nginx/conf.d
+ingress:
+  enabled: false

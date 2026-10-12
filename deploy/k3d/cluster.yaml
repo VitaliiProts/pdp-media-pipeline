@@ -1,0 +1,25 @@
+# Local cluster for Stage 5: `pnpm k8s:up` creates it, `pnpm k8s:down` deletes it.
+# Three nodes so that PDBs and anti-affinity have somewhere to spread pods.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: pdp
+servers: 1
+agents: 2
+image: rancher/k3s:v1.35.5-k3s1
+ports:
+  # Traefik ingress: api.pdp.localhost, app.pdp.localhost, grafana.pdp.localhost, s3.pdp.localhost.
+  - port: 19080:80
+    nodeFilters: [loadbalancer]
+registries:
+  # Images are pushed to localhost:5001 and pulled by the nodes as k3d-pdp-registry:5001.
+  create:
+    name: k3d-pdp-registry
+    host: 0.0.0.0
+    hostPort: '5001'
+options:
+  k3d:
+    wait: true
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true

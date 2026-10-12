@@ -128,7 +128,8 @@ flowchart LR
 | `libs/worker-kit`                      | Спільне для воркерів: `JobRunner`, `PermanentError`, S3, джерела    |
 | `libs/observability`                   | OpenTelemetry SDK, хелпери span'ів, baggage і метрик, логер, health |
 | `libs/*` (решта)                       | Контракти (zod), messaging, клієнт Metadata, config                 |
-| `deploy/helm`                          | Helm-чарти сервісів                                                 |
+| `deploy/helm`                          | Helm: `pdp-lib`, чарти сервісів, umbrella `pdp`, `platform`         |
+| `deploy/k3d`                           | Локальний кластер k3d з registry                                    |
 | `deploy/observability`                 | Collector, Tempo, правила vmalert, Alertmanager, дашборди Grafana   |
 | `perf/k6`, `perf/reports`              | Навантажувальні сценарії і звіти                                    |
 | `docs/adr`, `docs/plan`, `docs/spikes` | Рішення, плани етапів, нотатки спайку                               |
@@ -170,6 +171,33 @@ echo "$KEY"            # цей ключ вставляється у Web UI
 
 Порти можна змінити через `.env` (наприклад, `GATEWAY_HOST_PORT=8080`). Зупинити:
 `pnpm stack:down`; разом з даними: `docker compose down -v`.
+
+### Запуск у Kubernetes (k3d)
+
+Потрібно додатково: `k3d`, `kubectl`, `helm` (`brew install k3d kubectl helm`) і щонайменше
+8 ГБ пам'яті для Docker (кластер у спокої займає близько 4 ГБ). Compose-стек краще зупинити.
+
+```bash
+pnpm stack:down
+pnpm k8s:up            # кластер, registry, оператори, платформа, образи, реліз pdp (~4 хв з нуля)
+KEY=$(kubectl -n pdp exec deploy/metadata -- node dist/seed-user.js --name me | jq -r .apiKey)
+```
+
+`pnpm k8s:up` повторюваний: наступний запуск перезбирає образи й оновлює релізи, а
+перезапускаються лише сервіси, у яких змінився образ (тег — ID образу). Тільки застосунок:
+`pnpm k8s:deploy`. Стан: `scripts/k8s.sh status`. Видалити кластер разом з даними: `pnpm k8s:down`.
+
+| Що                    | Адреса                                                              |
+| --------------------- | ------------------------------------------------------------------- |
+| Web UI                | http://app.pdp.localhost:19080                                      |
+| API Gateway і Swagger | http://api.pdp.localhost:19080, http://api.pdp.localhost:19080/docs |
+| Grafana (без логіна)  | http://grafana.pdp.localhost:19080                                  |
+| VictoriaMetrics       | http://vm.pdp.localhost:19080/vmui                                  |
+| MinIO: S3 і консоль   | http://s3.pdp.localhost:19080, http://minio.pdp.localhost:19080     |
+
+`*.localhost` браузери й `curl` резолвлять у `127.0.0.1` самі, `/etc/hosts` не потрібен.
+Решта сервісів — через `kubectl -n pdp port-forward`, наприклад `svc/nats 8222` або
+`svc/postgres-rw 5432`.
 
 ## Перевірка етапів
 
@@ -583,6 +611,57 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
    `test/reliability.int-spec.ts` (ретраї, DLQ, redrive не потрапляє в SLI), `pnpm alerts:test`
    (burn rate, виключення `permanent`, поріг DLQ, ріст черги).
 
+### Етап 5.1. Кластер і Helm
+
+**Критерій підетапу:** `pnpm k8s:up` з нуля піднімає систему в k3d, і наскрізний сценарій
+проходить через Ingress з тими самими трейсами, логами, метриками й алертами, що й у compose.
+
+Підготовка: кластер з [«Запуск у Kubernetes»](#запуск-у-kubernetes-k3d) і `KEY` звідти.
+
+1. Усе запущено, міграції — хук, що відпрацював до старту сервісів:
+   ```bash
+   kubectl -n pdp get pods      # усе Running, metadata-migrate — Completed
+   kubectl -n pdp get cluster postgres -o jsonpath='{.status.phase}{"\n"}'   # Cluster in healthy state
+   helm list -n pdp             # platform і pdp — deployed
+   ```
+2. Наскрізний сценарій Етапу 1 через Ingress (presigned PUT іде на `s3.pdp.localhost`):
+   ```bash
+   KUBE_NAMESPACE=pdp scripts/e2e-smoke.sh
+   ```
+   Очікувано: у кінці `OK`. Web UI: http://app.pdp.localhost:19080, вставити `KEY`, перетягнути
+   картинку або відео — вони обробляються так само, як у compose.
+3. Вебхук на приймач у кластері. Після реєстрації завантажте картинку через UI з тим самим
+   `KEY`, потім:
+   ```bash
+   OK_SECRET=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d '{"url":"http://webhook-receiver:3000/ok"}' http://api.pdp.localhost:19080/v1/webhooks | jq -r .secret)
+   # ... задача через UI ...
+   kubectl -n pdp port-forward svc/webhook-receiver 18084:3000 >/dev/null & sleep 2
+   curl -s "localhost:18084/deliveries?secret=$OK_SECRET" \
+     | jq -c '.items[] | {path, signatureValid, type: (.body | fromjson | .type)}'
+   kill %1
+   ```
+   Очікувано: `"path":"/ok","signatureValid":true,"type":"job.succeeded"`.
+4. Observability: Grafana http://grafana.pdp.localhost:19080, папка **PDP** — ті самі п'ять
+   дашбордів і datasource'и; посилання «Трейс і логи» на картці задачі відкриває **Job** з
+   трейсом через `api-gateway`, `metadata`, `scheduler` і `worker`. Правила vmalert:
+   ```bash
+   kubectl -n pdp port-forward svc/vmalert 8880 >/dev/null & sleep 2
+   curl -s localhost:8880/api/v1/rules | jq -r '.data.groups[] | "\(.name): \(.rules | length)"'
+   kill %1
+   ```
+5. Безпека подів: non-root, `readOnlyRootFilesystem`, без capabilities, запис лише в `emptyDir`:
+   ```bash
+   kubectl -n pdp get deploy worker -o jsonpath='{.spec.template.spec.containers[0].securityContext}' | jq
+   ```
+6. CI-перевірка чартів локально — `helm lint` усіх чартів і kubeconform для відрендереної
+   платформи та `pdp` з `values-dev.yaml` і `values-prod.yaml`, CRD CloudNativePG — за схемами з
+   CRDs-catalog:
+   ```bash
+   pnpm helm:lint      # Summary: ... Invalid: 0, Errors: 0
+   ```
+7. Документи: [план етапу](docs/plan/stage-5.md).
+
 ## Конфігурація Етапу 2
 
 Ліміти й пороги задаються через env gateway; у `docker-compose.yml` їх можна перевизначити
@@ -637,7 +716,7 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 
 ## Документація
 
-- Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md), [Етап 4](docs/plan/stage-4.md)
+- Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md), [Етап 4](docs/plan/stage-4.md), [Етап 5](docs/plan/stage-5.md)
 - ADR: [docs/adr](docs/adr/README.md)
 - Спайк JetStream проти BullMQ: [docs/spikes](docs/spikes/01-jetstream-vs-bullmq.md)
 - Звіти навантаження: [perf/reports](perf/reports/stage-2.md)

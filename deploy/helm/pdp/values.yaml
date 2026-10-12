@@ -1,0 +1,69 @@
+# Defaults for a cluster with the `platform` chart (Postgres, Redis, NATS, MinIO and the
+# observability stack) in the same namespace. Service names match docker-compose.
+# Secrets are referenced, never stored here:
+#   postgres-app    created by CloudNativePG, key `uri`
+#   s3-credentials  keys `accessKey`, `secretKey`
+
+global:
+  image:
+    registry: ''
+    tag: ''
+    pullPolicy: IfNotPresent
+  env:
+    NODE_ENV: production
+    LOG_LEVEL: info
+    PORT: '3000'
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    DEPLOYMENT_ENVIRONMENT: dev
+
+metadata:
+  env:
+    NATS_URL: nats://nats:4222
+  secretEnv:
+    DATABASE_URL: { secret: postgres-app, key: uri }
+
+api-gateway:
+  env:
+    REDIS_URL: redis://redis:6379
+    NATS_URL: nats://nats:4222
+    METADATA_URL: http://metadata:3000
+    S3_ENDPOINT: http://minio:9000
+    S3_BUCKET: media
+    # Exactly one proxy in front: the ingress controller, also for the Web UI's /v1.
+    TRUST_PROXY_HOPS: '1'
+  secretEnv:
+    S3_ACCESS_KEY: { secret: s3-credentials, key: accessKey }
+    S3_SECRET_KEY: { secret: s3-credentials, key: secretKey }
+
+scheduler:
+  env:
+    NATS_URL: nats://nats:4222
+    METADATA_URL: http://metadata:3000
+
+worker:
+  env:
+    NATS_URL: nats://nats:4222
+    METADATA_URL: http://metadata:3000
+    S3_ENDPOINT: http://minio:9000
+    S3_BUCKET: media
+    WORKER_CONCURRENCY: '2'
+  secretEnv:
+    S3_ACCESS_KEY: { secret: s3-credentials, key: accessKey }
+    S3_SECRET_KEY: { secret: s3-credentials, key: secretKey }
+
+video-worker:
+  env:
+    NATS_URL: nats://nats:4222
+    METADATA_URL: http://metadata:3000
+    S3_ENDPOINT: http://minio:9000
+    S3_BUCKET: media
+    VIDEO_CONCURRENCY: '1'
+  secretEnv:
+    S3_ACCESS_KEY: { secret: s3-credentials, key: accessKey }
+    S3_SECRET_KEY: { secret: s3-credentials, key: secretKey }
+
+web:
+  enabled: true
+
+webhook-receiver:
+  enabled: false

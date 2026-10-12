@@ -1,6 +1,10 @@
 apiVersion: v2
 name: worker
-description: PDP Media Pipeline — worker service (stub, completed in Stage 5)
+description: 'PDP Media Pipeline — image.resize and webhook delivery'
 type: application
-version: 0.1.0
-appVersion: '0.0.0'
+version: 0.2.0
+appVersion: dev
+dependencies:
+  - name: pdp-lib
+    version: 0.1.0
+    repository: file://../pdp-lib

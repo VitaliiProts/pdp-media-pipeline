@@ -1,0 +1,24 @@
+dependencies:
+- name: metadata
+  repository: file://../metadata
+  version: 0.2.0
+- name: api-gateway
+  repository: file://../api-gateway
+  version: 0.2.0
+- name: scheduler
+  repository: file://../scheduler
+  version: 0.2.0
+- name: worker
+  repository: file://../worker
+  version: 0.2.0
+- name: video-worker
+  repository: file://../video-worker
+  version: 0.2.0
+- name: web
+  repository: file://../web
+  version: 0.2.0
+- name: webhook-receiver
+  repository: file://../webhook-receiver
+  version: 0.2.0
+digest: sha256:8c042433fac57b943055da6e50bcc3b0acf76b969ab77f6bc2995843a2b1a467
+generated: "2026-10-13T00:30:18.807971+03:00"

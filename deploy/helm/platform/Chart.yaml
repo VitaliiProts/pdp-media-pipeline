@@ -1,0 +1,33 @@
+apiVersion: v2
+name: platform
+description: 'PDP Media Pipeline — data stores and observability for a local cluster'
+type: application
+version: 0.1.0
+# CloudNativePG and KEDA are installed first as separate releases (scripts/k8s.sh):
+# the Postgres Cluster here needs their CRDs.
+dependencies:
+  - name: nats
+    version: 2.15.0
+    repository: https://nats-io.github.io/k8s/helm/charts/
+  - name: victoria-metrics-single
+    alias: victoriametrics
+    version: 0.49.0
+    repository: https://victoriametrics.github.io/helm-charts/
+  - name: victoria-logs-single
+    alias: victorialogs
+    version: 0.13.10
+    repository: https://victoriametrics.github.io/helm-charts/
+  - name: victoria-metrics-alert
+    alias: vmalert
+    version: 0.51.0
+    repository: https://victoriametrics.github.io/helm-charts/
+  - name: tempo
+    version: 2.4.0
+    repository: https://grafana-community.github.io/helm-charts
+  - name: opentelemetry-collector
+    alias: otel-collector
+    version: 0.175.1
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  - name: grafana
+    version: 13.5.0
+    repository: https://grafana-community.github.io/helm-charts

@@ -1,14 +1,14 @@
-replicaCount: 1
-
 image:
-  repository: ghcr.io/pdp/api-gateway
+  repository: pdp/api-gateway
   tag: ''
-  pullPolicy: IfNotPresent
-
-service:
-  port: 80
-  containerPort: 3000
-
+replicaCount: 1
+serviceVersionEnv: true
+# Endpoint removal reaches the ingress before SIGTERM stops the server.
+preStopSleepSeconds: 5
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { cpu: '1', memory: 256Mi }
 env: {}
-
-resources: {}
+secretEnv: {}
+ingress:
+  enabled: false
