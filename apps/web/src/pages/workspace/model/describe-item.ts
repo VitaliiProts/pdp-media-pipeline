@@ -1,5 +1,5 @@
 import { STATUS_LABEL_KEY, type JobStatus } from '../../../features/jobs';
-import { type UploadProblem } from '../../../features/upload';
+import { type UploadProblem, type WaitReason } from '../../../features/upload';
 import { type SheetItem } from './sheet-items';
 
 export type Tone = 'pending' | 'active' | 'done' | 'failed';
@@ -9,6 +9,8 @@ export type ItemDescription = {
   /** Key in the `jobs` or `workspace` namespace, see `ns`. */
   label: { ns: 'jobs' | 'workspace'; key: string };
   progress: number | null;
+  /** When an automatic retry is due, for a countdown. */
+  retryAt: number | null;
   problem: { key: string; detail: string | null } | null;
 };
 
@@ -28,7 +30,14 @@ const PROBLEM_KEY = {
   unauthorized: 'problem.unauthorized',
   network: 'problem.network',
   rejected: 'problem.rejected',
+  rateLimited: 'problem.rateLimited',
+  queueFull: 'problem.queueFull',
 } as const satisfies Record<UploadProblem, string>;
+
+const WAIT_LABEL_KEY = {
+  rateLimited: 'stage.waitingRateLimit',
+  queueFull: 'stage.waitingQueue',
+} as const satisfies Record<WaitReason, string>;
 
 export function describeItem(item: SheetItem): ItemDescription {
   if (item.kind === 'job') {
@@ -36,6 +45,7 @@ export function describeItem(item: SheetItem): ItemDescription {
       tone: TONE_BY_STATUS[item.status],
       label: { ns: 'jobs', key: STATUS_LABEL_KEY[item.status] },
       progress: null,
+      retryAt: null,
       problem: item.lastError ? { key: 'problem.processing', detail: item.lastError } : null,
     };
   }
@@ -45,6 +55,7 @@ export function describeItem(item: SheetItem): ItemDescription {
         tone: 'pending',
         label: { ns: 'workspace', key: 'stage.uploading' },
         progress: item.stage.progress,
+        retryAt: null,
         problem: null,
       };
     case 'creating':
@@ -52,6 +63,15 @@ export function describeItem(item: SheetItem): ItemDescription {
         tone: 'pending',
         label: { ns: 'workspace', key: 'stage.creating' },
         progress: 1,
+        retryAt: null,
+        problem: null,
+      };
+    case 'waiting':
+      return {
+        tone: 'pending',
+        label: { ns: 'workspace', key: WAIT_LABEL_KEY[item.stage.reason] },
+        progress: null,
+        retryAt: item.stage.retryAt,
         problem: null,
       };
     case 'failed':
@@ -59,6 +79,7 @@ export function describeItem(item: SheetItem): ItemDescription {
         tone: 'failed',
         label: { ns: 'workspace', key: 'stage.failed' },
         progress: null,
+        retryAt: null,
         problem: { key: PROBLEM_KEY[item.stage.problem], detail: item.stage.detail },
       };
   }

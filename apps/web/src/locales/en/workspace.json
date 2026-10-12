@@ -10,12 +10,16 @@
     "error": "Could not load jobs. Is the gateway running?",
     "retry": "Try again",
     "empty": "No jobs yet. Drop an image above to start one.",
-    "emptyFiltered": "No jobs with this status."
+    "emptyFiltered": "No jobs with this status.",
+    "tooManyRequests_one": "Too many requests. Refreshing in {{count}} second.",
+    "tooManyRequests_other": "Too many requests. Refreshing in {{count}} seconds."
   },
   "stage": {
     "uploading": "Uploading",
     "creating": "Creating job",
-    "failed": "Not submitted"
+    "failed": "Not submitted",
+    "waitingRateLimit": "Rate limited, waiting",
+    "waitingQueue": "Queue is full, waiting"
   },
   "problem": {
     "type": "This file type is not supported.",
@@ -24,12 +28,16 @@
     "unauthorized": "The API key was rejected.",
     "network": "Network error, check the connection to the gateway.",
     "rejected": "The gateway refused the request.",
-    "processing": "Last error"
+    "processing": "Last error",
+    "rateLimited": "Still rate limited after several retries. Try again in a minute.",
+    "queueFull": "The queue stayed full after several retries. The file is uploaded; try again later."
   },
   "untitled": "Job {{id}}",
   "attempt_one": "Attempt {{count}}",
   "attempt_other": "Attempt {{count}}",
   "results": "Results",
   "dimensions": "{{width}} × {{height}}",
-  "dismiss": "Remove"
+  "dismiss": "Remove",
+  "retryIn_one": "retry in {{count}} s",
+  "retryIn_other": "retry in {{count}} s"
 }

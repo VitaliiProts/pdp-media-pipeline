@@ -4,6 +4,8 @@ export type AppError =
   | { kind: 'unauthorized' }
   | { kind: 'network' }
   | { kind: 'cancelled' }
+  /** 429, or 503 that says when to come back: the request was fine, the timing was not. */
+  | { kind: 'retryLater'; status: 429 | 503; retryAfterS: number }
   | { kind: 'http'; status: number; message: string };
 
 interface HttpHooks {
@@ -47,11 +49,23 @@ function messageOf(data: unknown): string | null {
   return null;
 }
 
+const DEFAULT_RETRY_AFTER_S = 5;
+
+/** Only the delta-seconds form; the gateway never sends an HTTP date. */
+function retryAfterOf(header: unknown): number | null {
+  const seconds = typeof header === 'string' ? Number.parseInt(header, 10) : Number.NaN;
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
+}
+
 export function toAppError(error: unknown): AppError {
   if (isCancel(error)) return { kind: 'cancelled' };
   if (!isAxiosError(error)) return { kind: 'network' };
   const status = error.response?.status;
   if (!status) return { kind: 'network' };
   if (status === 401) return { kind: 'unauthorized' };
+  const retryAfterS = retryAfterOf(error.response?.headers['retry-after']);
+  if (status === 429)
+    return { kind: 'retryLater', status, retryAfterS: retryAfterS ?? DEFAULT_RETRY_AFTER_S };
+  if (status === 503 && retryAfterS !== null) return { kind: 'retryLater', status, retryAfterS };
   return { kind: 'http', status, message: messageOf(error.response?.data) ?? error.message };
 }

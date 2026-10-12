@@ -1,5 +1,5 @@
-import { DEFAULT_JOB_PRIORITY, JOB_TYPES } from '@pdp/contracts';
-import { PRIORITY_THRESHOLD, selectClass } from './select-class';
+import { PRIORITY_THRESHOLD, selectClass } from './job-class';
+import { DEFAULT_JOB_PRIORITY, JOB_TYPES } from './jobs';
 
 describe('selectClass', () => {
   it.each(JOB_TYPES)('routes %s with default priority to cpu', (type) => {

@@ -14,11 +14,27 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiAcceptedResponse, ApiHeader, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { API_KEY_HEADER, ImageResizeOutputV1, type JobDto, uploadKeyPrefix } from '@pdp/contracts';
+import {
+  ApiAcceptedResponse,
+  ApiHeader,
+  ApiOkResponse,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+  ApiTooManyRequestsResponse,
+} from '@nestjs/swagger';
+import {
+  API_KEY_HEADER,
+  DEFAULT_JOB_PRIORITY,
+  ImageResizeOutputV1,
+  type JobDto,
+  selectClass,
+  uploadKeyPrefix,
+} from '@pdp/contracts';
 import { MetadataClient, MetadataError } from '@pdp/metadata-client';
 import { ApiKeyGuard, UserId } from '../auth/api-key.guard';
+import { BackpressureService } from '../backpressure/backpressure.service';
 import { type Env } from '../config';
+import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { StorageService } from '../storage/storage.service';
 import {
   CreateJobDto,
@@ -32,7 +48,8 @@ export const RESULT_URL_TTL_S = 60 * 60;
 
 @ApiTags('jobs')
 @ApiHeader({ name: API_KEY_HEADER, required: true })
-@UseGuards(ApiKeyGuard)
+@ApiTooManyRequestsResponse({ description: 'Rate limit exceeded, see Retry-After' })
+@UseGuards(ApiKeyGuard, RateLimitGuard)
 @Controller('v1/jobs')
 export class JobsController {
   private readonly maxBytes: number;
@@ -40,6 +57,7 @@ export class JobsController {
   constructor(
     @Inject(MetadataClient) private readonly metadata: MetadataClient,
     private readonly storage: StorageService,
+    private readonly backpressure: BackpressureService,
     config: ConfigService<Env, true>,
   ) {
     this.maxBytes = config.get('MAX_UPLOAD_BYTES', { infer: true });
@@ -48,10 +66,14 @@ export class JobsController {
   @Post()
   @HttpCode(202)
   @ApiAcceptedResponse({ type: CreateJobResponseDto })
+  @ApiServiceUnavailableResponse({ description: 'The queue for this job is full, see Retry-After' })
   async create(
     @UserId() userId: string,
     @Body() body: CreateJobDto,
   ): Promise<CreateJobResponseDto> {
+    const priority = body.priority ?? DEFAULT_JOB_PRIORITY;
+    await this.backpressure.assertAccepting(selectClass({ type: body.type, priority }));
+
     if (!body.sourceKey.startsWith(uploadKeyPrefix(userId)) || body.sourceKey.includes('..')) {
       throw new BadRequestException('sourceKey must come from POST /v1/uploads');
     }

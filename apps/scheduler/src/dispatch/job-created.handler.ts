@@ -4,12 +4,12 @@ import {
   dispatchSubject,
   JobCreatedV1,
   type JobDispatchV1,
+  selectClass,
   type TransitionRequest,
   type TransitionResponse,
 } from '@pdp/contracts';
 import { ack, type HandlerResult, nak, term } from '@pdp/messaging';
 import { MetadataError } from '@pdp/metadata-client';
-import { selectClass } from './select-class';
 
 export const SCHEDULER_ACTOR = 'scheduler';
 export const RETRY_DELAY_MS = 2000;

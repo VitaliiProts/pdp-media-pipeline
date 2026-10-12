@@ -1,5 +1,6 @@
 import { type INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { type NestExpressApplication } from '@nestjs/platform-express';
 import type * as GatewayMain from '../../apps/api-gateway/src/main';
 import { BUCKET, type Infra } from './infra';
 
@@ -55,7 +56,9 @@ export function createApps(infra: Infra): RunningApps {
       process.env.METADATA_URL = urls.metadata;
     }
     Object.assign(process.env, env);
-    const app = await NestFactory.create(loaders[name]() as never, { logger: ['error'] });
+    const app = await NestFactory.create<NestExpressApplication>(loaders[name]() as never, {
+      logger: ['error'],
+    });
     if (name === 'api-gateway') {
       loadConfigureGateway()(app);
     }

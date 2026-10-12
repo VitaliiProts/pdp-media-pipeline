@@ -1,5 +1,5 @@
 import { type Job, type JobResult, type JobStatus } from '../../../features/jobs';
-import { type Upload, type UploadProblem } from '../../../features/upload';
+import { type Upload, type UploadProblem, type WaitReason } from '../../../features/upload';
 
 export type SheetItem =
   | {
@@ -11,6 +11,7 @@ export type SheetItem =
       stage:
         | { phase: 'uploading'; progress: number }
         | { phase: 'creating' }
+        | { phase: 'waiting'; reason: WaitReason; retryAt: number }
         | { phase: 'failed'; problem: UploadProblem; detail: string | null };
     }
   | {
@@ -25,6 +26,21 @@ export type SheetItem =
       lastError: string | null;
       results: JobResult[];
     };
+
+type LocalStage = Extract<SheetItem, { kind: 'local' }>['stage'];
+
+function stageOf(upload: Exclude<Upload, { phase: 'submitted' }>): LocalStage {
+  switch (upload.phase) {
+    case 'uploading':
+      return { phase: upload.phase, progress: upload.progress };
+    case 'creating':
+      return { phase: upload.phase };
+    case 'waiting':
+      return { phase: upload.phase, reason: upload.reason, retryAt: upload.retryAt };
+    case 'failed':
+      return { phase: upload.phase, problem: upload.problem, detail: upload.detail };
+  }
+}
 
 const PREFERRED_PREVIEW = 'medium';
 
@@ -47,12 +63,7 @@ export function buildSheetItems(jobs: readonly Job[], uploads: readonly Upload[]
       byJobId.set(upload.jobId, upload);
       continue;
     }
-    const stage =
-      upload.phase === 'uploading'
-        ? { phase: upload.phase, progress: upload.progress }
-        : upload.phase === 'creating'
-          ? { phase: upload.phase }
-          : { phase: upload.phase, problem: upload.problem, detail: upload.detail };
+    const stage = stageOf(upload);
     local.push({
       kind: 'local',
       key: `upload:${upload.id}`,

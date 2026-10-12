@@ -1,6 +1,8 @@
 import {
   AckPolicy,
   DeliverPolicy,
+  JetStreamApiCodes,
+  JetStreamApiError,
   type JetStreamManager,
   RetentionPolicy,
   type StreamConfig,
@@ -35,6 +37,20 @@ export async function ensureStreams(jsm: JetStreamManager, names: StreamName[]):
     );
     if (exists) await jsm.streams.update(name, config);
     else await jsm.streams.add(config);
+  }
+}
+
+/**
+ * Messages stored in the stream. For a WorkQueue stream that is everything not yet
+ * acked: waiting plus in progress. A stream nobody has declared yet is empty.
+ */
+export async function streamDepth(jsm: JetStreamManager, name: StreamName): Promise<number> {
+  try {
+    const info = await jsm.streams.info(name);
+    return info.state.messages;
+  } catch (err) {
+    if (err instanceof JetStreamApiError && err.code === JetStreamApiCodes.StreamNotFound) return 0;
+    throw err;
   }
 }
 

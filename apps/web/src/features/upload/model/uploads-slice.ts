@@ -1,7 +1,10 @@
 import { createEntityAdapter, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { type FileProblem } from '../lib/validate-file';
 
-export type UploadProblem = FileProblem | 'unauthorized' | 'network' | 'rejected';
+export type UploadProblem =
+  FileProblem | 'unauthorized' | 'network' | 'rejected' | 'rateLimited' | 'queueFull';
+
+export type WaitReason = 'rateLimited' | 'queueFull';
 
 export type Upload = {
   id: string;
@@ -11,6 +14,8 @@ export type Upload = {
 } & (
   | { phase: 'uploading'; progress: number }
   | { phase: 'creating' }
+  /** The gateway asked to come back later; the same step is retried at `retryAt`. */
+  | { phase: 'waiting'; reason: WaitReason; retryAt: number }
   | { phase: 'submitted'; jobId: string }
   | { phase: 'failed'; problem: UploadProblem; detail: string | null }
 );
@@ -49,6 +54,16 @@ export const uploadsSlice = createSlice({
       const upload = state.entities[action.payload.id];
       if (upload?.phase === 'uploading') upload.progress = action.payload.progress;
     },
+    uploadWaiting(
+      state,
+      action: PayloadAction<{ id: string; reason: WaitReason; retryAt: number }>,
+    ) {
+      const { id, reason, retryAt } = action.payload;
+      moveTo(state, id, (base) => ({ ...base, phase: 'waiting', reason, retryAt }));
+    },
+    uploadRestarted(state, action: PayloadAction<string>) {
+      moveTo(state, action.payload, (base) => ({ ...base, phase: 'uploading', progress: 0 }));
+    },
     uploadStored(state, action: PayloadAction<string>) {
       moveTo(state, action.payload, (base) => ({ ...base, phase: 'creating' }));
     },
@@ -72,6 +87,8 @@ export const uploadsSlice = createSlice({
 export const {
   uploadStarted,
   uploadProgressed,
+  uploadWaiting,
+  uploadRestarted,
   uploadStored,
   uploadSubmitted,
   uploadFailed,

@@ -7,6 +7,6 @@ export {
   type JobStatus,
   type JobStatusFilter,
 } from './model/types';
-export { useLiveJobs } from './model/use-live-jobs';
+export { retryAfterOf, useLiveJobs } from './model/use-live-jobs';
 export { STATUS_LABEL_KEY } from './model/status-labels';
 export { StatusFilter } from './ui/StatusFilter';

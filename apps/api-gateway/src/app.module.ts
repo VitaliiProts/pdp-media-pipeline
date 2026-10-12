@@ -6,11 +6,15 @@ import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
 import { createLoggerModule, HealthModule } from '@pdp/observability';
 import { ApiKeyGuard } from './auth/api-key.guard';
+import { BackpressureService } from './backpressure/backpressure.service';
+import { QueueDepthService } from './backpressure/queue-depth.service';
 import { MetadataErrorFilter } from './common/metadata-error.filter';
+import { RetryLaterFilter } from './common/retry-later';
 import { type Env, envSchema } from './config';
 import { JobsController } from './jobs/jobs.controller';
+import { RateLimitGuard } from './rate-limit/rate-limit.guard';
+import { RateLimiterService } from './rate-limit/rate-limiter.service';
 import { RedisModule } from './redis/redis.module';
-import { RedisService } from './redis/redis.service';
 import { StorageModule } from './storage/storage.module';
 import { StorageService } from './storage/storage.service';
 import { UploadsController } from './uploads/uploads.controller';
@@ -22,11 +26,12 @@ import { UploadsController } from './uploads/uploads.controller';
     NatsModule.forRoot('api-gateway'),
     RedisModule,
     StorageModule,
+    // Redis is left out on purpose: rate limiting fails open (ADR-005), so a Redis
+    // outage must not take every gateway replica out of the load balancer.
     HealthModule.forRootAsync({
-      imports: [RedisModule, StorageModule],
-      inject: [RedisService, NatsService, StorageService],
-      useFactory: (redis: RedisService, nats: NatsService, storage: StorageService) => [
-        { name: 'redis', check: () => redis.ping() },
+      imports: [StorageModule],
+      inject: [NatsService, StorageService],
+      useFactory: (nats: NatsService, storage: StorageService) => [
         { name: 'nats', check: () => nats.ping() },
         { name: 's3', check: () => storage.ping() },
       ],
@@ -43,8 +48,13 @@ import { UploadsController } from './uploads/uploads.controller';
           timeoutMs: config.get('METADATA_TIMEOUT_MS', { infer: true }),
         }),
     },
+    RateLimiterService,
     ApiKeyGuard,
+    RateLimitGuard,
+    QueueDepthService,
+    BackpressureService,
     { provide: APP_FILTER, useClass: MetadataErrorFilter },
+    { provide: APP_FILTER, useClass: RetryLaterFilter },
   ],
 })
 export class AppModule {}
