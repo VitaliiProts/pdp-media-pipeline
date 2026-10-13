@@ -60,6 +60,49 @@ tests:
         alertname: JobSloBurnRateFast
         exp_alerts: []
 
+  # Transcoding has a 10-minute threshold: 70% over 5 minutes but all under 10 burns nothing,
+  # while 40% over 10 minutes is the same 8x ticket as for frames.
+  - name: video.transcode is measured at its own 600 s threshold
+    interval: 5m
+    input_series:
+      - series: 'job_e2e_duration_seconds_bucket{type="video.transcode",outcome="succeeded",le="300"}'
+        values: '0+3x90'
+      - series: 'job_e2e_duration_seconds_bucket{type="video.transcode",outcome="succeeded",le="600"}'
+        values: '0+10x90'
+      - series: 'job_e2e_duration_seconds_count{type="video.transcode",outcome="succeeded"}'
+        values: '0+10x90'
+      - series: 'job_e2e_duration_seconds_bucket{type="video.frames",outcome="succeeded",le="300"}'
+        values: '0+3x90'
+      - series: 'job_e2e_duration_seconds_bucket{type="video.frames",outcome="succeeded",le="600"}'
+        values: '0+10x90'
+      - series: 'job_e2e_duration_seconds_count{type="video.frames",outcome="succeeded"}'
+        values: '0+10x90'
+    metricsql_expr_test:
+      - expr: job:slo_burn_rate:rate6h
+        eval_time: 7h
+        exp_samples:
+          - labels: 'job:slo_burn_rate:rate6h{type="video.transcode"}'
+            value: 0
+          - labels: 'job:slo_burn_rate:rate6h{type="video.frames"}'
+            value: 14
+
+  - name: slow burn on video.transcode past 10 minutes
+    interval: 5m
+    input_series:
+      - series: 'job_e2e_duration_seconds_bucket{type="video.transcode",outcome="succeeded",le="600"}'
+        values: '0+6x90'
+      - series: 'job_e2e_duration_seconds_count{type="video.transcode",outcome="succeeded"}'
+        values: '0+10x90'
+    alert_rule_test:
+      - eval_time: 7h
+        groupname: job-alerts
+        alertname: JobSloBurnRateSlow
+        exp_alerts:
+          - exp_labels: { type: video.transcode, severity: ticket }
+            exp_annotations:
+              summary: 'video.transcode: error budget burns over 6x (6h and 30m)'
+              description: At this rate the 30-day budget is gone in about five days.
+
   # 2% of images dead-lettered alerts; every one of a handful of videos does not.
   - name: dead letter share above 1% with enough volume
     interval: 1m

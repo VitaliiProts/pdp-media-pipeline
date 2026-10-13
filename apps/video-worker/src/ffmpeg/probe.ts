@@ -26,6 +26,8 @@ const FfprobeOutput = z.object({
         width: z.number().optional(),
         height: z.number().optional(),
         duration: z.string().optional(),
+        side_data_list: z.array(z.object({ rotation: z.number().optional() })).optional(),
+        tags: z.object({ rotate: z.string().optional() }).optional(),
       }),
     )
     .default([]),
@@ -64,10 +66,15 @@ export function parseProbe(stdout: string, limits: ProbeLimits): VideoProbe {
     throw new PermanentError(`codec ${stream.codec_name} is not supported`);
   }
 
-  const { width, height } = stream;
-  if (!width || !height || width <= 0 || height <= 0) {
+  if (!stream.width || !stream.height || stream.width <= 0 || stream.height <= 0) {
     throw new PermanentError('video has no frame size');
   }
+  // Phones store portrait video as landscape plus a rotation; ffmpeg applies it on decode.
+  const rotation = stream.side_data_list?.find((d) => d.rotation !== undefined)?.rotation;
+  const quarterTurn = Math.abs(rotation ?? Number(stream.tags?.rotate ?? 0)) % 180 === 90;
+  const [width, height] = quarterTurn
+    ? [stream.height, stream.width]
+    : [stream.width, stream.height];
   if (width > limits.maxDimension || height > limits.maxDimension) {
     throw new PermanentError(`${width}x${height} exceeds ${limits.maxDimension}px`);
   }

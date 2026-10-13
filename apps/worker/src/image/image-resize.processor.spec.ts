@@ -22,7 +22,7 @@ describe('ImageResizeProcessor', () => {
   it('stores every preset under a deterministic key', async () => {
     const { deps, processor } = setup();
     const output = await processor.process(
-      { jobId: 'j1', attempt: 1 },
+      { jobId: 'j1', attempt: 1, progress: () => undefined },
       { sourceKey: 'uploads/u/a.png', presets: ['thumb', 'medium'] },
     );
 
@@ -43,7 +43,7 @@ describe('ImageResizeProcessor', () => {
   it('fetches a URL source through the egress path', async () => {
     const { deps, processor } = setup();
     await processor.process(
-      { jobId: 'j1', attempt: 1 },
+      { jobId: 'j1', attempt: 1, progress: () => undefined },
       { sourceUrl: 'https://cdn.example/a.png', presets: ['thumb'] },
     );
     expect(deps.fetchSource).toHaveBeenCalledWith(

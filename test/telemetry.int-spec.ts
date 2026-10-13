@@ -91,13 +91,16 @@ describe('one trace per job, and its metrics', () => {
     );
     expect(job.traceId).toMatch(/^[0-9a-f]{32}$/);
 
-    // The delivery is acked last; its consumer span closes the trace.
+    // The worker acks the delivery last; its consumer span closes the trace. The scheduler's
+    // `process events.job.created.v1` of the delivery job carries the same baggage and ends
+    // earlier, so the dispatch subject has to match too.
     const trace = await waitFor(
       () => {
         const spans = tracing.spans().filter((s) => s.spanContext().traceId === job.traceId);
         const delivered = spans.some(
           (s) =>
             s.kind === SpanKind.CONSUMER &&
+            s.name.startsWith('process jobs.') &&
             s.attributes['job.type'] === 'webhook.deliver' &&
             s.attributes['messaging.nats.outcome'] === 'ack',
         );

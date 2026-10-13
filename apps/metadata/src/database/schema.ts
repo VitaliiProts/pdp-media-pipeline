@@ -65,6 +65,8 @@ export const jobs = pgTable(
     lastError: text('last_error'),
     /** Trace of the request that created or last redrove the job. */
     traceId: text('trace_id'),
+    /** Percent of the current attempt; not a status change, so `updated_at` stays. */
+    progress: smallint('progress'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
     finishedAt: ts('finished_at'),

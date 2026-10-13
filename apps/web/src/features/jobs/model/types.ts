@@ -42,6 +42,27 @@ export type VideoResult = {
   frames: VideoFrame[];
 };
 
+export type Rendition = {
+  rendition: string;
+  width: number;
+  height: number;
+  durationSeconds: number;
+  bytes: number;
+  /** Bits per second. */
+  bitrate: number;
+  url: string;
+};
+
+export type TranscodeResult = {
+  durationSeconds: number;
+  width: number;
+  height: number;
+  codec: string;
+  preview: VideoFrame;
+  renditions: Rendition[];
+  skipped: string[];
+};
+
 export type Job = {
   id: string;
   type: string;
@@ -49,8 +70,11 @@ export type Job = {
   attempts: number;
   lastError: string | null;
   deadReason: DeadReason | null;
+  /** Percent, while running; only long job types report it. */
+  progress?: number | null;
   results?: JobResult[];
   video?: VideoResult;
+  transcode?: TranscodeResult;
   createdAt: string;
   /** Trace of the request that created or last redrove the job. */
   traceId: string | null;

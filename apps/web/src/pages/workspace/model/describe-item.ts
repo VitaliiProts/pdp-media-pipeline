@@ -56,7 +56,7 @@ export function describeItem(item: SheetItem): ItemDescription {
     return {
       tone: TONE_BY_STATUS[item.status],
       label: { ns: 'jobs', key: STATUS_LABEL_KEY[item.status] },
-      progress: null,
+      progress: item.progress,
       retryAt: null,
       problem: jobProblem(item),
     };

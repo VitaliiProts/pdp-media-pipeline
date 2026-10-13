@@ -134,6 +134,29 @@ export function decide(
   }
 }
 
+/**
+ * Progress belongs to the attempt that is running now. An older attempt still working after
+ * it was superseded, or one reporting after the job finished, is told to stop reporting.
+ */
+export function decideProgress(
+  job: Pick<JobState, 'status' | 'attempts'>,
+  attempt: number,
+): { code: RejectCode; message: string } | null {
+  if (isTerminalStatus(job.status)) {
+    return { code: 'JOB_TERMINAL', message: `job is already ${job.status}` };
+  }
+  if (job.status !== 'running') {
+    return { code: 'INVALID_TRANSITION', message: `cannot report progress of a ${job.status} job` };
+  }
+  if (attempt !== job.attempts) {
+    return {
+      code: 'STALE_ATTEMPT',
+      message: `attempt ${attempt} is not the running ${job.attempts}`,
+    };
+  }
+  return null;
+}
+
 /** Only a dead job is sent around again; anything else is still in flight or finished well. */
 export function decideRedrive(job: Pick<JobState, 'status'>): RedriveDecision {
   return job.status === 'dead'

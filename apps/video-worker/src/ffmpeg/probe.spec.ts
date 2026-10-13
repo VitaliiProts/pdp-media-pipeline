@@ -22,6 +22,17 @@ describe('parseProbe', () => {
     ).toEqual({ codec: 'h264', width: 320, height: 240, durationSeconds: 5 });
   });
 
+  it.each([
+    ['display matrix', { side_data_list: [{ rotation: -90 }] }],
+    ['rotate tag', { tags: { rotate: '270' } }],
+  ])('reports the displayed size of a rotated video (%s)', (_, rotation) => {
+    const result = parseProbe(
+      probe({ codec_name: 'h264', width: 1920, height: 1080, duration: '3', ...rotation }),
+      limits,
+    );
+    expect(result).toMatchObject({ width: 1080, height: 1920 });
+  });
+
   it('falls back to the container duration', () => {
     const result = parseProbe(
       probe({ codec_name: 'vp9', width: 640, height: 360 }, { duration: '12.5' }),

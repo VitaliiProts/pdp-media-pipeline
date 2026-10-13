@@ -4,14 +4,16 @@ import { traced } from '@pdp/observability';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ffprobeArgs, parseProbe, type ProbeLimits, type VideoProbe } from './probe';
-import { runProcess } from './run-process';
+import { type RunOptions, runProcess } from './run-process';
+import { ProgressParser, type RenditionOutput, transcodeArgs } from './transcode';
 
 export interface FfmpegOptions {
   ffmpegPath: string;
   ffprobePath: string;
   /** Per process run. */
   timeoutMs: number;
-  limits: ProbeLimits;
+  /** For a whole transcode, which takes minutes where frames take seconds. */
+  transcodeTimeoutMs: number;
 }
 
 /** Keeps the aspect ratio, never upscales, and keeps the height even for the JPEG encoder. */
@@ -21,12 +23,12 @@ const FRAME_PATTERN = /^frame-(\d{4})\.jpg$/;
 export class Ffmpeg {
   constructor(private readonly options: FfmpegOptions) {}
 
-  probe(path: string): Promise<VideoProbe> {
+  probe(path: string, limits: ProbeLimits): Promise<VideoProbe> {
     return traced('ffprobe', {}, async (span) => {
       const { stdout } = await runProcess(this.options.ffprobePath, ffprobeArgs(path), {
         timeoutMs: this.options.timeoutMs,
       });
-      const probe = parseProbe(stdout, this.options.limits);
+      const probe = parseProbe(stdout, limits);
       span.setAttributes({
         'video.duration_seconds': probe.durationSeconds,
         'video.width': probe.width,
@@ -79,10 +81,41 @@ export class Ffmpeg {
     ]);
   }
 
-  private async ffmpeg(span: string, attributes: Attributes, args: string[]): Promise<void> {
+  /** All renditions in one run; `onProgress` gets the encoded share of the source, 0..1. */
+  async transcode(
+    source: string,
+    outputs: readonly RenditionOutput[],
+    probe: VideoProbe,
+    onProgress: (fraction: number) => void,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const parser = new ProgressParser();
+    await this.ffmpeg(
+      'ffmpeg transcode',
+      { 'video.renditions': outputs.map((o) => o.rendition) },
+      transcodeArgs(source, outputs, probe.width >= probe.height),
+      {
+        timeoutMs: this.options.transcodeTimeoutMs,
+        signal,
+        onStdout: (chunk) => {
+          for (const seconds of parser.feed(chunk)) {
+            onProgress(Math.min(1, seconds / probe.durationSeconds));
+          }
+        },
+      },
+    );
+  }
+
+  private async ffmpeg(
+    span: string,
+    attributes: Attributes,
+    args: string[],
+    run: Partial<RunOptions> = {},
+  ): Promise<void> {
     await traced(span, { attributes }, () =>
       runProcess(this.options.ffmpegPath, ['-nostdin', '-v', 'error', '-y', ...args], {
         timeoutMs: this.options.timeoutMs,
+        ...run,
       }),
     );
   }

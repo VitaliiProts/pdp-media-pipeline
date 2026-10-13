@@ -1,9 +1,15 @@
-# SLO of ADR-001 and ADR-008: a job succeeds within 5 minutes of its creation.
-#   image.resize: 99%, video.frames: 95%, over 30 days.
+# SLO of ADR-001, ADR-008 and ADR-011, over 30 days:
+#   image.resize     99% succeed within 5 minutes of creation
+#   video.frames     95% within 5 minutes
+#   video.transcode  95% within 10 minutes
 #
-# SLI = jobs that succeeded within 300 s / jobs that finished, without `permanent` failures:
-# those are rejected input (a broken file, a 404 URL), which retries cannot fix and which
-# are not the pipeline's latency. Redriven generations are not in job_e2e_duration at all.
+# SLI = jobs that succeeded within the threshold / jobs that finished, without `permanent`
+# failures: those are rejected input (a broken file, a 404 URL), which retries cannot fix
+# and which are not the pipeline's latency. Redriven generations are not in job_e2e_duration
+# at all.
+#
+# The threshold is the `le` label of the objective, so "within the threshold" is that one
+# histogram bucket, picked per type by `and on (type, le)`.
 #
 # Burn rate = error ratio / (1 - objective). 1 means the budget lasts exactly 30 days;
 # 14.4 spends 2% of it in an hour, 6 spends 5% in six hours (Google SRE workbook, ch. 5).
@@ -16,36 +22,51 @@ groups:
     rules:
       - record: job:slo_objective:ratio
         expr: vector(0.99)
-        labels: { type: image.resize }
+        labels: { type: image.resize, le: '300' }
       - record: job:slo_objective:ratio
         expr: vector(0.95)
-        labels: { type: video.frames }
+        labels: { type: video.frames, le: '300' }
+      - record: job:slo_objective:ratio
+        expr: vector(0.95)
+        labels: { type: video.transcode, le: '600' }
 
       - record: job:slo_errors:ratio_rate5m
         expr: |
           1 - (
-            sum by (type) (increase(job_e2e_duration_seconds_bucket{outcome="succeeded", le="300"}[5m]))
+            sum by (type) (
+              increase(job_e2e_duration_seconds_bucket{outcome="succeeded"}[5m])
+                and on (type, le) job:slo_objective:ratio
+            )
             /
             sum by (type) (increase(job_e2e_duration_seconds_count{outcome!="permanent"}[5m]))
           )
       - record: job:slo_errors:ratio_rate30m
         expr: |
           1 - (
-            sum by (type) (increase(job_e2e_duration_seconds_bucket{outcome="succeeded", le="300"}[30m]))
+            sum by (type) (
+              increase(job_e2e_duration_seconds_bucket{outcome="succeeded"}[30m])
+                and on (type, le) job:slo_objective:ratio
+            )
             /
             sum by (type) (increase(job_e2e_duration_seconds_count{outcome!="permanent"}[30m]))
           )
       - record: job:slo_errors:ratio_rate1h
         expr: |
           1 - (
-            sum by (type) (increase(job_e2e_duration_seconds_bucket{outcome="succeeded", le="300"}[1h]))
+            sum by (type) (
+              increase(job_e2e_duration_seconds_bucket{outcome="succeeded"}[1h])
+                and on (type, le) job:slo_objective:ratio
+            )
             /
             sum by (type) (increase(job_e2e_duration_seconds_count{outcome!="permanent"}[1h]))
           )
       - record: job:slo_errors:ratio_rate6h
         expr: |
           1 - (
-            sum by (type) (increase(job_e2e_duration_seconds_bucket{outcome="succeeded", le="300"}[6h]))
+            sum by (type) (
+              increase(job_e2e_duration_seconds_bucket{outcome="succeeded"}[6h])
+                and on (type, le) job:slo_objective:ratio
+            )
             /
             sum by (type) (increase(job_e2e_duration_seconds_count{outcome!="permanent"}[6h]))
           )

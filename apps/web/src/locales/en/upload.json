@@ -1,7 +1,7 @@
 {
   "drop": {
     "title": "Drop images or videos here, or choose files",
-    "limits": "Images: JPEG, PNG or WebP up to {{maxMb}} MB. Videos: MP4, WebM or MOV up to {{maxVideoMb}} MB and 60 seconds."
+    "limits": "Images: JPEG, PNG or WebP up to {{maxMb}} MB. Videos: MP4, WebM or MOV up to {{maxVideoMb}} MB; up to 60 seconds for frames, 5 minutes for transcoding."
   },
   "presets": {
     "legend": "Image sizes to produce",
@@ -10,5 +10,12 @@
     "thumb": "Thumbnail",
     "medium": "Medium",
     "large": "Large"
+  },
+  "video": {
+    "legend": "What to do with videos",
+    "frames": "Frames",
+    "framesDetail": "every 2 s",
+    "transcode": "Transcode",
+    "transcodeDetail": "MP4 480p and 720p"
   }
 }

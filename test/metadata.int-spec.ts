@@ -84,6 +84,28 @@ describe('metadata (Postgres + NATS)', () => {
     await expect(client.getJob(job.id)).resolves.toMatchObject({ status: 'succeeded' });
   });
 
+  it('takes progress only from the running attempt and resets it on the next one', async () => {
+    const job = await createJob();
+    await expect(client.reportProgress(job.id, { attempt: 1, progress: 10 })).rejects.toMatchObject(
+      { status: 409, code: 'INVALID_TRANSITION' },
+    );
+
+    await client.transition(job.id, { to: 'running', attempt: 1, actor: 'worker:a' });
+    await client.reportProgress(job.id, { attempt: 1, progress: 42 });
+    await expect(client.getJob(job.id)).resolves.toMatchObject({ progress: 42 });
+
+    await client.transition(job.id, { to: 'running', attempt: 2, actor: 'worker:b' });
+    await expect(client.getJob(job.id)).resolves.toMatchObject({ progress: null });
+    await expect(client.reportProgress(job.id, { attempt: 1, progress: 80 })).rejects.toMatchObject(
+      { status: 409, code: 'STALE_ATTEMPT' },
+    );
+
+    await client.transition(job.id, { to: 'succeeded', attempt: 2, actor: 'worker:b', output: {} });
+    await expect(client.reportProgress(job.id, { attempt: 2, progress: 99 })).rejects.toMatchObject(
+      { status: 409, code: 'JOB_TERMINAL' },
+    );
+  });
+
   it('publishes job.created to EVENTS exactly once, even when the relay republishes', async () => {
     const job = await createJob();
     const published = () =>

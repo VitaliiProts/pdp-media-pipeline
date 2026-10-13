@@ -1,9 +1,9 @@
 # Етап 5. Kubernetes, KEDA і video.transcode
 
 - Тижні 13–15: 4–24 січня 2027
-- Статус: 5.1 готовий, 5.2 і 5.3 — план. Етап розбито на три PR:
+- Статус: 5.1 і 5.2 готові, 5.3 — план. Етап розбито на три PR:
   - **5.1 «Кластер і Helm»**, гілка `feature/stage-5.1-k8s-helm`;
-  - **5.2 «video.transcode»**, після мерджу 5.1;
+  - **5.2 «video.transcode»**, гілка `feature/stage-5.2-video-transcode`;
   - **5.3 «Автоскейл і graceful shutdown»**, після мерджу 5.2.
 
 Назви 5a і 5b не використовуються: у PDF «Етап 5b» — це AWS, домен і перший деплой з CI.
@@ -58,7 +58,7 @@
 | Graceful shutdown        | На SIGTERM перестати брати повідомлення; чекати поточні до дедлайну (`terminationGracePeriodSeconds` мінус запас); потім скасувати обробку (AbortSignal → `SIGKILL` ffmpeg) і зробити `nak`, щоб інший под одразу взяв задачу. Переривання через shutdown не зʼїдає спробу |
 | Сигнал автоскейлу        | Нативний `nats-jetstream` scaler KEDA. Його lag — `num_pending + num_ack_pending`, тобто задачі в роботі теж рахуються, і зайнятий под не вважається зайвим. `lagThreshold` дорівнює кількості слотів на под                                                               |
 | Gateway                  | HPA за CPU, мінімум 2 репліки. PDB і `preferred` anti-affinity для gateway і воркерів                                                                                                                                                                                      |
-| Нумерація ADR            | Наступний — ADR-011. Таблиця відповідності номерам PDF у `docs/adr/README.md`                                                                                                                                                                                              |
+| Нумерація ADR            | ADR-011 — транскодинг (5.2), ADR-012 — автоскейл і shutdown (5.3). Таблиця відповідності номерам PDF у `docs/adr/README.md`                                                                                                                                                |
 
 ## Задачі
 
@@ -88,14 +88,23 @@
 
 ### 5.2. video.transcode
 
-- [ ] Контракт: вхід `sourceKey | sourceUrl` і `renditions: ['480p', '720p']`, вихід зі списком файлів, розмірами й бітрейтом.
-- [ ] `TranscodeProcessor`: ffprobe, один прохід ffmpeg з `split` на дві якості, H.264 `veryfast`, AAC, `+faststart`, без апскейлу; ключі `results/<jobId>/<rendition>.mp4`.
-- [ ] Прогрес: розбір `-progress pipe:1`; колонка `jobs.progress`; окремий виклик Metadata, дозволений лише в `running` і лише для поточної спроби; не частіше ніж раз на кілька секунд.
-- [ ] `progress` у `GET /v1/jobs/:id`, прогрес-бар у Web UI.
-- [ ] Окремий таймаут `TRANSCODE_TIMEOUT_MS`; `run-process` приймає AbortSignal.
-- [ ] Консюмери `video-transcode-*`; у compose — окремий сервіс `video-transcode` з того самого образу.
-- [ ] SLO для `video.transcode` у правилах vmalert і дашборді SLO; поріг обґрунтовується в ADR-011.
-- [ ] Тести: unit на аргументи ffmpeg, розбір прогресу, переходи; інтеграційний — транскодинг короткого відео.
+- [x] Контракт: вхід `sourceKey | sourceUrl` і `renditions: ['480p', '720p']`, вихід зі списком файлів, розмірами й бітрейтом.
+- [x] `TranscodeProcessor`: ffprobe, один прохід ffmpeg з `split` на дві якості, H.264 `veryfast`, AAC, `+faststart`, без апскейлу; ключі `results/<jobId>/<rendition>.mp4`.
+- [x] Прогрес: розбір `-progress pipe:1`; колонка `jobs.progress`; окремий виклик Metadata, дозволений лише в `running` і лише для поточної спроби; не частіше ніж раз на кілька секунд.
+- [x] `progress` у `GET /v1/jobs/:id`, прогрес-бар у Web UI.
+- [x] Окремий таймаут `TRANSCODE_TIMEOUT_MS`; `run-process` приймає AbortSignal.
+- [x] Консюмери `video-transcode-*`; у compose — окремий сервіс `video-transcode` з того самого образу.
+- [x] SLO для `video.transcode` у правилах vmalert і дашборді SLO; поріг обґрунтовується в ADR-011.
+- [x] Тести: unit на аргументи ffmpeg, розбір прогресу, переходи; інтеграційний — транскодинг короткого відео.
+
+Як зроблено (деталі й альтернативи — [ADR-011](../adr/0011-video-transcode.md)):
+
+- **Якість за коротшою стороною**, з урахуванням повороту з метаданих: вертикальне 1080x1920 отримує 480x854 і 720x1280. Більші за джерело якості йдуть у `skipped`; якщо не підходить жодна — `permanent`. Тривалість — до 5 хв (`TRANSCODE_MAX_DURATION_SECONDS`).
+- **Прогрес — умовний `UPDATE ... WHERE status = 'running' AND attempts = $attempt`**, а не перехід: без `job_transitions`, outbox і зміни `updated_at`. Воркер шле цілі відсотки не частіше ніж раз на `JOB_PROGRESS_INTERVAL_MS` (3 с), не чекає відповіді й зупиняється на 4xx; до успіху значення не більше 99. Gateway показує прогрес лише для `running`.
+- **Типи за env.** `VIDEO_JOB_TYPES` (за замовчуванням обидва) вибирає процесори й консюмери. Консюмери кадрів зберегли імена `video-priority`/`video-cpu`. У Helm той самий чарт `video-worker` підключений вдруге з `alias: video-transcode`, а `k8s.sh` передає йому тег образу video-worker.
+- **SLO: 95% за 10 хв.** Поріг — мітка `le` на `job:slo_objective:ratio`, «успішні вчасно» вибираються через `and on (type, le)`, дашборд SLO бере `le` прихованою змінною. Межа 600 вже була в бакетах; у бакети спроб її додано.
+- **Виміряно в compose:** 60 с відео 1080p з аудіо кодується за 6 с без ліміту CPU і за 18 с з лімітом 2 CPU, пік памʼяті близько 560 МіБ. Звідси limits `2 CPU / 1536Mi` для `video-transcode`.
+- **Web UI:** перемикач «Кадри / Транскодинг» у панелі завантаження, прогрес-бар на картці під час кодування, якості — посиланнями на MP4.
 
 ### 5.3. Автоскейл і graceful shutdown
 
@@ -106,7 +115,7 @@
 - [ ] k6-сценарій `video-load` для кластера.
 - [ ] Демо: скейл відео-воркерів з 1 до N і назад; `kubectl rollout restart` під навантаженням; перевірка за метриками (створено = завершено, немає `dead` через рестарт, видимих дублів 0) і SQL-запитом до `job_executions`.
 - [ ] Звіт `perf/reports/stage-5.md`: графіки реплік, глибини черг і e2e latency під час скейлу і rollout.
-- [ ] ADR-011 «Сигнал автоскейлу, graceful shutdown і SLO для відео»; таблиця відповідності ADR номерам PDF.
+- [ ] ADR-012 «Сигнал автоскейлу і graceful shutdown»; таблиця відповідності ADR номерам PDF.
 - [ ] README: як перевірити автоскейл і rollout.
 
 ## Ризики

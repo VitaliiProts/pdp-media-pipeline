@@ -71,6 +71,8 @@ images() {
     docker tag "pdp/$app:dev" "$REGISTRY/pdp/$app:$id"
     docker push --quiet "$REGISTRY/pdp/$app:$id" >/dev/null
     printf -- '--set %s.image.tag=%s ' "$app" "$id"
+    # Transcoding runs from the video worker image.
+    if [ "$app" = video-worker ]; then printf -- '--set video-transcode.image.tag=%s ' "$id"; fi
   done
 }
 

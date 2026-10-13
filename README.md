@@ -24,10 +24,13 @@ flowchart LR
   SCH -->|JOBS_CPU / JOBS_IO / JOBS_PRIORITY| NATS
   NATS -->|pull consumer| W[Worker]
   NATS -->|pull consumer| VW[Video worker]
+  NATS -->|pull consumer| VT[Video transcode]
   W -->|sharp: thumb / medium / large| S3
   VW -->|ffmpeg: превʼю і кадри| S3
+  VT -->|ffmpeg: 480p і 720p MP4| S3
   W -->|переходи статусів| META
   VW -->|переходи статусів| META
+  VT -->|переходи і прогрес| META
   W -->|webhook.deliver, підпис HMAC| RCV[Приймач вебхуків]
 ```
 
@@ -40,6 +43,8 @@ flowchart LR
    кладе їх у `results/{jobId}/{preset}.webp` і переводить задачу в `succeeded`.
    Кожна спроба пишеться в `job_executions`. Відео (`video.frames`) бере окремий video-worker:
    ffprobe перевіряє файл, ffmpeg робить превʼю і кадри в `results/{jobId}/frames/NNNN.jpg`.
+   `video.transcode` бере сервіс `video-transcode` з того самого образу: MP4 у
+   `results/{jobId}/{480p|720p}.mp4`.
 5. Статуси: `queued → scheduled → running → succeeded | dead`, переходи лише через
    машину станів у Metadata. Невдача — це `dead` з причиною: `permanent` (файл непридатний) або
    `exhausted` (усі спроби вичерпано).
@@ -106,12 +111,25 @@ flowchart LR
   throughput і помилки (`jobs_finished_total{outcome}`), ретраї, DLQ, дублікати, глибина кожного
   стріму і backlog консюмерів, `http_server_request_duration_seconds{http_route}`, runtime Node.
 - **SLO.** `image.resize`: 99% задач успішні за 5 хв від створення, `video.frames`: 95%
-  ([ADR-008](docs/adr/0008-video-worker.md)). Бюджет помилок на 30 днів видно на дашборді **SLO**.
+  ([ADR-008](docs/adr/0008-video-worker.md)), `video.transcode`: 95% за 10 хв
+  ([ADR-011](docs/adr/0011-video-transcode.md)). Бюджет помилок на 30 днів видно на дашборді **SLO**.
 - **Алерти.** vmalert: burn rate 1 год / 5 хв (`page`) і 6 год / 30 хв (`ticket`), частка DLQ
   понад 1%, ріст черги. Alertmanager шле їх у `webhook-receiver`.
 - **Дашборди як код.** Overview, SLO, Queues, Per-service і Job у
   `deploy/observability/grafana/dashboards`. З панелей латентності data links ведуть на
   повільні й помилкові трейси в Tempo і на логи у VictoriaLogs (замість exemplars).
+
+Транскодинг (Етап 5.2, [ADR-011](docs/adr/0011-video-transcode.md)):
+
+- **`video.transcode`.** Відео до 5 хв і 100 МБ перекодовується одним проходом ffmpeg у 480p і
+  720p (H.264, AAC, `+faststart`), якість — за коротшою стороною, без апскейлу. Якості, більші за
+  джерело, повертаються у `skipped`.
+- **Прогрес.** Воркер раз на 3 с повідомляє Metadata відсоток кодування; `GET /v1/jobs/:id`
+  віддає `progress` (0–100), поки задача `running`. Звіт старої спроби відкидається.
+- **Окремий сервіс.** Той самий образ, але `VIDEO_JOB_TYPES=video.transcode` і свої консюмери
+  `video-transcode-*`, тож хвилинний транскодинг не займає слот, на який чекають кадри.
+- **Web UI.** У панелі завантаження перемикач «Кадри / Транскодинг»; на картці — прогрес-бар,
+  потім якості посиланнями на MP4.
 
 ### Структура репозиторію
 
@@ -161,6 +179,7 @@ echo "$KEY"            # цей ключ вставляється у Web UI
 | API Gateway і Swagger           | http://localhost:18080, http://localhost:18080/docs         |
 | Metadata / Scheduler / Worker   | http://localhost:18081, :18082, :18083                      |
 | Приймач вебхуків / Video worker | http://localhost:18084, :18085                              |
+| Video transcode                 | http://localhost:18086                                      |
 | Консоль MinIO                   | http://localhost:59001 (`minioadmin` / `minioadmin`)        |
 | Моніторинг NATS                 | http://localhost:58222                                      |
 | Grafana (без логіна)            | http://localhost:13000, папка дашбордів «PDP»               |
@@ -210,9 +229,10 @@ KEY=$(kubectl -n pdp exec deploy/metadata -- node dist/seed-user.js --name me | 
 
 1. Health-check'и:
    ```bash
-   for p in 18080 18081 18082 18083 18085; do echo "$p $(curl -s -o /dev/null -w '%{http_code}' localhost:$p/health/ready)"; done
+   for p in 18080 18081 18082 18083 18085 18086; do echo "$p $(curl -s -o /dev/null -w '%{http_code}' localhost:$p/health/ready)"; done
    ```
-   Очікувано: п'ять разів `200` (18085 — video-worker з Етапу 3b).
+   Очікувано: шість разів `200` (18085 — video-worker з Етапу 3b, 18086 — video-transcode з
+   Етапу 5.2).
 2. Якість коду (усе має пройти без помилок):
    ```bash
    pnpm lint && pnpm typecheck && pnpm format:check && pnpm depcruise && pnpm helm:lint && pnpm build
@@ -662,6 +682,73 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
    ```
 7. Документи: [план етапу](docs/plan/stage-5.md).
 
+### Етап 5.2. `video.transcode`
+
+**Критерій підетапу:** відео перекодовується в 480p і 720p одним проходом, прогрес видно в API
+і UI, транскодинг працює окремим сервісом і має власний SLO.
+
+1. Окремий сервіс і консюмери. `video-worker` бере лише кадри, `video-transcode` — лише
+   транскодинг:
+   ```bash
+   docker compose logs video-worker video-transcode | grep consuming
+   curl -s 'localhost:58222/jsz?consumers=true' \
+     | jq -r '.account_details[].stream_detail[] | select(.name | startswith("JOBS_")) | "\(.name): \([.consumer_detail[]?.name] | join(", "))"'
+   ```
+   Очікувано: `consuming video.frames` і `consuming video.transcode`; у `JOBS_CPU` і
+   `JOBS_PRIORITY` зʼявились `video-transcode-cpu` і `video-transcode-priority`.
+2. Тестове відео (хвилина 1080p з аудіо, ~20 МБ) статичним ffmpeg із `node_modules`:
+   ```bash
+   FF=$(cd apps/video-worker && node -p "require('ffmpeg-static')")
+   "$FF" -v error -y -f lavfi -i testsrc2=duration=60:size=1920x1080:rate=30 \
+     -f lavfi -i sine=frequency=440:duration=60 -c:v libx264 -preset veryfast -crf 28 \
+     -pix_fmt yuv420p -c:a aac -shortest /tmp/clip-1080.mp4
+   ```
+3. Транскодинг через API з прогресом:
+   ```bash
+   F=/tmp/clip-1080.mp4
+   UP=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"contentType\":\"video/mp4\",\"size\":$(wc -c < $F | tr -d ' ')}" localhost:18080/v1/uploads)
+   curl -s -X PUT -H 'content-type: video/mp4' --data-binary @$F "$(jq -r .uploadUrl <<<"$UP")"
+   ID=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"video.transcode\",\"sourceKey\":\"$(jq -r .sourceKey <<<"$UP")\"}" localhost:18080/v1/jobs | jq -r .jobId)
+   while :; do R=$(curl -s -H "x-api-key: $KEY" localhost:18080/v1/jobs/$ID)
+     S=$(jq -r .status <<<"$R"); echo "$S $(jq -r .progress <<<"$R")"
+     case $S in succeeded|dead) break ;; esac; sleep 1; done
+   jq '{progress, transcode: (.transcode | {skipped, renditions: [.renditions[] | {rendition, width, height, bytes, bitrate}]})}' <<<"$R"
+   ```
+   Очікувано: `running 0`, далі зростаючі відсотки (на швидкій машині кодування займає кілька
+   секунд, тож проміжних значень може бути одне-два), потім `succeeded null`; дві якості
+   854x480 і 1280x720, `skipped: []`. Файл грається в браузері одразу за посиланням:
+   `open "$(jq -r '.transcode.renditions[1].url' <<<"$R")"`.
+4. Прогрес приймається лише від поточної спроби в `running`; звіт для завершеної задачі
+   відкидається:
+   ```bash
+   curl -s -w ' %{http_code}\n' -H 'content-type: application/json' \
+     -d '{"attempt":1,"progress":50}' localhost:18081/internal/jobs/$ID/progress
+   ```
+   Очікувано: `{"code":"JOB_TERMINAL",...} 409`.
+5. Без апскейлу: відео 320x240 менше за обидві якості, задача — `dead / permanent` з
+   `... it is not upscaled`. Відео 854x480 дає лише 480p і `skipped: ["720p"]`.
+6. Web UI (http://localhost:18090): у панелі завантаження вибрати «Транскодинг», перетягнути
+   відео. На картці — прогрес-бар під час кодування, потім обкладинка і посилання `480p`, `720p`.
+7. SLO: поріг транскодингу — 600 с, мітка `le` на цілі:
+   ```bash
+   curl -s localhost:18428/api/v1/query --data-urlencode 'query=job:slo_objective:ratio' \
+     | jq -c '.data.result[] | [.metric.type, .metric.le, .value[1]]'
+   ```
+   Очікувано: `["video.transcode","600","0.95"]` поруч з `image.resize` і `video.frames` на 300.
+   Дашборд **SLO** у Grafana, тип `video.transcode`: формули й пунктир порогу на графіку
+   перцентилів — 600 с. Тести правил: `pnpm alerts:test`.
+8. У кластері: `pnpm k8s:deploy`, потім `kubectl -n pdp get deploy video-worker video-transcode`
+   — обидва з одного образу, `VIDEO_JOB_TYPES` різний
+   (`kubectl -n pdp get deploy video-transcode -o yaml | grep -A1 VIDEO_JOB_TYPES`).
+9. Тести: unit — `apps/video-worker/src/ffmpeg/transcode.spec.ts` (план якостей, аргументи
+   ffmpeg, розбір `-progress`), `libs/worker-kit/src/progress.spec.ts` (тротлінг),
+   `apps/metadata/src/jobs/state-machine.spec.ts` (`decideProgress`); інтеграційні —
+   `test/media-sources.int-spec.ts` (транскодинг, `skipped`, `+faststart`) і
+   `test/metadata.int-spec.ts` (прогрес лише від поточної спроби).
+10. Документи: [ADR-011](docs/adr/0011-video-transcode.md), [план етапу](docs/plan/stage-5.md).
+
 ## Конфігурація Етапу 2
 
 Ліміти й пороги задаються через env gateway; у `docker-compose.yml` їх можна перевизначити
@@ -713,6 +800,15 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 | `SERVICE_VERSION`             | `dev`                   | `service.version` у ресурсі                        |
 | `DEPLOYMENT_ENVIRONMENT`      | `local`                 | `deployment.environment.name` (compose: `compose`) |
 | `GRAFANA_URL` (web)           | порожньо                | Адреса Grafana для посилань; порожня ховає їх      |
+
+## Конфігурація Етапу 5.2
+
+| Змінна                                          | За замовчуванням               | Що робить                                               |
+| ----------------------------------------------- | ------------------------------ | ------------------------------------------------------- |
+| `VIDEO_JOB_TYPES` (video-worker)                | `video.frames,video.transcode` | Які типи бере процес (compose і Helm задають по одному) |
+| `TRANSCODE_TIMEOUT_MS` (video-worker)           | 600000                         | Після нього ffmpeg транскодингу отримує `SIGKILL`       |
+| `TRANSCODE_MAX_DURATION_SECONDS` (video-worker) | 300                            | Максимальна тривалість відео для транскодингу           |
+| `JOB_PROGRESS_INTERVAL_MS` (video-worker)       | 3000                           | Не частіше ніж раз на цей інтервал воркер шле прогрес   |
 
 ## Документація
 

@@ -70,7 +70,7 @@ describe('JobRunner', () => {
 
     expect(targets()).toEqual(['running@2', 'succeeded@2']);
     expect(process).toHaveBeenCalledWith(
-      { jobId: job.jobId, attempt: 2 },
+      { jobId: job.jobId, attempt: 2, progress: expect.any(Function) as unknown },
       { sourceKey: 'uploads/u/a.png' },
     );
     expect(body(1)).toMatchObject({ actor: 'worker:w1', output: { done: true } });
@@ -191,5 +191,25 @@ describe('JobRunner', () => {
     deps.transition.mockImplementationOnce(asRequested);
     deps.transition.mockRejectedValueOnce(new MetadataError(503, undefined, 'down'));
     expect((await run(dispatch())).kind).toBe('nak');
+  });
+
+  it('reports progress for the attempt that is running', async () => {
+    const progress = jest.fn(() => Promise.resolve());
+    const runner = new JobRunner(
+      { transition: asRequested, progress },
+      { workerId: 'w1', retry },
+    ).register({
+      type: 'image.resize',
+      inputSchema,
+      process: (job) => {
+        job.progress(42.7);
+        return Promise.resolve({});
+      },
+    });
+    const job = dispatch({ attemptBase: 3 });
+
+    await runner.handle({ data: encode(job), deliveryCount: 2, consumer: 'worker-cpu' });
+
+    expect(progress).toHaveBeenCalledWith(job.jobId, { attempt: 5, progress: 42 });
   });
 });

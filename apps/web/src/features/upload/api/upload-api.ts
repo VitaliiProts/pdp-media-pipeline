@@ -1,5 +1,5 @@
 import { http, storageHttp } from '../../../shared/api/http';
-import { type ImagePreset } from '../model/presets';
+import { type ImagePreset, type VideoMode } from '../model/presets';
 
 type UploadTicket = { uploadUrl: string; sourceKey: string };
 type CreatedJob = { jobId: string };
@@ -27,13 +27,14 @@ export async function putToStorage(
   });
 }
 
-/** Images are resized to the chosen presets; videos get a preview and frames. */
-export type JobSpec = { kind: 'image'; presets: readonly ImagePreset[] } | { kind: 'video' };
+/** Images are resized to the chosen presets; videos get frames or are transcoded. */
+export type JobSpec =
+  { kind: 'image'; presets: readonly ImagePreset[] } | { kind: 'video'; mode: VideoMode };
 
-const bodyOf = (sourceKey: string, spec: JobSpec) =>
-  spec.kind === 'image'
-    ? { type: 'image.resize', sourceKey, presets: spec.presets }
-    : { type: 'video.frames', sourceKey };
+function bodyOf(sourceKey: string, spec: JobSpec) {
+  if (spec.kind === 'image') return { type: 'image.resize', sourceKey, presets: spec.presets };
+  return { type: spec.mode === 'frames' ? 'video.frames' : 'video.transcode', sourceKey };
+}
 
 /**
  * `idempotencyKey` stays the same for every retry of one upload, so a retry after a lost

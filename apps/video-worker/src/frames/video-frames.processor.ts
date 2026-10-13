@@ -1,11 +1,9 @@
 import {
   type MediaSource,
   mediaSourceOf,
-  type VideoFrame,
   videoFrameKey,
   VideoFramesInputV1,
   type VideoFramesOutputV1,
-  videoPreviewKey,
 } from '@pdp/contracts';
 import {
   type FetchLimits,
@@ -13,13 +11,13 @@ import {
   type JobProcessor,
   PermanentError,
 } from '@pdp/worker-kit';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { jpegSize } from '../ffmpeg/jpeg-size';
 import { type VideoProbe } from '../ffmpeg/probe';
+import { makePreview, type PreviewDeps, uploadJpeg } from './preview';
 
-export interface VideoFramesDeps {
+export interface VideoFramesDeps extends PreviewDeps {
   download: (source: MediaSource, path: string, limits: FetchLimits) => Promise<void>;
   probe: (path: string) => Promise<VideoProbe>;
   extractFrames: (
@@ -28,8 +26,6 @@ export interface VideoFramesDeps {
     intervalSeconds: number,
     maxFrames: number,
   ) => Promise<string[]>;
-  extractPreview: (source: string, output: string, atSeconds: number) => Promise<void>;
-  putObject: (key: string, body: Buffer, contentType: string) => Promise<void>;
 }
 
 export interface VideoFramesOptions {
@@ -37,9 +33,6 @@ export interface VideoFramesOptions {
   downloadTimeoutMs: number;
   workDir?: string;
 }
-
-/** A second in: the first frame is often black or a fade-in. */
-const PREVIEW_AT_SECONDS = 1;
 
 /**
  * Downloads the source to a scratch directory, validates it with ffprobe before decoding
@@ -64,11 +57,7 @@ export class VideoFramesProcessor implements JobProcessor<VideoFramesInputV1> {
         timeoutMs: this.options.downloadTimeoutMs,
       });
       const probe = await this.deps.probe(source);
-
-      const previewPath = join(dir, 'preview.jpg');
-      const previewAt = Math.min(PREVIEW_AT_SECONDS, probe.durationSeconds / 2);
-      await this.deps.extractPreview(source, previewPath, previewAt);
-      const preview = await this.upload(previewPath, videoPreviewKey(job.jobId), previewAt);
+      const preview = await makePreview(this.deps, job.jobId, source, dir, probe.durationSeconds);
 
       const framePaths = await this.deps.extractFrames(
         source,
@@ -79,7 +68,7 @@ export class VideoFramesProcessor implements JobProcessor<VideoFramesInputV1> {
       if (framePaths.length === 0) throw new PermanentError('no frames could be decoded');
       const frames = await Promise.all(
         framePaths.map((path, i) =>
-          this.upload(path, videoFrameKey(job.jobId, i), i * input.intervalSeconds),
+          uploadJpeg(this.deps, path, videoFrameKey(job.jobId, i), i * input.intervalSeconds),
         ),
       );
 
@@ -94,12 +83,5 @@ export class VideoFramesProcessor implements JobProcessor<VideoFramesInputV1> {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
-  }
-
-  private async upload(path: string, key: string, atSeconds: number): Promise<VideoFrame> {
-    const data = await readFile(path);
-    const { width, height } = jpegSize(data);
-    await this.deps.putObject(key, data, 'image/jpeg');
-    return { key, atSeconds, width, height, bytes: data.length };
   }
 }

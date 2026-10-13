@@ -22,6 +22,7 @@ interface JobView {
   lastError: string | null;
   deadReason: string | null;
   results?: { preset: string; url: string }[];
+  progress: number | null;
   video?: {
     durationSeconds: number;
     width: number;
@@ -30,9 +31,25 @@ interface JobView {
     preview: Frame;
     frames: Frame[];
   };
+  transcode?: {
+    durationSeconds: number;
+    width: number;
+    height: number;
+    preview: Frame;
+    renditions: {
+      rendition: string;
+      width: number;
+      height: number;
+      durationSeconds: number;
+      bytes: number;
+      bitrate: number;
+      url: string;
+    }[];
+    skipped: string[];
+  };
 }
 
-describe('video.frames and sources by URL', () => {
+describe('video jobs and sources by URL', () => {
   let infra: Infra;
   let apps: RunningApps;
   let pool: Pool;
@@ -142,6 +159,40 @@ describe('video.frames and sources by URL', () => {
     const preview = Buffer.from(await (await fetch(job.video!.preview.url)).arrayBuffer());
     expect(preview.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
     expect(preview.length).toBe(job.video?.preview.bytes);
+  });
+
+  it('transcodes a video into both renditions in one pass', async () => {
+    const sourceKey = await upload(await makeVideo(3, 1280, 720), 'video/mp4');
+    const job = await finished(await createJob({ type: 'video.transcode', sourceKey }));
+
+    expect(job).toMatchObject({ status: 'succeeded', attempts: 1, progress: null });
+    expect(job.transcode).toMatchObject({ width: 1280, height: 720, skipped: [] });
+    expect(job.transcode?.renditions.map((r) => [r.rendition, r.width, r.height])).toEqual([
+      ['480p', 854, 480],
+      ['720p', 1280, 720],
+    ]);
+    for (const r of job.transcode!.renditions) {
+      expect(r.durationSeconds).toBeCloseTo(3, 0);
+      const file = Buffer.from(await (await fetch(r.url)).arrayBuffer());
+      expect(file.length).toBe(r.bytes);
+      expect(r.bitrate).toBe(Math.round((r.bytes * 8) / r.durationSeconds));
+      // +faststart: the index (moov) comes before the media data, so playback starts at once.
+      expect(file.indexOf('moov')).toBeLessThan(file.indexOf('mdat'));
+    }
+  });
+
+  it('skips renditions larger than the source and does not upscale', async () => {
+    const sourceKey = await upload(await makeVideo(2, 854, 480), 'video/mp4');
+    const job = await finished(await createJob({ type: 'video.transcode', sourceKey }));
+    expect(job.status).toBe('succeeded');
+    expect(job.transcode?.renditions.map((r) => r.rendition)).toEqual(['480p']);
+    expect(job.transcode?.skipped).toEqual(['720p']);
+
+    const tiny = await finished(
+      await createJob({ type: 'video.transcode', sourceKey: await upload(clip, 'video/mp4') }),
+    );
+    expect(tiny).toMatchObject({ status: 'dead', deadReason: 'permanent', attempts: 1 });
+    expect(tiny.lastError).toContain('not upscaled');
   });
 
   it('rejects a video over 60 seconds permanently', async () => {

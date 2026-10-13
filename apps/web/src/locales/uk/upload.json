@@ -1,7 +1,7 @@
 {
   "drop": {
     "title": "Перетягніть зображення чи відео сюди або виберіть файли",
-    "limits": "Зображення: JPEG, PNG або WebP до {{maxMb}} МБ. Відео: MP4, WebM або MOV до {{maxVideoMb}} МБ і 60 секунд."
+    "limits": "Зображення: JPEG, PNG або WebP до {{maxMb}} МБ. Відео: MP4, WebM або MOV до {{maxVideoMb}} МБ; для кадрів до 60 секунд, для транскодингу до 5 хвилин."
   },
   "presets": {
     "legend": "Які розміри зображень зробити",
@@ -10,5 +10,12 @@
     "thumb": "Мініатюра",
     "medium": "Середній",
     "large": "Великий"
+  },
+  "video": {
+    "legend": "Що зробити з відео",
+    "frames": "Кадри",
+    "framesDetail": "кожні 2 с",
+    "transcode": "Транскодинг",
+    "transcodeDetail": "MP4 480p і 720p"
   }
 }

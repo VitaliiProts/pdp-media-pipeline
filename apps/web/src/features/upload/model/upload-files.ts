@@ -3,7 +3,7 @@ import { baseApi } from '../../../shared/api/base-api';
 import { type AppError, toAppError } from '../../../shared/api/http';
 import { createJob, type JobSpec, putToStorage, requestUpload } from '../api/upload-api';
 import { checkFile, mediaKindOf } from '../lib/validate-file';
-import { type ImagePreset } from './presets';
+import { type ImagePreset, type VideoMode } from './presets';
 import {
   uploadDismissed,
   uploadFailed,
@@ -23,8 +23,12 @@ export const MAX_RETRY_LATER = 5;
 /** Spreads retries of parallel uploads, so they do not come back in the same millisecond. */
 const RETRY_JITTER_MS = 500;
 
-/** `presets` apply to images; videos always get a preview and frames. */
-type UploadFilesArgs = { files: readonly File[]; presets: readonly ImagePreset[] };
+/** `presets` apply to images, `videoMode` to videos. */
+type UploadFilesArgs = {
+  files: readonly File[];
+  presets: readonly ImagePreset[];
+  videoMode: VideoMode;
+};
 
 const reasonOf = (error: Extract<AppError, { kind: 'retryLater' }>): WaitReason =>
   error.status === 429 ? 'rateLimited' : 'queueFull';
@@ -74,7 +78,7 @@ async function honouringRetryAfter<T>(
 
 export const uploadFiles = createAsyncThunk(
   'uploads/uploadFiles',
-  async ({ files, presets }: UploadFilesArgs, { dispatch, signal }) => {
+  async ({ files, presets, videoMode }: UploadFilesArgs, { dispatch, signal }) => {
     const queue = files.map((file) => ({ file, id: crypto.randomUUID() }));
 
     for (const { file, id } of queue) {
@@ -93,7 +97,9 @@ export const uploadFiles = createAsyncThunk(
     const pending = queue.filter(({ file }) => checkFile(file) === null);
     const uploadOne = async ({ file, id }: (typeof queue)[number]) => {
       const spec: JobSpec =
-        mediaKindOf(file.type) === 'video' ? { kind: 'video' } : { kind: 'image', presets };
+        mediaKindOf(file.type) === 'video'
+          ? { kind: 'video', mode: videoMode }
+          : { kind: 'image', presets };
       const onWait = (reason: WaitReason, retryAt: number) =>
         dispatch(uploadWaiting({ id, reason, retryAt }));
       try {

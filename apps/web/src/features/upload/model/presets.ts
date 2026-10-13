@@ -11,3 +11,7 @@ export const PRESET_LABEL_KEY = {
   medium: 'presets.medium',
   large: 'presets.large',
 } as const satisfies Record<ImagePreset, string>;
+
+/** Frames: a preview and a frame every 2 s. Transcode: 480p and 720p MP4. */
+export const VIDEO_MODES = ['frames', 'transcode'] as const;
+export type VideoMode = (typeof VIDEO_MODES)[number];

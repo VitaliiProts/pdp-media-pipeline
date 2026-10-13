@@ -2,7 +2,13 @@ import { type ChangeEvent, type DragEvent, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch } from '../../../shared/lib/redux';
 import { ACCEPTED_TYPES, MAX_UPLOAD_BYTES, MAX_VIDEO_UPLOAD_BYTES } from '../lib/validate-file';
-import { IMAGE_PRESETS, type ImagePreset, PRESET_LABEL_KEY } from '../model/presets';
+import {
+  IMAGE_PRESETS,
+  type ImagePreset,
+  PRESET_LABEL_KEY,
+  VIDEO_MODES,
+  type VideoMode,
+} from '../model/presets';
 import { uploadFiles } from '../model/upload-files';
 import styles from './UploadPanel.module.css';
 
@@ -12,13 +18,14 @@ export function UploadPanel() {
   const { t } = useTranslation('upload');
   const dispatch = useAppDispatch();
   const [presets, setPresets] = useState<readonly ImagePreset[]>(ALL_PRESETS);
+  const [videoMode, setVideoMode] = useState<VideoMode>('frames');
   const [isDragging, setIsDragging] = useState(false);
   const inputId = useId();
   const hasPresets = presets.length > 0;
 
   const submit = (files: FileList | null) => {
     if (!files?.length || !hasPresets) return;
-    void dispatch(uploadFiles({ files: Array.from(files), presets }));
+    void dispatch(uploadFiles({ files: Array.from(files), presets, videoMode }));
   };
 
   const togglePreset = (name: ImagePreset) =>
@@ -73,21 +80,39 @@ export function UploadPanel() {
         />
       </label>
 
-      <fieldset className={styles.presets}>
-        <legend className={styles.legend}>{t('presets.legend')}</legend>
-        {IMAGE_PRESETS.map(({ name, width }) => (
-          <label key={name} className={styles.preset}>
-            <input
-              type="checkbox"
-              checked={presets.includes(name)}
-              onChange={() => togglePreset(name)}
-            />
-            <span className={styles.presetName}>{t(PRESET_LABEL_KEY[name])}</span>
-            <span className={styles.presetWidth}>{t('presets.width', { width })}</span>
-          </label>
-        ))}
-        {!hasPresets && <p className={styles.warning}>{t('presets.required')}</p>}
-      </fieldset>
+      <div className={styles.options}>
+        <fieldset className={styles.presets}>
+          <legend className={styles.legend}>{t('presets.legend')}</legend>
+          {IMAGE_PRESETS.map(({ name, width }) => (
+            <label key={name} className={styles.preset}>
+              <input
+                type="checkbox"
+                checked={presets.includes(name)}
+                onChange={() => togglePreset(name)}
+              />
+              <span className={styles.presetName}>{t(PRESET_LABEL_KEY[name])}</span>
+              <span className={styles.presetWidth}>{t('presets.width', { width })}</span>
+            </label>
+          ))}
+          {!hasPresets && <p className={styles.warning}>{t('presets.required')}</p>}
+        </fieldset>
+
+        <fieldset className={styles.presets}>
+          <legend className={styles.legend}>{t('video.legend')}</legend>
+          {VIDEO_MODES.map((mode) => (
+            <label key={mode} className={styles.preset}>
+              <input
+                type="radio"
+                name={`${inputId}-video`}
+                checked={videoMode === mode}
+                onChange={() => setVideoMode(mode)}
+              />
+              <span className={styles.presetName}>{t(`video.${mode}`)}</span>
+              <span className={styles.presetWidth}>{t(`video.${mode}Detail`)}</span>
+            </label>
+          ))}
+        </fieldset>
+      </div>
     </section>
   );
 }

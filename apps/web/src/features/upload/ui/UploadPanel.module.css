@@ -60,6 +60,12 @@
   opacity: 0;
 }
 
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .presets {
   margin: 0;
   padding: var(--space-4);

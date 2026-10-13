@@ -6,6 +6,8 @@ import {
   type ImagePreset,
   JOB_STATUSES,
   type JobStatus,
+  type Rendition,
+  RENDITION_NAMES,
   SOURCE_URL_MAX_LENGTH,
   VIDEO_CODECS,
 } from '@pdp/contracts';
@@ -25,7 +27,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-export const CREATABLE_JOB_TYPES = ['image.resize', 'video.frames'] as const;
+export const CREATABLE_JOB_TYPES = ['image.resize', 'video.frames', 'video.transcode'] as const;
 export type CreatableJobType = (typeof CREATABLE_JOB_TYPES)[number];
 
 /** Exactly one of `sourceKey` and `sourceUrl`; the rest depends on `type`. */
@@ -74,6 +76,19 @@ export class CreateJobDto {
   @Min(1)
   @Max(60)
   maxFrames?: number;
+
+  @ApiPropertyOptional({
+    enum: RENDITION_NAMES,
+    isArray: true,
+    default: RENDITION_NAMES,
+    description: 'video.transcode; renditions larger than the source are skipped.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique()
+  @IsIn(RENDITION_NAMES, { each: true })
+  renditions?: Rendition[];
 
   @ApiPropertyOptional({ minimum: 0, maximum: 9, default: 5 })
   @IsOptional()
@@ -166,6 +181,56 @@ export class VideoResultDto {
   frames!: VideoFrameDto[];
 }
 
+export class RenditionDto {
+  @ApiProperty({ enum: RENDITION_NAMES })
+  rendition!: Rendition;
+
+  @ApiProperty()
+  width!: number;
+
+  @ApiProperty()
+  height!: number;
+
+  @ApiProperty()
+  durationSeconds!: number;
+
+  @ApiProperty()
+  bytes!: number;
+
+  @ApiProperty({ description: 'Of the whole file, in bits per second.' })
+  bitrate!: number;
+
+  @ApiProperty({ description: 'Presigned GET URL of the MP4, valid for one hour.' })
+  url!: string;
+}
+
+export class TranscodeResultDto {
+  @ApiProperty()
+  durationSeconds!: number;
+
+  @ApiProperty()
+  width!: number;
+
+  @ApiProperty()
+  height!: number;
+
+  @ApiProperty({ enum: VIDEO_CODECS })
+  codec!: string;
+
+  @ApiProperty({ type: VideoFrameDto })
+  preview!: VideoFrameDto;
+
+  @ApiProperty({ type: [RenditionDto] })
+  renditions!: RenditionDto[];
+
+  @ApiProperty({
+    enum: RENDITION_NAMES,
+    isArray: true,
+    description: 'Requested but larger than the source; videos are not upscaled.',
+  })
+  skipped!: Rendition[];
+}
+
 export class JobResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -200,6 +265,18 @@ export class JobResponseDto {
 
   @ApiProperty({ type: VideoResultDto, required: false, description: 'video.frames' })
   video?: VideoResultDto;
+
+  @ApiProperty({ type: TranscodeResultDto, required: false, description: 'video.transcode' })
+  transcode?: TranscodeResultDto;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: 100,
+    description: 'Percent done while running, for job types that report it (video.transcode).',
+  })
+  progress!: number | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;

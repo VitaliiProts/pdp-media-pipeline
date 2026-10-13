@@ -41,6 +41,8 @@ import {
   type VideoFrame,
   VideoFramesInputV1,
   VideoFramesOutputV1,
+  VideoTranscodeInputV1,
+  VideoTranscodeOutputV1,
 } from '@pdp/contracts';
 import { EgressClient } from '@pdp/egress';
 import { MetadataClient, MetadataError } from '@pdp/metadata-client';
@@ -85,6 +87,7 @@ export class JobsController {
     this.maxBytes = {
       'image.resize': config.get('MAX_UPLOAD_BYTES', { infer: true }),
       'video.frames': config.get('MAX_VIDEO_UPLOAD_BYTES', { infer: true }),
+      'video.transcode': config.get('MAX_VIDEO_UPLOAD_BYTES', { infer: true }),
     };
   }
 
@@ -213,6 +216,8 @@ export class JobsController {
       updatedAt: job.updatedAt,
       finishedAt: job.finishedAt,
       traceId: job.traceId,
+      // The last value of an earlier attempt would be stale once the job left `running`.
+      progress: job.status === 'running' ? job.progress : null,
     };
     if (job.status !== 'succeeded') return response;
 
@@ -236,6 +241,21 @@ export class JobsController {
         frames: await Promise.all(frames.map((frame) => this.presignFrame(frame))),
       };
     }
+    if (job.type === 'video.transcode') {
+      const output = VideoTranscodeOutputV1.safeParse(job.output);
+      if (!output.success) return response;
+      const { preview, renditions, ...video } = output.data;
+      response.transcode = {
+        ...video,
+        preview: await this.presignFrame(preview),
+        renditions: await Promise.all(
+          renditions.map(async ({ key, ...rendition }) => ({
+            ...rendition,
+            url: await this.storage.presignGet(key, RESULT_URL_TTL_S),
+          })),
+        ),
+      };
+    }
     return response;
   }
 
@@ -251,14 +271,20 @@ function jobInput(body: CreateJobDto): Record<string, unknown> {
       ([, value]) => value !== undefined,
     ),
   );
-  const parsed =
-    body.type === 'image.resize'
-      ? ImageResizeInputV1.safeParse({ ...source, presets: body.presets })
-      : VideoFramesInputV1.safeParse({
+  const parsed = (() => {
+    switch (body.type) {
+      case 'image.resize':
+        return ImageResizeInputV1.safeParse({ ...source, presets: body.presets });
+      case 'video.frames':
+        return VideoFramesInputV1.safeParse({
           ...source,
           intervalSeconds: body.intervalSeconds,
           maxFrames: body.maxFrames,
         });
+      case 'video.transcode':
+        return VideoTranscodeInputV1.safeParse({ ...source, renditions: body.renditions });
+    }
+  })();
   if (!parsed.success) throw new BadRequestException(z.prettifyError(parsed.error));
   return parsed.data;
 }

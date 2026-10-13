@@ -15,6 +15,7 @@ import {
   type JobDto,
   ListJobsQuery,
   type ListJobsResponse,
+  ProgressRequest,
   RedriveRequest,
   TransitionRequest,
   type TransitionResponse,
@@ -62,6 +63,16 @@ export class JobsController {
     @Body(new ZodValidationPipe(TransitionRequest)) body: TransitionRequest,
   ): Promise<TransitionResponse> {
     return this.jobs.transition(id, body);
+  }
+
+  /** 409 tells a worker its attempt is no longer the running one; it stops reporting. */
+  @Post(':id/progress')
+  @HttpCode(204)
+  progress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(ProgressRequest)) body: ProgressRequest,
+  ): Promise<void> {
+    return this.jobs.progress(id, body);
   }
 
   @Post(':id/redrive')
