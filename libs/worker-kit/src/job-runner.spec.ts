@@ -51,8 +51,8 @@ function setup() {
     inputSchema,
     process,
   });
-  const run = (d: JobDispatchV1, deliveryCount = 1) =>
-    runner.handle({ data: encode(d), deliveryCount, consumer: 'worker-cpu' });
+  const run = (d: JobDispatchV1, deliveryCount = 1, signal?: AbortSignal) =>
+    runner.handle({ data: encode(d), deliveryCount, consumer: 'worker-cpu' }, signal);
   const targets = () => deps.transition.mock.calls.map(([, body]) => `${body.to}@${body.attempt}`);
   const body = (call: number) => deps.transition.mock.calls[call]?.[1];
   return { deps, process, run, targets, body };
@@ -70,7 +70,12 @@ describe('JobRunner', () => {
 
     expect(targets()).toEqual(['running@2', 'succeeded@2']);
     expect(process).toHaveBeenCalledWith(
-      { jobId: job.jobId, attempt: 2, progress: expect.any(Function) as unknown },
+      {
+        jobId: job.jobId,
+        attempt: 2,
+        progress: expect.any(Function) as unknown,
+        signal: expect.any(AbortSignal) as unknown,
+      },
       { sourceKey: 'uploads/u/a.png' },
     );
     expect(body(1)).toMatchObject({ actor: 'worker:w1', output: { done: true } });
@@ -177,6 +182,43 @@ describe('JobRunner', () => {
       .mockImplementationOnce(() => withStatus('dead'));
     await expect(run(dispatch(), 5)).resolves.toEqual({ kind: 'ack' });
     expect(targets()).toEqual(['running@5', 'scheduled@5']);
+  });
+
+  it('hands an attempt cut short by shutdown back as interrupted and naks at once', async () => {
+    const { process, run, targets, body } = setup();
+    const shutdown = new AbortController();
+    process.mockImplementationOnce(({ signal }) => {
+      shutdown.abort(new Error('worker is shutting down'));
+      return Promise.reject(signal.reason as Error);
+    });
+    await expect(run(dispatch(), 3, shutdown.signal)).resolves.toEqual({
+      kind: 'nak',
+      delayMs: 0,
+    });
+    expect(targets()).toEqual(['running@3', 'scheduled@3']);
+    expect(body(1)).toMatchObject({
+      interrupted: true,
+      error: 'interrupted: worker shutting down',
+    });
+  });
+
+  it('acks when the job was cancelled while being interrupted', async () => {
+    const { deps, process, run } = setup();
+    const shutdown = new AbortController();
+    shutdown.abort();
+    process.mockRejectedValueOnce(new Error('aborted'));
+    deps.transition
+      .mockImplementationOnce(asRequested)
+      .mockRejectedValueOnce(conflict('JOB_TERMINAL'));
+    await expect(run(dispatch(), 1, shutdown.signal)).resolves.toEqual({ kind: 'ack' });
+  });
+
+  it('reports success as usual when the job finished despite the abort', async () => {
+    const { run, targets } = setup();
+    const shutdown = new AbortController();
+    shutdown.abort();
+    await expect(run(dispatch(), 1, shutdown.signal)).resolves.toEqual({ kind: 'ack' });
+    expect(targets()).toEqual(['running@1', 'succeeded@1']);
   });
 
   it('acks when another attempt already finished the job', async () => {

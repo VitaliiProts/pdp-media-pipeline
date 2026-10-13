@@ -106,6 +106,39 @@ describe('metadata (Postgres + NATS)', () => {
     );
   });
 
+  it('does not count attempts handed back by a worker shutting down', async () => {
+    const job = await createJob();
+    const maxAttempts = 5;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await client.transition(job.id, { to: 'running', attempt, actor: 'worker:a' });
+      const handedBack = await client.transition(job.id, {
+        to: 'scheduled',
+        attempt,
+        actor: 'worker:a',
+        interrupted: true,
+        error: 'interrupted: worker shutting down',
+      });
+      expect(handedBack.job.status).toBe('scheduled');
+    }
+
+    const started = await client.transition(job.id, {
+      to: 'running',
+      attempt: maxAttempts + 1,
+      actor: 'worker:b',
+    });
+    expect(started.job).toMatchObject({ status: 'running', lastError: null });
+
+    const { rows } = await pool.query<{ outcome: string | null; n: number }>(
+      `select outcome, count(*)::int as n from job_executions where job_id = $1
+       group by 1 order by 1 nulls last`,
+      [job.id],
+    );
+    expect(rows).toEqual([
+      { outcome: 'interrupted', n: maxAttempts },
+      { outcome: null, n: 1 },
+    ]);
+  });
+
   it('publishes job.created to EVENTS exactly once, even when the relay republishes', async () => {
     const job = await createJob();
     const published = () =>

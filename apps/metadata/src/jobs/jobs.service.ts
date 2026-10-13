@@ -27,7 +27,7 @@ import {
   VideoTranscodeInputV1,
 } from '@pdp/contracts';
 import { currentTraceId, jobMetrics, withJobContext } from '@pdp/observability';
-import { and, count, desc, eq, gt, inArray, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { type Env } from '../config';
 import { PostgresService, type Tx } from '../database/postgres.service';
@@ -241,7 +241,13 @@ export class JobsService {
       const [started] = await tx
         .select({ n: count() })
         .from(jobExecutions)
-        .where(and(eq(jobExecutions.jobId, id), gt(jobExecutions.attempt, job.attemptBase)));
+        .where(
+          and(
+            eq(jobExecutions.jobId, id),
+            gt(jobExecutions.attempt, job.attemptBase),
+            or(isNull(jobExecutions.outcome), ne(jobExecutions.outcome, 'interrupted')),
+          ),
+        );
       const startedInGeneration = started?.n ?? 0;
       const decision = decide(
         { ...job, startedInGeneration },
@@ -312,13 +318,12 @@ export class JobsService {
         job: updated,
         decision,
         before: job,
-        startedInGeneration,
         deliveries,
       };
     });
 
     if (result.applied) {
-      this.countEffect(result.before, result.job, result.decision, result.startedInGeneration);
+      this.countEffect(result.before, result.job, result.decision);
       if (result.deliveries > 0) jobMetrics.created('webhook.deliver', result.deliveries);
     }
     return { applied: result.applied, job: toJobDto(result.job) };
@@ -434,21 +439,20 @@ export class JobsService {
   }
 
   /** Runs after commit, so a rolled back transition is not counted. */
-  private countEffect(
-    before: JobRow,
-    job: JobRow,
-    decision: AppliedDecision,
-    startedInGeneration: number,
-  ): void {
+  private countEffect(before: JobRow, job: JobRow, decision: AppliedDecision): void {
     switch (decision.effect) {
       case 'start':
-        // Later attempts would add the retry backoff to the wait.
-        if (startedInGeneration === 0) {
+        // Only the first attempt of the generation: later ones would add the retry backoff
+        // or the time an interrupted attempt ran.
+        if (before.attempts <= before.attemptBase) {
           jobMetrics.queueWait(job, seconds(before.updatedAt, job.updatedAt));
         }
         break;
       case 'retry':
         jobMetrics.retry(job.type);
+        break;
+      case 'interrupt':
+        jobMetrics.interrupted(job.type);
         break;
       case 'succeed':
       case 'dead': {
@@ -508,6 +512,14 @@ export class JobsService {
           .set({ finishedAt: now, outcome: 'retry', error: req.error ?? null })
           .where(thisExecution);
         patch.lastError = req.error ?? null;
+        break;
+
+      case 'interrupt':
+        // lastError stays: an interruption says nothing about the job.
+        await tx
+          .update(jobExecutions)
+          .set({ finishedAt: now, outcome: 'interrupted', error: req.error ?? null })
+          .where(thisExecution);
         break;
 
       case 'succeed':

@@ -40,6 +40,20 @@ describe('Semaphore', () => {
     expect(turns.slice(0, 6)).toEqual(['priority', 'cpu', 'priority', 'cpu', 'priority', 'cpu']);
   });
 
+  it('stops waiting on abort and never hands that waiter a slot', async () => {
+    const semaphore = new Semaphore(1);
+    await semaphore.acquire();
+    const controller = new AbortController();
+    const waiting = semaphore.acquire(controller.signal);
+    controller.abort(new Error('stopping'));
+    await expect(waiting).rejects.toThrow('stopping');
+    expect(semaphore.waiting).toBe(0);
+
+    semaphore.release();
+    expect(semaphore.active).toBe(0);
+    await expect(semaphore.acquire(controller.signal)).rejects.toThrow('stopping');
+  });
+
   it('rejects releasing more than was acquired', () => {
     expect(() => new Semaphore(1).release()).toThrow();
   });

@@ -5,7 +5,9 @@ import {
   natsEnvSchema,
   s3EnvSchema,
   uploadLimitsEnvSchema,
+  workerShutdownEnvSchema,
 } from '@pdp/config';
+import { JOB_CLASSES, JobClassSchema } from '@pdp/contracts';
 import os from 'node:os';
 import { z } from 'zod';
 
@@ -15,6 +17,21 @@ export const envSchema = baseEnvSchema.extend({
   ...metadataClientEnvSchema.shape,
   ...uploadLimitsEnvSchema.shape,
   ...egressEnvSchema.shape,
+  ...workerShutdownEnvSchema.shape,
+  /**
+   * Which queue classes this instance consumes, comma-separated. In the cluster each class
+   * is its own deployment, so each scales on its own queue.
+   */
+  WORKER_CLASSES: z
+    .string()
+    .default(JOB_CLASSES.join(','))
+    .transform((s) => s.split(',').map((c) => c.trim()))
+    .pipe(
+      z
+        .array(JobClassSchema)
+        .min(1)
+        .refine((c) => new Set(c).size === c.length, 'classes must be unique'),
+    ),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).default(os.availableParallelism()),
   WORKER_ID: z.string().min(1).default(os.hostname()),
   MAX_INPUT_PIXELS: z.coerce.number().int().min(1).default(50_000_000),

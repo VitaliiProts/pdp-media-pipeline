@@ -23,11 +23,16 @@ export function headers(key, extra = {}) {
 
 const source = open('../fixtures/source.png', 'b');
 
-/** Uploads the fixture for a user and returns its sourceKey. Run from setup(). */
+/** Uploads the PNG fixture for a user and returns its sourceKey. Run from setup(). */
 export function uploadSource(key) {
+  return uploadFile(key, source, 'image/png');
+}
+
+/** Uploads `body` through a presigned URL and returns its sourceKey. Run from setup(). */
+export function uploadFile(key, body, contentType) {
   const res = http.post(
     `${BASE_URL}/v1/uploads`,
-    JSON.stringify({ contentType: 'image/png', size: source.byteLength }),
+    JSON.stringify({ contentType, size: body.byteLength }),
     { headers: headers(key), tags: { name: 'setup' } },
   );
   if (res.status !== 200) fail(`POST /v1/uploads: ${res.status} ${res.body}`);
@@ -35,8 +40,8 @@ export function uploadSource(key) {
 
   // k6 has no global URL.
   const [, host, pathAndQuery] = /^https?:\/\/([^/]+)(\/.*)$/.exec(uploadUrl);
-  const put = http.put(`${STORAGE_URL}${pathAndQuery}`, source, {
-    headers: { 'content-type': 'image/png', Host: host },
+  const put = http.put(`${STORAGE_URL}${pathAndQuery}`, body, {
+    headers: { 'content-type': contentType, Host: host },
     tags: { name: 'setup' },
   });
   if (put.status !== 200) fail(`PUT presigned: ${put.status} ${put.body}`);

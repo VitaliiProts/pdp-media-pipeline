@@ -25,6 +25,7 @@ interface JobInstruments {
   queueWait: Histogram;
   attempt: Histogram;
   retries: Counter;
+  interrupted: Counter;
   deadLettered: Counter;
   duplicates: Counter;
 }
@@ -70,6 +71,10 @@ function instruments(): JobInstruments {
       description: 'Failed attempts handed back for a retry',
       unit: '{attempt}',
     }),
+    interrupted: meter.createCounter('jobs.interrupted', {
+      description: 'Attempts handed back unfinished by a worker shutting down',
+      unit: '{attempt}',
+    }),
     deadLettered: meter.createCounter('jobs.dlq', {
       description: 'Jobs moved to the dead letter queue',
       unit: '{job}',
@@ -105,12 +110,20 @@ export const jobMetrics = {
     instruments().queueWait.record(seconds, labels(job));
   },
 
-  attempt(type: string, outcome: 'succeeded' | 'retry' | 'failed', seconds: number): void {
+  attempt(
+    type: string,
+    outcome: 'succeeded' | 'retry' | 'failed' | 'interrupted',
+    seconds: number,
+  ): void {
     instruments().attempt.record(seconds, { type, outcome });
   },
 
   retry(type: string): void {
     instruments().retries.add(1, { type });
+  },
+
+  interrupted(type: string): void {
+    instruments().interrupted.add(1, { type });
   },
 
   deadLettered(type: string, reason: string): void {

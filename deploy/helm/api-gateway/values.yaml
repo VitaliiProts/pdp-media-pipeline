@@ -6,9 +6,12 @@ serviceVersionEnv: true
 # Endpoint removal reaches the ingress before SIGTERM stops the server.
 preStopSleepSeconds: 5
 resources:
-  requests: { cpu: 100m, memory: 128Mi }
+  requests: { cpu: 250m, memory: 128Mi }
   limits: { cpu: '1', memory: 256Mi }
 env: {}
 secretEnv: {}
 ingress:
+  enabled: false
+# See pdp-lib/templates/_scaling.tpl.
+autoscaling:
   enabled: false

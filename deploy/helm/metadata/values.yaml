@@ -3,9 +3,11 @@ image:
   tag: ''
 replicaCount: 1
 serviceVersionEnv: true
+# Every job's transitions and progress go through here; a CPU share in proportion to that
+# keeps it answering while ffmpeg pods saturate the node (Stage 5.3 report).
 resources:
-  requests: { cpu: 50m, memory: 128Mi }
-  limits: { cpu: 500m, memory: 256Mi }
+  requests: { cpu: 250m, memory: 128Mi }
+  limits: { cpu: '1', memory: 256Mi }
 env: {}
 # DATABASE_URL must come from a Secret, e.g. the one CloudNativePG creates.
 secretEnv: {}

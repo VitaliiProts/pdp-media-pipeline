@@ -23,13 +23,25 @@ export class Semaphore {
     return this.waiters.length;
   }
 
-  /** Waits for a free slot and takes it. */
-  async acquire(): Promise<void> {
+  /** Waits for a free slot and takes it; an abort while waiting rejects with its reason. */
+  async acquire(signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     if (this.inUse < this.capacity && this.waiters.length === 0) {
       this.inUse++;
       return;
     }
-    await new Promise<void>((resolve) => this.waiters.push(resolve));
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        this.waiters = this.waiters.filter((w) => w !== waiter);
+        reject(signal?.reason as Error);
+      };
+      const waiter = () => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      };
+      this.waiters.push(waiter);
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   release(n = 1): void {

@@ -46,6 +46,9 @@ SERVICE_VERSION follows the image tag so traces and metrics carry the deployed v
 {{- if .Values.serviceVersionEnv -}}
 {{- $_ := set $env "SERVICE_VERSION" (include "pdp-lib.tag" .) -}}
 {{- end -}}
+{{- with .Values.shutdownGraceSeconds -}}
+{{- $_ := set $env "WORKER_SHUTDOWN_GRACE_MS" (mul . 1000) -}}
+{{- end -}}
 {{- range $name := keys $env | sortAlpha }}
 - name: {{ $name }}
   value: {{ get $env $name | toString | quote }}

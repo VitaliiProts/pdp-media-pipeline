@@ -4,6 +4,7 @@ import {
   metadataClientEnvSchema,
   natsEnvSchema,
   s3EnvSchema,
+  workerShutdownEnvSchema,
 } from '@pdp/config';
 import { TRANSCODE_MAX_DURATION_SECONDS, VIDEO_MAX_DURATION_SECONDS } from '@pdp/contracts';
 import os from 'node:os';
@@ -17,6 +18,7 @@ export const envSchema = baseEnvSchema.extend({
   ...s3EnvSchema.shape,
   ...metadataClientEnvSchema.shape,
   ...egressEnvSchema.shape,
+  ...workerShutdownEnvSchema.shape,
   /** ffmpeg uses several threads per run, so one or two videos at a time per core group. */
   VIDEO_CONCURRENCY: z.coerce.number().int().min(1).default(1),
   WORKER_ID: z.string().min(1).default(os.hostname()),

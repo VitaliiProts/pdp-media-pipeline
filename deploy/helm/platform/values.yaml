@@ -18,14 +18,15 @@ postgres:
   database: metadata
   owner: pdp
   resources:
-    requests: { cpu: 100m, memory: 256Mi }
+    requests: { cpu: 250m, memory: 256Mi }
     limits: { memory: 512Mi }
 
 redis:
   image: redis:7-alpine
   storage: 1Gi
+  # Rate limits answer within REDIS_COMMAND_TIMEOUT_MS (100 ms) or the gateway falls back.
   resources:
-    requests: { cpu: 25m, memory: 32Mi }
+    requests: { cpu: 100m, memory: 32Mi }
     limits: { memory: 128Mi }
 
 minio:

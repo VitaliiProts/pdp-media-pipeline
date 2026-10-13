@@ -36,6 +36,13 @@
       "when": 1791898311024,
       "tag": "0004_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791902001081,
+      "tag": "0005_interrupted",
+      "breakpoints": true
     }
   ]
 }

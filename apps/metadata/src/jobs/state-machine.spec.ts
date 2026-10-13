@@ -134,6 +134,28 @@ describe('decide', () => {
     });
   });
 
+  describe('interrupted (running -> scheduled on shutdown)', () => {
+    const interrupt = (state: JobState, attempt: number) =>
+      decide(state, { to: 'scheduled', attempt, interrupted: true }, false, policy);
+
+    it('hands the attempt back without failing it, even the last allowed one', () => {
+      expect(applied(interrupt(job('running', 1), 1))).toBe('interrupt');
+      expect(applied(interrupt(job('running', 3), 3))).toBe('interrupt');
+    });
+
+    it('lets the next attempt start when only interrupted executions came before', () => {
+      // Attempts 1-3 were interrupted, so none of them counts towards the limit of 3.
+      const state = job('scheduled', 3, { startedInGeneration: 0 });
+      expect(applied(run(state, 'running', 4))).toBe('start');
+    });
+
+    it('checks the attempt like a retry', () => {
+      expect(rejected(interrupt(job('running', 2), 1))).toBe('STALE_ATTEMPT');
+      expect(rejected(interrupt(job('scheduled', 1), 1))).toBe('INVALID_TRANSITION');
+      expect(rejected(interrupt(job('succeeded', 1), 1))).toBe('JOB_TERMINAL');
+    });
+  });
+
   describe('succeeded', () => {
     it('finishes the current attempt', () => {
       expect(applied(run(job('running', 1), 'succeeded', 1))).toBe('succeed');

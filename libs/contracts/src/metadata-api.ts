@@ -99,6 +99,11 @@ export const TransitionRequest = z.object({
   output: z.record(z.string(), z.unknown()).optional(),
   /** The delivered message; recorded with a final transition so a redelivery is recognised. */
   inbox: z.object({ consumer: z.string().min(1), messageId: z.string().min(1) }).optional(),
+  /**
+   * With `to: 'scheduled'`: the worker is shutting down and hands the job back unfinished.
+   * The attempt does not count towards the limit, since the job did nothing wrong.
+   */
+  interrupted: z.boolean().optional(),
 });
 export type TransitionRequest = z.infer<typeof TransitionRequest>;
 
