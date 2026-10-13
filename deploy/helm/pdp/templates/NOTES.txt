@@ -1,0 +1,14 @@
+PDP Media Pipeline is installed in namespace {{ .Release.Namespace }}.
+
+{{- with (index .Values "api-gateway").ingress }}
+{{- if .enabled }}
+
+Hosts:
+{{- range .hosts }}
+  {{ .host }}{{ with .paths }} {{ join " " . }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+Create a user:
+  kubectl -n {{ .Release.Namespace }} exec deploy/metadata -- node dist/seed-user.js --name me

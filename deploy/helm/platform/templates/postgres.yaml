@@ -1,0 +1,24 @@
+{{/*
+CloudNativePG creates the Secret `<name>-app` (keys `uri`, `username`, `password`, ...)
+before the app release is installed, so the migration hook can read it.
+*/}}
+{{- with .Values.postgres }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .name }}
+spec:
+  instances: {{ .instances }}
+  imageName: {{ .image }}
+  storage:
+    size: {{ .storage }}
+  bootstrap:
+    initdb:
+      database: {{ .database }}
+      owner: {{ .owner }}
+  postgresql:
+    parameters:
+      max_connections: '100'
+  resources:
+    {{- toYaml .resources | nindent 4 }}
+{{- end }}

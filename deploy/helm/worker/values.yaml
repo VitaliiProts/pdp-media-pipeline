@@ -1,14 +1,11 @@
-replicaCount: 1
-
 image:
-  repository: ghcr.io/pdp/worker
+  repository: pdp/worker
   tag: ''
-  pullPolicy: IfNotPresent
-
-service:
-  port: 80
-  containerPort: 3000
-
+replicaCount: 1
+serviceVersionEnv: true
+# sharp keeps decoded pixels in native memory, outside the V8 heap.
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: '1', memory: 512Mi }
 env: {}
-
-resources: {}
+secretEnv: {}

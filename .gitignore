@@ -11,3 +11,6 @@ coverage-int/
 spikes/**/package-lock.json
 .idea/
 perf/reports/raw/
+
+# Helm dependencies, fetched by `helm dependency build`
+deploy/helm/*/charts/

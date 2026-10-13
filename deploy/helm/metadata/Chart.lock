@@ -1,0 +1,6 @@
+dependencies:
+- name: pdp-lib
+  repository: file://../pdp-lib
+  version: 0.1.0
+digest: sha256:6c1bef658c47cec3a67d490dd78193e88c0668f07093f678bcf1b849525fcbce
+generated: "2026-10-13T00:30:04.885101+03:00"

@@ -1,0 +1,30 @@
+apiVersion: v2
+name: pdp
+description: PDP Media Pipeline — all services in one release
+type: application
+version: 0.1.0
+appVersion: dev
+dependencies:
+  - name: metadata
+    version: 0.2.0
+    repository: file://../metadata
+  - name: api-gateway
+    version: 0.2.0
+    repository: file://../api-gateway
+  - name: scheduler
+    version: 0.2.0
+    repository: file://../scheduler
+  - name: worker
+    version: 0.2.0
+    repository: file://../worker
+  - name: video-worker
+    version: 0.2.0
+    repository: file://../video-worker
+  - name: web
+    version: 0.2.0
+    repository: file://../web
+    condition: web.enabled
+  - name: webhook-receiver
+    version: 0.2.0
+    repository: file://../webhook-receiver
+    condition: webhook-receiver.enabled

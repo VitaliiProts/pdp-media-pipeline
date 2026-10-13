@@ -1,0 +1,13 @@
+image:
+  repository: pdp/webhook-receiver
+  tag: ''
+replicaCount: 1
+component: test
+# No dependencies to check: ready as soon as it listens.
+probes:
+  ready: /health/live
+resources:
+  requests: { cpu: 10m, memory: 48Mi }
+  limits: { cpu: 250m, memory: 128Mi }
+env: {}
+secretEnv: {}

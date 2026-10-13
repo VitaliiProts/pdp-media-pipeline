@@ -1,0 +1,49 @@
+# Production profile: two replicas of every stateless service, no test receiver, hosts
+# and registry of the target environment. The Secrets listed in values.yaml are
+# provisioned outside the chart. Stage 5b adds values-aws.yaml (RDS, S3 via IRSA).
+
+global:
+  image:
+    registry: ghcr.io/vitaliiprots
+    pullPolicy: IfNotPresent
+  env:
+    LOG_LEVEL: info
+    DEPLOYMENT_ENVIRONMENT: prod
+
+metadata:
+  replicaCount: 2
+
+api-gateway:
+  replicaCount: 2
+  env:
+    S3_PUBLIC_ENDPOINT: https://s3.example.com
+  ingress:
+    enabled: true
+    hosts:
+      - host: api.example.com
+      - host: app.example.com
+        paths: [/v1, /docs]
+
+scheduler:
+  replicaCount: 2
+
+worker:
+  replicaCount: 2
+
+video-worker:
+  replicaCount: 2
+  resources:
+    requests: { cpu: '1', memory: 512Mi }
+    limits: { cpu: '2', memory: 1Gi }
+
+web:
+  replicaCount: 2
+  env:
+    GRAFANA_URL: https://grafana.example.com
+  ingress:
+    enabled: true
+    hosts:
+      - host: app.example.com
+
+webhook-receiver:
+  enabled: false

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: pdp-lib
+description: Shared templates for the PDP Media Pipeline service charts
+type: library
+version: 0.1.0

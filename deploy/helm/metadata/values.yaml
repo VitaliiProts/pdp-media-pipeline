@@ -1,14 +1,13 @@
-replicaCount: 1
-
 image:
-  repository: ghcr.io/pdp/metadata
+  repository: pdp/metadata
   tag: ''
-  pullPolicy: IfNotPresent
-
-service:
-  port: 80
-  containerPort: 3000
-
+replicaCount: 1
+serviceVersionEnv: true
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { cpu: 500m, memory: 256Mi }
 env: {}
-
-resources: {}
+# DATABASE_URL must come from a Secret, e.g. the one CloudNativePG creates.
+secretEnv: {}
+migrations:
+  enabled: true

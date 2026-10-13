@@ -1,0 +1,45 @@
+# Local k3d cluster (deploy/k3d/cluster.yaml): `pnpm k8s:up`.
+# Ingress on http://<host>.pdp.localhost:19080; *.localhost resolves to 127.0.0.1.
+
+global:
+  image:
+    # Pushed to localhost:5001, pulled by the nodes under this name.
+    registry: k3d-pdp-registry:5001
+  env:
+    DEPLOYMENT_ENVIRONMENT: k3d
+
+api-gateway:
+  env:
+    # Presigned URLs are signed for the host the client uses.
+    S3_PUBLIC_ENDPOINT: http://s3.pdp.localhost:19080
+    # The only host allowed to resolve to a private address, so webhooks can reach it.
+    EGRESS_PRIVATE_HOSTS: webhook-receiver
+  ingress:
+    enabled: true
+    hosts:
+      - host: api.pdp.localhost
+      # Same origin as the Web UI, so the browser needs no CORS.
+      - host: app.pdp.localhost
+        paths: [/v1, /docs]
+
+worker:
+  env:
+    EGRESS_PRIVATE_HOSTS: webhook-receiver
+    # Short enough to see /slow time out without waiting long.
+    WEBHOOK_TIMEOUT_MS: '5000'
+
+video-worker:
+  env:
+    EGRESS_PRIVATE_HOSTS: webhook-receiver
+
+web:
+  env:
+    # Opened by the browser, so the ingress host rather than the service name.
+    GRAFANA_URL: http://grafana.pdp.localhost:19080
+  ingress:
+    enabled: true
+    hosts:
+      - host: app.pdp.localhost
+
+webhook-receiver:
+  enabled: true

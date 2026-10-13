@@ -1,0 +1,24 @@
+dependencies:
+- name: nats
+  repository: https://nats-io.github.io/k8s/helm/charts/
+  version: 2.15.0
+- name: victoria-metrics-single
+  repository: https://victoriametrics.github.io/helm-charts/
+  version: 0.49.0
+- name: victoria-logs-single
+  repository: https://victoriametrics.github.io/helm-charts/
+  version: 0.13.10
+- name: victoria-metrics-alert
+  repository: https://victoriametrics.github.io/helm-charts/
+  version: 0.51.0
+- name: tempo
+  repository: https://grafana-community.github.io/helm-charts
+  version: 2.4.0
+- name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.175.1
+- name: grafana
+  repository: https://grafana-community.github.io/helm-charts
+  version: 13.5.0
+digest: sha256:5967f8bb93ff3fb46c7433b4004a62d37a7b9228e342fe427f28e343d24a6c21
+generated: "2026-10-13T00:33:05.490561+03:00"
