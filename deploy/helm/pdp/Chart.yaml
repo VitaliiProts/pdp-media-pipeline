@@ -14,13 +14,24 @@ dependencies:
   - name: scheduler
     version: 0.2.0
     repository: file://../scheduler
+  # One deployment per queue class (WORKER_CLASSES), so each scales on its own lag.
   - name: worker
+    alias: worker-priority
     version: 0.2.0
     repository: file://../worker
+  - name: worker
+    alias: worker-cpu
+    version: 0.2.0
+    repository: file://../worker
+  - name: worker
+    alias: worker-io
+    version: 0.2.0
+    repository: file://../worker
+  # The video worker image twice: frames and transcoding (VIDEO_JOB_TYPES).
   - name: video-worker
+    alias: video-frames
     version: 0.2.0
     repository: file://../video-worker
-  # The same chart and image again, consuming only video.transcode.
   - name: video-worker
     alias: video-transcode
     version: 0.2.0

@@ -1,10 +1,10 @@
 # Етап 5. Kubernetes, KEDA і video.transcode
 
 - Тижні 13–15: 4–24 січня 2027
-- Статус: 5.1 і 5.2 готові, 5.3 — план. Етап розбито на три PR:
+- Статус: готово. Етап розбито на три PR:
   - **5.1 «Кластер і Helm»**, гілка `feature/stage-5.1-k8s-helm`;
   - **5.2 «video.transcode»**, гілка `feature/stage-5.2-video-transcode`;
-  - **5.3 «Автоскейл і graceful shutdown»**, після мерджу 5.2.
+  - **5.3 «Автоскейл і graceful shutdown»**, гілка `feature/stage-5.3-autoscale-shutdown`.
 
 Назви 5a і 5b не використовуються: у PDF «Етап 5b» — це AWS, домен і перший деплой з CI.
 
@@ -108,15 +108,27 @@
 
 ### 5.3. Автоскейл і graceful shutdown
 
-- [ ] `PullWorker`: AbortSignal на кожне повідомлення, дедлайн зупинки, скасування і `nak` після нього; `JobRunner` повертає перервану задачу без витрати спроби.
-- [ ] `WORKER_SHUTDOWN_GRACE_MS`, узгоджений з `terminationGracePeriodSeconds` у чартах.
-- [ ] Deployment'и за класами для воркера картинок і відео; набір консюмерів через env.
-- [ ] KEDA ScaledObject для кожного класу: min і max репліки, `lagThreshold`, `cooldownPeriod`, `behavior.scaleDown`; HPA для gateway; PDB; anti-affinity.
-- [ ] k6-сценарій `video-load` для кластера.
-- [ ] Демо: скейл відео-воркерів з 1 до N і назад; `kubectl rollout restart` під навантаженням; перевірка за метриками (створено = завершено, немає `dead` через рестарт, видимих дублів 0) і SQL-запитом до `job_executions`.
-- [ ] Звіт `perf/reports/stage-5.md`: графіки реплік, глибини черг і e2e latency під час скейлу і rollout.
-- [ ] ADR-012 «Сигнал автоскейлу і graceful shutdown»; таблиця відповідності ADR номерам PDF.
-- [ ] README: як перевірити автоскейл і rollout.
+- [x] `PullWorker`: AbortSignal на кожне повідомлення, дедлайн зупинки, скасування і `nak` після нього; `JobRunner` повертає перервану задачу без витрати спроби.
+- [x] `WORKER_SHUTDOWN_GRACE_MS`, узгоджений з `terminationGracePeriodSeconds` у чартах.
+- [x] Deployment'и за класами для воркера картинок і відео; набір консюмерів через env.
+- [x] KEDA ScaledObject для кожного класу: min і max репліки, `lagThreshold`, `cooldownPeriod`, `behavior.scaleDown`; HPA для gateway; PDB; anti-affinity.
+- [x] k6-сценарій `video-load` для кластера.
+- [x] Демо: скейл відео-воркерів з 1 до N і назад; `kubectl rollout restart` під навантаженням; перевірка за метриками (створено = завершено, немає `dead` через рестарт, видимих дублів 0) і SQL-запитом до `job_executions`.
+- [x] Звіт `perf/reports/stage-5.md`: графіки реплік, глибини черг і e2e latency під час скейлу і rollout.
+- [x] ADR-012 «Сигнал автоскейлу і graceful shutdown»; таблиця відповідності ADR номерам PDF.
+- [x] README: як перевірити автоскейл і rollout.
+
+Як зроблено (деталі й альтернативи — [ADR-012](../adr/0012-autoscaling-and-graceful-shutdown.md), цифри — [звіт](../../perf/reports/stage-5.md)):
+
+- **Дедлайн справді діє.** Очікування слота в `Semaphore.acquire(signal)` переривається на зупинці, тож зайнятий под одразу перестає брати повідомлення, а не після кінця поточної задачі. Повідомлення, що прийшло у вже відкритий fetch після зупинки, отримує `nak`. `stop(grace)` чекає задачі до дедлайну, потім скасовує їх `WorkerShutdownError` і дає ще 5 с.
+- **`interrupted` — новий варіант переходу `running → scheduled`.** `JobRunner` шле його, якщо процесор упав після скасування, і робить `nak(0)`. Metadata пише виконанню `outcome = 'interrupted'` (міграція `0005`), не рахує такі виконання в спроби покоління, не змінює `lastError` і не перетворює переривання на `dead / exhausted`. Лічильник — `jobs_interrupted_total{type}`; у гістограмі спроб — `outcome="interrupted"`.
+- **Сигнал до ffmpeg — лише в транскодингу.** Кадри, превʼю й завантаження тривають секунди й вкладаються в grace.
+- **Один параметр на под.** `shutdownGraceSeconds` у values задає і `WORKER_SHUTDOWN_GRACE_MS`, і `terminationGracePeriodSeconds` (+15 с): 20 с для воркерів картинок, 30 с для кадрів, 60 с для транскодингу.
+- **Deployment'и.** Umbrella підключає чарт `worker` тричі (`worker-priority`, `worker-cpu`, `worker-io`, `WORKER_CLASSES`) і `video-worker` двічі (`video-frames`, `video-transcode`). Спільні env — YAML-якорі у values. `k8s.sh` передає тег образу кожному alias.
+- **Скейлинг у `pdp-lib/_scaling.tpl`:** ScaledObject з тригером `nats-jetstream` на кожен консюмер або HPA за CPU, PDB для всіх, `replicas` не рендериться, коли є автоскейлер. `pollingInterval` і `cooldownPeriod` KEDA діють лише для `minReplicas: 0`, тож шаблон додає їх лише тоді; скорочення задає `behavior.scaleDown`.
+- **Gateway** — 2–4 репліки за CPU, `RATE_LIMIT_REPLICAS=2` для локального запасного ліміту.
+- **Демо** — `scripts/autoscale-demo.sh` з k6 `perf/k6/video-load.js`; графіки — `scripts/autoscale-report.mjs`. Rollout зі штатним grace перевіряє, що задачі доходять до кінця на старих подах, а rollout з `WORKER_SHUTDOWN_GRACE_MS=2000` — що перервані транскодинги повертаються без витрати спроби.
+- **`requests` за роллю.** Перший прогін демо дав `503` і `abandoned` спроби: при конкуренції CPU ділиться за `requests`, і Metadata з 50m голодувала поруч з подами ffmpeg. `requests.cpu` Metadata, gateway і Postgres — 250m, Redis — 100m.
 
 ## Ризики
 

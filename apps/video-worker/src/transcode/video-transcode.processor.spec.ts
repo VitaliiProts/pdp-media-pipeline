@@ -35,6 +35,7 @@ async function setup(source = { width: 1920, height: 1080 }) {
         outputs: readonly RenditionOutput[],
         _probe: unknown,
         onProgress: (f: number) => void,
+        _signal: AbortSignal,
       ) => {
         onProgress(0.5);
         onProgress(1);
@@ -49,7 +50,7 @@ async function setup(source = { width: 1920, height: 1080 }) {
     downloadTimeoutMs: 5000,
     workDir,
   });
-  const job = { jobId: 'j1', attempt: 1, progress };
+  const job = { jobId: 'j1', attempt: 1, progress, signal: new AbortController().signal };
   return { deps, processor, workDir, job, progress };
 }
 
@@ -63,6 +64,7 @@ describe('VideoTranscodeProcessor', () => {
 
     expect(deps.transcode).toHaveBeenCalledTimes(1);
     expect(deps.transcode.mock.calls[0]?.[1].map((o) => o.rendition)).toEqual(['480p', '720p']);
+    expect(deps.transcode.mock.calls[0]?.[4]).toBe(job.signal);
     const uploads = deps.uploadFile.mock.calls.map(([key, , type]) => [key, type]);
     expect(uploads.sort()).toEqual([
       ['results/j1/480p.mp4', 'video/mp4'],

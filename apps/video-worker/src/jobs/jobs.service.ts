@@ -81,12 +81,15 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
         new PullWorker({
           name: consumer.durable,
           consumer: await this.nats.jetstream.consumers.get(consumer.stream, consumer.durable),
-          handler: (msg) =>
-            runner.handle({
-              data: msg.data,
-              deliveryCount: msg.info.deliveryCount,
-              consumer: consumer.durable,
-            }),
+          handler: (msg, signal) =>
+            runner.handle(
+              {
+                data: msg.data,
+                deliveryCount: msg.info.deliveryCount,
+                consumer: consumer.durable,
+              },
+              signal,
+            ),
           semaphore,
           heartbeatMs: this.ackWaitMs / 3,
         }),
@@ -97,7 +100,8 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
   }
 
   async beforeApplicationShutdown(): Promise<void> {
-    await Promise.all(this.workers.map((w) => w.stop(this.ackWaitMs)));
+    const graceMs = this.config.get('WORKER_SHUTDOWN_GRACE_MS', { infer: true });
+    await Promise.all(this.workers.map((w) => w.stop(graceMs)));
   }
 
   private createRunner(types: readonly VideoJobType[]): JobRunner {
@@ -161,8 +165,7 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
             ...shared,
             probe: (path) => ffmpeg.probe(path, transcodeLimits),
             probeOutput: (path) => ffmpeg.probe(path, transcodeLimits),
-            transcode: (src, outputs, probe, onProgress) =>
-              ffmpeg.transcode(src, outputs, probe, onProgress),
+            transcode: ffmpeg.transcode.bind(ffmpeg),
             uploadFile: this.storage.uploadFile.bind(this.storage),
           },
           source,

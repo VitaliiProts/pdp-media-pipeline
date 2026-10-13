@@ -35,6 +35,7 @@ export const executionOutcome = pgEnum('execution_outcome', [
   'retry',
   'failed',
   'abandoned',
+  'interrupted',
 ]);
 
 export const users = pgTable('users', {

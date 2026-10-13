@@ -14,7 +14,7 @@ metadata:
   replicaCount: 2
 
 api-gateway:
-  replicaCount: 2
+  autoscaling: { maxReplicas: 8 }
   env:
     S3_PUBLIC_ENDPOINT: https://s3.example.com
   ingress:
@@ -27,20 +27,27 @@ api-gateway:
 scheduler:
   replicaCount: 2
 
-worker:
-  replicaCount: 2
+# Two of everything that holds a queue, so a node going away never stops a class.
+worker-priority:
+  autoscaling: { minReplicas: 2, maxReplicas: 6 }
 
-video-worker:
-  replicaCount: 2
+worker-cpu:
+  autoscaling: { minReplicas: 2, maxReplicas: 10 }
+
+worker-io:
+  autoscaling: { minReplicas: 2, maxReplicas: 4 }
+
+video-frames:
   resources:
     requests: { cpu: '1', memory: 512Mi }
     limits: { cpu: '2', memory: 1Gi }
+  autoscaling: { minReplicas: 2, maxReplicas: 6 }
 
 video-transcode:
-  replicaCount: 2
   resources:
     requests: { cpu: '2', memory: 1Gi }
     limits: { cpu: '2', memory: 1536Mi }
+  autoscaling: { minReplicas: 2, maxReplicas: 10 }
 
 web:
   replicaCount: 2

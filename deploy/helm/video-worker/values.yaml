@@ -10,6 +10,12 @@ resources:
 env:
   VIDEO_WORK_DIR: /work
 secretEnv: {}
+# Frames finish in seconds; a transcode that does not fit goes back to the queue without
+# using up an attempt and starts over on another pod (ADR-012).
+shutdownGraceSeconds: 30
+# See pdp-lib/templates/_scaling.tpl.
+autoscaling:
+  enabled: false
 # Sources of up to MAX_VIDEO_BYTES (100 MB) plus extracted frames, off the root filesystem.
 extraVolumes:
   - name: work

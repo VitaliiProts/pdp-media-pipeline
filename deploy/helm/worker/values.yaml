@@ -9,3 +9,9 @@ resources:
   limits: { cpu: '1', memory: 512Mi }
 env: {}
 secretEnv: {}
+# On rollout or scale-down a running job gets this long, then goes back to the queue
+# without using up an attempt (ADR-012).
+shutdownGraceSeconds: 20
+# See pdp-lib/templates/_scaling.tpl.
+autoscaling:
+  enabled: false

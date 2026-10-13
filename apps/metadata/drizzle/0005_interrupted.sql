@@ -1,0 +1,1 @@
+ALTER TYPE "public"."execution_outcome" ADD VALUE 'interrupted';

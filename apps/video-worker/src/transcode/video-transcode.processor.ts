@@ -25,6 +25,7 @@ export interface VideoTranscodeDeps extends PreviewDeps {
     outputs: readonly RenditionOutput[],
     probe: VideoProbe,
     onProgress: (fraction: number) => void,
+    signal: AbortSignal,
   ) => Promise<void>;
   /** @returns bytes uploaded */
   uploadFile: (key: string, path: string, contentType: string) => Promise<number>;
@@ -66,8 +67,13 @@ export class VideoTranscodeProcessor implements JobProcessor<VideoTranscodeInput
 
       job.progress(0);
       const outputs = targets.map((t) => ({ ...t, path: join(dir, `${t.rendition}.mp4`) }));
-      await this.deps.transcode(source, outputs, probe, (fraction) =>
-        job.progress(Math.min(MAX_REPORTED_PERCENT, fraction * 100)),
+      // The only step that runs for minutes; the others end within the shutdown grace.
+      await this.deps.transcode(
+        source,
+        outputs,
+        probe,
+        (fraction) => job.progress(Math.min(MAX_REPORTED_PERCENT, fraction * 100)),
+        job.signal,
       );
       const renditions = await Promise.all(outputs.map((o) => this.upload(job.jobId, o)));
 

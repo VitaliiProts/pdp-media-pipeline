@@ -56,4 +56,13 @@ export const egressEnvSchema = z.object({
     ),
 });
 
+/**
+ * How long a stopping worker lets running jobs finish before it aborts them and hands them
+ * back. Stopping takes up to this plus 5 s for the aborted jobs to report, so keep the pod's
+ * `terminationGracePeriodSeconds` at least 10 s above it.
+ */
+export const workerShutdownEnvSchema = z.object({
+  WORKER_SHUTDOWN_GRACE_MS: z.coerce.number().int().min(0).default(20_000),
+});
+
 export type BaseEnv = z.infer<typeof baseEnvSchema>;

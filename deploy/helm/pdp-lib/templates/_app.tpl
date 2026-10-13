@@ -1,6 +1,9 @@
 {{/*
-Deployment, Service and optional Ingress of one service. A service chart only needs
-`{{ include "pdp-lib.app" . }}` and its values.yaml.
+Deployment, Service, PodDisruptionBudget, optional autoscaler (_scaling.tpl) and Ingress
+of one service. A service chart only needs `{{ include "pdp-lib.app" . }}` and its values.yaml.
+
+`shutdownGraceSeconds` (workers) sets WORKER_SHUTDOWN_GRACE_MS and a termination grace
+15 s longer: 5 s for aborted jobs to hand themselves back, the rest for NATS and HTTP.
 */}}
 {{- define "pdp-lib.app" -}}
 {{- $name := include "pdp-lib.name" . -}}
@@ -13,7 +16,9 @@ metadata:
   labels:
     {{- include "pdp-lib.labels" . | nindent 4 }}
 spec:
+  {{- if not (dig "enabled" false (.Values.autoscaling | default dict)) }}
   replicas: {{ .Values.replicaCount | default 1 }}
+  {{- end }}
   revisionHistoryLimit: 3
   selector:
     matchLabels:
@@ -31,7 +36,21 @@ spec:
       automountServiceAccountToken: false
       # Service links would add NATS_PORT=tcp://... and the like to every container.
       enableServiceLinks: false
+      {{- with .Values.shutdownGraceSeconds }}
+      terminationGracePeriodSeconds: {{ add . 15 }}
+      {{- else }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
+      {{- end }}
+      # Replicas on different nodes when there is room, so one node going away takes one.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "pdp-lib.selectorLabels" . | nindent 20 }}
       securityContext:
         runAsNonRoot: true
         runAsUser: {{ .Values.runAsUser | default 1000 }}
@@ -106,6 +125,7 @@ spec:
     - name: http
       port: {{ .Values.servicePort | default $port }}
       targetPort: http
+{{ include "pdp-lib.scaling" . }}
 {{- with .Values.ingress }}
 {{- if .enabled }}
 ---

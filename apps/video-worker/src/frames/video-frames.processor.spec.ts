@@ -7,7 +7,12 @@ import { type VideoFramesDeps, VideoFramesProcessor } from './video-frames.proce
 /** Minimal JPEG header for a 640x360 frame. */
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0x68, 0x02, 0x80, 0x03]);
 
-const job = (jobId: string) => ({ jobId, attempt: 1, progress: () => undefined });
+const job = (jobId: string) => ({
+  jobId,
+  attempt: 1,
+  progress: () => undefined,
+  signal: new AbortController().signal,
+});
 
 async function setup(frameCount = 3) {
   const workDir = await mkdtemp(join(tmpdir(), 'video-frames-spec-'));

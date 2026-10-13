@@ -11,13 +11,17 @@ export interface JobState {
   attempts: number;
   /** Scheduling attempt of the current generation; worker attempts are above it. */
   attemptBase: number;
-  /** Executions started in the current generation, the abandoned ones included. */
+  /**
+   * Executions started in the current generation, the abandoned ones included; the
+   * interrupted ones (handed back on shutdown) are not.
+   */
   startedInGeneration: number;
 }
 
 export interface TransitionInput {
   to: TransitionTarget;
   attempt: number;
+  interrupted?: boolean;
 }
 
 export interface RetryPolicy {
@@ -26,7 +30,7 @@ export interface RetryPolicy {
 }
 
 /** What the transition does to `job_executions` and the job row besides the status. */
-export type TransitionEffect = 'schedule' | 'start' | 'retry' | 'succeed' | 'dead';
+export type TransitionEffect = 'schedule' | 'start' | 'retry' | 'interrupt' | 'succeed' | 'dead';
 
 export type RejectCode = 'JOB_TERMINAL' | 'STALE_ATTEMPT' | 'INVALID_TRANSITION';
 
@@ -115,6 +119,8 @@ export function decide(
       if (attempt < attempts) return reject('STALE_ATTEMPT', `attempt ${attempt} < ${attempts}`);
       if (attempt > attempts)
         return reject('INVALID_TRANSITION', `attempt ${attempt} never started`);
+      // Not a failure: the next attempt gets the slot this one gives back.
+      if (req.interrupted) return apply('interrupt');
       return exhausted ? dead('exhausted') : apply('retry');
 
     case 'succeeded':

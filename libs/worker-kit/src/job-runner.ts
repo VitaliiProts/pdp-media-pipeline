@@ -27,6 +27,11 @@ export interface JobContext {
   attempt: number;
   /** Percent done, as often as convenient: updates are throttled and never block. */
   progress: (percent: number) => void;
+  /**
+   * Aborts when the worker shuts down and stops waiting for this job. Pass it to whatever
+   * runs long; the error it causes hands the job back without using up an attempt.
+   */
+  signal: AbortSignal;
 }
 
 export type JobOutput = Record<string, unknown>;
@@ -85,6 +90,9 @@ export interface DeliveredMessage {
  *
  * The worker does not decide when to give up: Metadata counts attempts and answers a
  * start or retry over the limit with `dead`, which the worker then acks.
+ *
+ * A job that fails after `signal` aborted was cut short by a shutdown: it goes back as
+ * `scheduled` with `interrupted`, which Metadata does not count, and is nak'ed at once.
  */
 export class JobRunner {
   private readonly logger = new Logger(JobRunner.name);
@@ -106,19 +114,23 @@ export class JobRunner {
     return this;
   }
 
-  async handle(msg: DeliveredMessage): Promise<HandlerResult> {
+  async handle(
+    msg: DeliveredMessage,
+    signal: AbortSignal = new AbortController().signal,
+  ): Promise<HandlerResult> {
     const parsed = this.parse(msg.data);
     if ('reason' in parsed) return term(parsed.reason);
     const { dispatch } = parsed;
     // The scheduler already set this baggage; set again for dispatches published without it.
     return withJobContext({ id: dispatch.jobId, type: dispatch.type, class: dispatch.class }, () =>
-      this.run(msg, parsed),
+      this.run(msg, parsed, signal),
     );
   }
 
   private async run(
     msg: DeliveredMessage,
     { dispatch, input, processor }: ParsedDispatch,
+    signal: AbortSignal,
   ): Promise<HandlerResult> {
     const { jobId } = dispatch;
     const attempt = dispatch.attemptBase + msg.deliveryCount;
@@ -155,10 +167,17 @@ export class JobRunner {
         `job process ${dispatch.type}`,
         { attributes: { 'job.attempt': attempt } },
         () =>
-          processor.process({ jobId, attempt, progress: this.progressOf(jobId, attempt) }, input),
+          processor.process(
+            { jobId, attempt, progress: this.progressOf(jobId, attempt), signal },
+            input,
+          ),
       );
       jobMetrics.attempt(dispatch.type, 'succeeded', elapsed());
     } catch (err) {
+      if (signal.aborted) {
+        jobMetrics.attempt(dispatch.type, 'interrupted', elapsed());
+        return this.onInterrupted(jobId, attempt, retryDelay);
+      }
       jobMetrics.attempt(dispatch.type, isPermanentError(err) ? 'failed' : 'retry', elapsed());
       return this.onProcessingError(err, jobId, attempt, inbox, retryDelay);
     }
@@ -232,6 +251,26 @@ export class JobRunner {
       return nak(retryDelay);
     } catch (transitionErr) {
       return this.onMetadataError(transitionErr, jobId, retryDelay);
+    }
+  }
+
+  private async onInterrupted(
+    jobId: string,
+    attempt: number,
+    retryDelay: number,
+  ): Promise<HandlerResult> {
+    this.logger.log(`job ${jobId} attempt ${attempt} interrupted by shutdown, handing it back`);
+    try {
+      await this.deps.transition(jobId, {
+        to: 'scheduled',
+        attempt,
+        actor: this.actor,
+        interrupted: true,
+        error: 'interrupted: worker shutting down',
+      });
+      return nak(0);
+    } catch (err) {
+      return this.onMetadataError(err, jobId, retryDelay);
     }
   }
 

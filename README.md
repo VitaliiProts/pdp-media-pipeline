@@ -131,6 +131,19 @@ flowchart LR
 - **Web UI.** У панелі завантаження перемикач «Кадри / Транскодинг»; на картці — прогрес-бар,
   потім якості посиланнями на MP4.
 
+Автоскейл і graceful shutdown (Етап 5.3,
+[ADR-012](docs/adr/0012-autoscaling-and-graceful-shutdown.md)):
+
+- **Deployment на клас.** У кластері воркер картинок працює як `worker-priority`, `worker-cpu` і
+  `worker-io` (`WORKER_CLASSES`), відео — як `video-frames` і `video-transcode`. У compose
+  воркер, як і раніше, бере всі класи.
+- **Скейл за лагом черги.** KEDA (`nats-jetstream`) рахує для кожного консюмера
+  `num_pending + num_ack_pending` і ставить один под на кожні «слоти» задач, що чекають або
+  виконуються. Gateway — HPA за CPU, мінімум 2 репліки. Усім — PDB і anti-affinity.
+- **Зупинка без втрат.** На SIGTERM воркер одразу перестає брати повідомлення і дає поточним
+  задачам `WORKER_SHUTDOWN_GRACE_MS`. Потім скасовує їх (ffmpeg вбивається) і повертає в чергу як
+  `interrupted`: інший под бере задачу одразу, а спроба не рахується.
+
 ### Структура репозиторію
 
 | Шлях                                   | Що там                                                              |
@@ -672,7 +685,7 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
    ```
 5. Безпека подів: non-root, `readOnlyRootFilesystem`, без capabilities, запис лише в `emptyDir`:
    ```bash
-   kubectl -n pdp get deploy worker -o jsonpath='{.spec.template.spec.containers[0].securityContext}' | jq
+   kubectl -n pdp get deploy worker-cpu -o jsonpath='{.spec.template.spec.containers[0].securityContext}' | jq
    ```
 6. CI-перевірка чартів локально — `helm lint` усіх чартів і kubeconform для відрендереної
    платформи та `pdp` з `values-dev.yaml` і `values-prod.yaml`, CRD CloudNativePG — за схемами з
@@ -739,8 +752,8 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
    Очікувано: `["video.transcode","600","0.95"]` поруч з `image.resize` і `video.frames` на 300.
    Дашборд **SLO** у Grafana, тип `video.transcode`: формули й пунктир порогу на графіку
    перцентилів — 600 с. Тести правил: `pnpm alerts:test`.
-8. У кластері: `pnpm k8s:deploy`, потім `kubectl -n pdp get deploy video-worker video-transcode`
-   — обидва з одного образу, `VIDEO_JOB_TYPES` різний
+8. У кластері: `pnpm k8s:deploy`, потім `kubectl -n pdp get deploy video-frames video-transcode`
+   — обидва з образу video-worker, `VIDEO_JOB_TYPES` різний
    (`kubectl -n pdp get deploy video-transcode -o yaml | grep -A1 VIDEO_JOB_TYPES`).
 9. Тести: unit — `apps/video-worker/src/ffmpeg/transcode.spec.ts` (план якостей, аргументи
    ffmpeg, розбір `-progress`), `libs/worker-kit/src/progress.spec.ts` (тротлінг),
@@ -748,6 +761,65 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
    `test/media-sources.int-spec.ts` (транскодинг, `skipped`, `+faststart`) і
    `test/metadata.int-spec.ts` (прогрес лише від поточної спроби).
 10. Документи: [ADR-011](docs/adr/0011-video-transcode.md), [план етапу](docs/plan/stage-5.md).
+
+### Етап 5.3. Автоскейл і graceful shutdown
+
+**Критерій підетапу:** під k6-навантаженням відео-воркери скейляться з 1 до N і назад, а
+`kubectl rollout restart` під навантаженням не дає втрачених, `dead` чи подвійних задач, і це
+видно за метриками та в `job_executions`.
+
+Підготовка: кластер з [«Запуск у Kubernetes»](#запуск-у-kubernetes-k3d), `pnpm k8s:deploy`
+після оновлення.
+
+1. Deployment на клас, автоскейлери, PDB:
+   ```bash
+   kubectl -n pdp get deploy,scaledobject,hpa,pdb
+   ```
+   Очікувано: `worker-priority`, `worker-cpu`, `worker-io`, `video-frames`, `video-transcode` —
+   кожен зі своїм ScaledObject (`READY True`, тригер `nats-jetstream`) і HPA `keda-hpa-*` з
+   цілями на кшталт `0/2 (avg)`; `api-gateway` — HPA за CPU з `MINPODS 2`, два поди на різних
+   вузлах (`kubectl -n pdp get pods -l app.kubernetes.io/name=api-gateway -o wide`).
+2. Кожен воркер бере лише свій клас, grace і termination узгоджені:
+   ```bash
+   kubectl -n pdp logs deploy/worker-io | grep consuming          # consuming worker-io
+   kubectl -n pdp get deploy video-transcode -o json | jq '.spec.template.spec |
+     {terminationGracePeriodSeconds, grace: (.containers[0].env[] | select(.name == "WORKER_SHUTDOWN_GRACE_MS").value)}'
+   ```
+   Очікувано: `75` і `"60000"`.
+3. Лаг, який бачить KEDA, — той самий `/jsz`, що й у NATS:
+   ```bash
+   kubectl get --raw '/api/v1/namespaces/pdp/services/nats:8222/proxy/jsz?consumers=true' \
+     | jq -c '.account_details[].stream_detail[].consumer_detail[]? | {name, lag: (.num_pending + .num_ack_pending)}'
+   ```
+4. Демо (~13 хв): k6 `perf/k6/video-load.js` дає 12 транскодингів і 20 задач кадрів за хвилину;
+   під навантаженням — `rollout restart` зі штатним grace, потім з `WORKER_SHUTDOWN_GRACE_MS=2000`;
+   далі черга спорожніє, і поди скорочуються до одного.
+   ```bash
+   scripts/autoscale-demo.sh            # HOLD=3m — коротше навантаження
+   node scripts/autoscale-report.mjs    # графіки в perf/reports/stage-5/
+   ```
+   Поки триває, видно в іншому терміналі: `watch kubectl -n pdp get hpa`, а в Grafana —
+   дашборд **Queues** (backlog консюмерів) і **SLO** для `video.transcode`.
+   Очікувано в кінці (`perf/reports/raw/autoscale-checks.txt`): `created` = `succeeded`,
+   `dead 0`, `succeeded twice 0`, `interrupted jobs` більше нуля лише після rollout з 2 с, а
+   `max counted tries` — 1: перервані виконання не рахуються в спроби. Цифри й графіки —
+   [звіт Етапу 5](perf/reports/stage-5.md).
+5. Перервана спроба в `job_executions`: виконання з `interrupted`, потім успішне на іншому поді:
+   ```bash
+   kubectl -n pdp exec -i postgres-1 -c postgres -- psql -d metadata -c "
+     select e.job_id, e.attempt, e.outcome, e.worker_id from job_executions e
+     where e.job_id in (select job_id from job_executions where outcome = 'interrupted' limit 3)
+     order by 1, 2"
+   ```
+   Метрика: `sum(jobs_interrupted_total)` у VictoriaMetrics (http://vm.pdp.localhost:19080/vmui).
+6. Тести: unit — `libs/messaging/src/pull-worker.spec.ts` (дедлайн, скасування, `nak` після
+   зупинки), `libs/messaging/src/semaphore.spec.ts`, `libs/worker-kit/src/job-runner.spec.ts`
+   (`interrupted` і `nak(0)`), `apps/metadata/src/jobs/state-machine.spec.ts`; інтеграційний —
+   `test/metadata.int-spec.ts` (п'ять перерваних спроб не доводять задачу до `dead`). Чарти:
+   `pnpm helm:lint`.
+7. Документи: [ADR-012](docs/adr/0012-autoscaling-and-graceful-shutdown.md),
+   [відповідність ADR номерам PDF](docs/adr/README.md#відповідність-номерам-pdf),
+   [план етапу](docs/plan/stage-5.md).
 
 ## Конфігурація Етапу 2
 
@@ -810,9 +882,20 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 | `TRANSCODE_MAX_DURATION_SECONDS` (video-worker) | 300                            | Максимальна тривалість відео для транскодингу           |
 | `JOB_PROGRESS_INTERVAL_MS` (video-worker)       | 3000                           | Не частіше ніж раз на цей інтервал воркер шле прогрес   |
 
+## Конфігурація Етапу 5.3
+
+| Змінна / value                            | За замовчуванням    | Що робить                                                                  |
+| ----------------------------------------- | ------------------- | -------------------------------------------------------------------------- |
+| `WORKER_SHUTDOWN_GRACE_MS` (воркери)      | 20000               | Скільки поточні задачі мають на SIGTERM, перш ніж їх повернуть у чергу     |
+| `WORKER_CLASSES` (worker)                 | `io,cpu,priority`   | Які класи черг бере процес (у кластері — по одному на Deployment)          |
+| `shutdownGraceSeconds` (чарт)             | 20, відео 30 і 60   | Задає `WORKER_SHUTDOWN_GRACE_MS` і `terminationGracePeriodSeconds` = +15 с |
+| `autoscaling.minReplicas` / `maxReplicas` | різні, див. ADR-012 | Межі HPA, який створює KEDA (або HPA за CPU для gateway)                   |
+| `autoscaling.lagThreshold`                | слотів на под       | Лаг консюмера на один под                                                  |
+| `autoscaling.scaleDown`                   | 60 с, 1 под / 30 с  | `behavior.scaleDown` HPA; у `video-transcode` — 120 с, 1 под / 60 с        |
+
 ## Документація
 
 - Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md), [Етап 4](docs/plan/stage-4.md), [Етап 5](docs/plan/stage-5.md)
 - ADR: [docs/adr](docs/adr/README.md)
 - Спайк JetStream проти BullMQ: [docs/spikes](docs/spikes/01-jetstream-vs-bullmq.md)
-- Звіти навантаження: [perf/reports](perf/reports/stage-2.md)
+- Звіти навантаження: [Етап 2](perf/reports/stage-2.md), [Етап 5](perf/reports/stage-5.md)

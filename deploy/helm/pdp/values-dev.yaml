@@ -22,19 +22,24 @@ api-gateway:
       - host: app.pdp.localhost
         paths: [/v1, /docs]
 
-worker:
-  env:
+worker-priority:
+  env: &private-receiver
     EGRESS_PRIVATE_HOSTS: webhook-receiver
+
+worker-cpu:
+  env: *private-receiver
+
+worker-io:
+  env:
+    <<: *private-receiver
     # Short enough to see /slow time out without waiting long.
     WEBHOOK_TIMEOUT_MS: '5000'
 
-video-worker:
-  env:
-    EGRESS_PRIVATE_HOSTS: webhook-receiver
+video-frames:
+  env: *private-receiver
 
 video-transcode:
-  env:
-    EGRESS_PRIVATE_HOSTS: webhook-receiver
+  env: *private-receiver
 
 web:
   env:

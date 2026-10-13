@@ -19,7 +19,12 @@ need jq
 
 if [[ -n "$KUBE_NAMESPACE" ]]; then
   need kubectl
-  exec_in() { kubectl -n "$KUBE_NAMESPACE" exec -i "deploy/$1" -- "${@:2}"; }
+  # The image worker runs as one deployment per queue class there.
+  exec_in() {
+    local deploy="$1"
+    [[ "$deploy" == worker ]] && deploy=worker-cpu
+    kubectl -n "$KUBE_NAMESPACE" exec -i "deploy/$deploy" -- "${@:2}"
+  }
   psql_in() { kubectl -n "$KUBE_NAMESPACE" exec -i postgres-1 -c postgres -- psql -d metadata "$@"; }
 else
   need docker

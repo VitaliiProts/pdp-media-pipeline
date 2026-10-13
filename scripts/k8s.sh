@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage 5 local Kubernetes: a k3d cluster with the platform and the app (ADR-011).
+# Stage 5 local Kubernetes: a k3d cluster with the platform and the app (docs/plan/stage-5.md).
 #
 #   scripts/k8s.sh up        # cluster, operators, platform, images and the app
 #   scripts/k8s.sh deploy    # rebuild images and upgrade the app release only
@@ -21,6 +21,14 @@ CNPG_VERSION=0.29.1
 KEDA_VERSION=2.21.0
 APPS=(api-gateway metadata scheduler worker video-worker webhook-receiver web)
 SERVICE_CHARTS=(api-gateway metadata scheduler worker video-worker webhook-receiver web)
+# Deployments built from one image (aliases in deploy/helm/pdp/Chart.yaml).
+releases_of() {
+  case "$1" in
+    worker) echo worker-priority worker-cpu worker-io ;;
+    video-worker) echo video-frames video-transcode ;;
+    *) echo "$1" ;;
+  esac
+}
 
 need() { command -v "$1" >/dev/null || { echo "missing dependency: $1" >&2; exit 1; }; }
 log() { printf '\n==> %s\n' "$*"; }
@@ -65,14 +73,14 @@ images() {
   log "building images" >&2
   docker compose build metadata-migrate api-gateway scheduler worker video-worker \
     webhook-receiver web >&2
-  local app id
+  local app id release
   for app in "${APPS[@]}"; do
     id=$(docker image inspect --format '{{.Id}}' "pdp/$app:dev" | cut -d: -f2 | cut -c1-12)
     docker tag "pdp/$app:dev" "$REGISTRY/pdp/$app:$id"
     docker push --quiet "$REGISTRY/pdp/$app:$id" >/dev/null
-    printf -- '--set %s.image.tag=%s ' "$app" "$id"
-    # Transcoding runs from the video worker image.
-    if [ "$app" = video-worker ]; then printf -- '--set video-transcode.image.tag=%s ' "$id"; fi
+    for release in $(releases_of "$app"); do
+      printf -- '--set %s.image.tag=%s ' "$release" "$id"
+    done
   done
 }
 

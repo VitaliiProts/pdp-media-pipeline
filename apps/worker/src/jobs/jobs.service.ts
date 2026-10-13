@@ -2,10 +2,11 @@ import {
   type BeforeApplicationShutdown,
   Inject,
   Injectable,
+  Logger,
   type OnApplicationBootstrap,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { type StreamName } from '@pdp/contracts';
+import { type JobClass, type StreamName } from '@pdp/contracts';
 import { EgressClient } from '@pdp/egress';
 import {
   ensurePullConsumer,
@@ -27,20 +28,29 @@ type Pool = 'cpu' | 'io';
  * Work-queue streams reject consumers with overlapping filters, so each consumer names the
  * job types it handles; `video.frames` on the same streams belongs to the video worker.
  */
-const CONSUMERS: { stream: StreamName; durable: string; filterSubject: string; pool: Pool }[] = [
+const CONSUMERS: {
+  jobClass: JobClass;
+  stream: StreamName;
+  durable: string;
+  filterSubject: string;
+  pool: Pool;
+}[] = [
   {
+    jobClass: 'priority',
     stream: 'JOBS_PRIORITY',
     durable: 'worker-priority',
     filterSubject: 'jobs.priority.image.resize',
     pool: 'cpu',
   },
   {
+    jobClass: 'cpu',
     stream: 'JOBS_CPU',
     durable: 'worker-cpu',
     filterSubject: 'jobs.cpu.image.resize',
     pool: 'cpu',
   },
   {
+    jobClass: 'io',
     stream: 'JOBS_IO',
     durable: 'worker-io',
     filterSubject: 'jobs.io.webhook.deliver',
@@ -50,6 +60,7 @@ const CONSUMERS: { stream: StreamName; durable: string; filterSubject: string; p
 
 @Injectable()
 export class JobsService implements OnApplicationBootstrap, BeforeApplicationShutdown {
+  private readonly logger = new Logger(JobsService.name);
   private workers: PullWorker[] = [];
   private readonly ackWaitMs: number;
 
@@ -96,10 +107,12 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
         ),
       );
 
+    const classes = this.config.get('WORKER_CLASSES', { infer: true });
+    const consumers = CONSUMERS.filter((c) => classes.includes(c.jobClass));
     const jsm = await this.nats.manager();
     await ensureStreams(
       jsm,
-      CONSUMERS.map((c) => c.stream),
+      consumers.map((c) => c.stream),
     );
     // cpu and priority share one pool, which caps CPU work per process whichever queue it
     // comes from; webhook deliveries mostly wait on the network and must not hold CPU slots.
@@ -107,9 +120,11 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
       cpu: new Semaphore(this.config.get('WORKER_CONCURRENCY', { infer: true })),
       io: new Semaphore(this.config.get('WEBHOOK_CONCURRENCY', { infer: true })),
     };
-    for (const { pool, ...consumer } of CONSUMERS) {
+    for (const { stream, durable, filterSubject, pool } of consumers) {
       await ensurePullConsumer(jsm, {
-        ...consumer,
+        stream,
+        durable,
+        filterSubject,
         ackWaitMs: this.ackWaitMs,
         // Metadata decides when a job is out of attempts; NATS keeps redelivering until then.
         maxDeliver: -1,
@@ -117,24 +132,25 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
       });
       this.workers.push(
         new PullWorker({
-          name: consumer.durable,
-          consumer: await this.nats.jetstream.consumers.get(consumer.stream, consumer.durable),
-          handler: (msg) =>
-            runner.handle({
-              data: msg.data,
-              deliveryCount: msg.info.deliveryCount,
-              consumer: consumer.durable,
-            }),
+          name: durable,
+          consumer: await this.nats.jetstream.consumers.get(stream, durable),
+          handler: (msg, signal) =>
+            runner.handle(
+              { data: msg.data, deliveryCount: msg.info.deliveryCount, consumer: durable },
+              signal,
+            ),
           semaphore: pools[pool],
           heartbeatMs: this.ackWaitMs / 3,
         }),
       );
     }
     for (const worker of this.workers) worker.start();
+    this.logger.log(`consuming ${consumers.map((c) => c.durable).join(', ')}`);
   }
 
   async beforeApplicationShutdown(): Promise<void> {
-    await Promise.all(this.workers.map((w) => w.stop(this.ackWaitMs)));
+    const graceMs = this.config.get('WORKER_SHUTDOWN_GRACE_MS', { infer: true });
+    await Promise.all(this.workers.map((w) => w.stop(graceMs)));
   }
 
   private async webhookEndpoint(id: string) {

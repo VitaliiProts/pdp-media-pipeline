@@ -59,7 +59,15 @@ function setup(status = 204) {
   };
   const processor = new WebhookDeliverProcessor(deps, { timeoutMs: 5000 });
   const run = () =>
-    processor.process({ jobId: randomUUID(), attempt: 1, progress: () => undefined }, input);
+    processor.process(
+      {
+        jobId: randomUUID(),
+        attempt: 1,
+        progress: () => undefined,
+        signal: new AbortController().signal,
+      },
+      input,
+    );
   return { deps, run, nowSeconds: now / 1000 };
 }
 
