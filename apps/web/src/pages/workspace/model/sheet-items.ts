@@ -31,6 +31,9 @@ export type SheetItem =
       attempts: number;
       lastError: string | null;
       deadReason: DeadReason | null;
+      /** 0..1 while a job that reports progress is running. */
+      progress: number | null;
+      /** Image sizes or video renditions, each a downloadable file. */
       results: JobResult[];
       frames: VideoFrame[];
       createdAt: string;
@@ -56,10 +59,27 @@ const PREFERRED_PREVIEW = 'medium';
 
 function previewOf(job: Job, localPreview: string | null): string | null {
   if (job.video) return job.video.preview.url;
+  if (job.transcode) return job.transcode.preview.url;
   const results = job.results ?? [];
   const best = results.find((r) => r.preset === PREFERRED_PREVIEW) ?? results[0];
   return best?.url ?? localPreview;
 }
+
+function resultsOf(job: Job): JobResult[] {
+  if (job.transcode) {
+    return job.transcode.renditions.map(({ rendition, width, height, bytes, url }) => ({
+      preset: rendition,
+      width,
+      height,
+      bytes,
+      url,
+    }));
+  }
+  return job.results ?? [];
+}
+
+const progressOf = (job: Job): number | null =>
+  job.status === 'running' && typeof job.progress === 'number' ? job.progress / 100 : null;
 
 /**
  * Uploads still in flight come first; once an upload became a job it is shown
@@ -97,7 +117,8 @@ export function buildSheetItems(jobs: readonly Job[], uploads: readonly Upload[]
       attempts: job.attempts,
       lastError: job.lastError,
       deadReason: job.deadReason,
-      results: job.results ?? [],
+      progress: progressOf(job),
+      results: resultsOf(job),
       frames: job.video?.frames ?? [],
       createdAt: job.createdAt,
       traceId: job.traceId,

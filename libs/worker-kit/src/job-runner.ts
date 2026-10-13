@@ -3,6 +3,7 @@ import {
   dispatchMessageId,
   JobDispatchV1,
   type JobType,
+  type ProgressRequest,
   type TransitionRequest,
   type TransitionResponse,
 } from '@pdp/contracts';
@@ -19,10 +20,13 @@ import { jobMetrics, traced, withJobContext } from '@pdp/observability';
 import { trace } from '@opentelemetry/api';
 import { type z } from 'zod';
 import { isPermanentError } from './permanent-error';
+import { ProgressReporter } from './progress';
 
 export interface JobContext {
   jobId: string;
   attempt: number;
+  /** Percent done, as often as convenient: updates are throttled and never block. */
+  progress: (percent: number) => void;
 }
 
 export type JobOutput = Record<string, unknown>;
@@ -51,12 +55,18 @@ interface ParsedDispatch {
 
 export interface JobRunnerDeps {
   transition: (jobId: string, body: TransitionRequest) => Promise<TransitionResponse>;
+  /** Without it `JobContext.progress` does nothing. */
+  progress?: (jobId: string, body: ProgressRequest) => Promise<void>;
 }
 
 export interface JobRunnerOptions {
   workerId: string;
   retry: BackoffOptions;
+  /** Minimum time between two progress updates of one attempt; 3 s by default. */
+  progressIntervalMs?: number;
 }
+
+const DEFAULT_PROGRESS_INTERVAL_MS = 3000;
 
 export interface DeliveredMessage {
   data: Uint8Array;
@@ -144,7 +154,8 @@ export class JobRunner {
       output = await traced(
         `job process ${dispatch.type}`,
         { attributes: { 'job.attempt': attempt } },
-        () => processor.process({ jobId, attempt }, input),
+        () =>
+          processor.process({ jobId, attempt, progress: this.progressOf(jobId, attempt) }, input),
       );
       jobMetrics.attempt(dispatch.type, 'succeeded', elapsed());
     } catch (err) {
@@ -164,6 +175,14 @@ export class JobRunner {
     } catch (err) {
       return this.onMetadataError(err, jobId, retryDelay);
     }
+  }
+
+  private progressOf(jobId: string, attempt: number): JobContext['progress'] {
+    const send = this.deps.progress;
+    if (!send) return () => undefined;
+    return new ProgressReporter((progress) => send(jobId, { attempt, progress }), {
+      intervalMs: this.options.progressIntervalMs ?? DEFAULT_PROGRESS_INTERVAL_MS,
+    }).report;
   }
 
   private parse(data: Uint8Array): ParsedDispatch | { reason: string } {

@@ -5,9 +5,12 @@ import {
   natsEnvSchema,
   s3EnvSchema,
 } from '@pdp/config';
-import { VIDEO_MAX_DURATION_SECONDS } from '@pdp/contracts';
+import { TRANSCODE_MAX_DURATION_SECONDS, VIDEO_MAX_DURATION_SECONDS } from '@pdp/contracts';
 import os from 'node:os';
 import { z } from 'zod';
+
+export const VIDEO_JOB_TYPES = ['video.frames', 'video.transcode'] as const;
+export type VideoJobType = (typeof VIDEO_JOB_TYPES)[number];
 
 export const envSchema = baseEnvSchema.extend({
   ...natsEnvSchema.shape,
@@ -37,6 +40,30 @@ export const envSchema = baseEnvSchema.extend({
     .max(VIDEO_MAX_DURATION_SECONDS)
     .default(VIDEO_MAX_DURATION_SECONDS),
   VIDEO_MAX_DIMENSION: z.coerce.number().int().min(16).default(8192),
+  /**
+   * Which job types this instance consumes, comma-separated. Frames and transcoding share
+   * the image but run as separate deployments, so a long transcode never holds the slot a
+   * frames job waits for.
+   */
+  VIDEO_JOB_TYPES: z
+    .string()
+    .default(VIDEO_JOB_TYPES.join(','))
+    .transform((s) => s.split(',').map((t) => t.trim()))
+    .pipe(
+      z
+        .array(z.enum(VIDEO_JOB_TYPES))
+        .min(1)
+        .refine((t) => new Set(t).size === t.length, 'job types must be unique'),
+    ),
+  /** For the whole ffmpeg run of `video.transcode`; it is SIGKILLed after it. */
+  TRANSCODE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(600_000),
+  TRANSCODE_MAX_DURATION_SECONDS: z.coerce
+    .number()
+    .positive()
+    .max(TRANSCODE_MAX_DURATION_SECONDS)
+    .default(TRANSCODE_MAX_DURATION_SECONDS),
+  /** Minimum time between two progress updates of one job. */
+  JOB_PROGRESS_INTERVAL_MS: z.coerce.number().int().min(100).default(3000),
   /** Scratch space for downloads and frames; defaults to the OS temp dir. */
   VIDEO_WORK_DIR: z.string().optional(),
 });

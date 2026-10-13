@@ -20,6 +20,11 @@ dependencies:
   - name: video-worker
     version: 0.2.0
     repository: file://../video-worker
+  # The same chart and image again, consuming only video.transcode.
+  - name: video-worker
+    alias: video-transcode
+    version: 0.2.0
+    repository: file://../video-worker
   - name: web
     version: 0.2.0
     repository: file://../web

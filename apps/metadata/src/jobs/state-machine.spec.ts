@@ -1,5 +1,11 @@
 import { type JobStatus, type TransitionTarget } from '@pdp/contracts';
-import { decide, decideRedrive, type Decision, type JobState } from './state-machine';
+import {
+  decide,
+  decideProgress,
+  decideRedrive,
+  type Decision,
+  type JobState,
+} from './state-machine';
 
 const policy = { maxAttempts: 3 };
 
@@ -182,6 +188,24 @@ describe('decide', () => {
     it('rejects a finished job', () => {
       expect(rejected(run(job('succeeded', 1), 'dead', 1))).toBe('JOB_TERMINAL');
     });
+  });
+});
+
+describe('decideProgress', () => {
+  it('accepts the running attempt', () => {
+    expect(decideProgress({ status: 'running', attempts: 2 }, 2)).toBeNull();
+  });
+
+  it('rejects an attempt that was superseded by a newer one', () => {
+    expect(decideProgress({ status: 'running', attempts: 3 }, 2)?.code).toBe('STALE_ATTEMPT');
+  });
+
+  it.each<JobStatus>(['queued', 'scheduled'])('rejects a %s job', (status) => {
+    expect(decideProgress({ status, attempts: 1 }, 1)?.code).toBe('INVALID_TRANSITION');
+  });
+
+  it.each<JobStatus>(['succeeded', 'dead'])('rejects a %s job', (status) => {
+    expect(decideProgress({ status, attempts: 1 }, 1)?.code).toBe('JOB_TERMINAL');
   });
 });
 

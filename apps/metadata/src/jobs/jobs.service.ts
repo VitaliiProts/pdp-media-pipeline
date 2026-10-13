@@ -19,10 +19,12 @@ import {
   JobStatusChangedV1,
   type ListJobsResponse,
   type MetadataErrorBody,
+  type ProgressRequest,
   type RedriveRequest,
   type TransitionRequest,
   type TransitionResponse,
   VideoFramesInputV1,
+  VideoTranscodeInputV1,
 } from '@pdp/contracts';
 import { currentTraceId, jobMetrics, withJobContext } from '@pdp/observability';
 import { and, count, desc, eq, gt, inArray, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
@@ -42,12 +44,19 @@ import { enqueueEvent } from '../outbox/outbox';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { insertJob } from './insert-job';
 import { decodeCursor, encodeCursor, toJobDto } from './job.mapper';
-import { decide, type Decision, decideRedrive, type RetryPolicy } from './state-machine';
+import {
+  decide,
+  type Decision,
+  decideProgress,
+  decideRedrive,
+  type RetryPolicy,
+} from './state-machine';
 
 /** Types clients may create; `webhook.deliver` jobs are only created by Metadata itself. */
 const INPUT_SCHEMAS: Partial<Record<JobType, z.ZodType>> = {
   'image.resize': ImageResizeInputV1,
   'video.frames': VideoFramesInputV1,
+  'video.transcode': VideoTranscodeInputV1,
 };
 
 const error = (code: MetadataErrorBody['code'], message: string): MetadataErrorBody => ({
@@ -316,6 +325,31 @@ export class JobsService {
   }
 
   /**
+   * One conditional update instead of a locked transaction: progress arrives every few
+   * seconds from a long job, and it must not queue behind status changes for the row lock.
+   * The condition is `decideProgress`; when it fails the job is read again for the reason.
+   */
+  async progress(id: string, req: ProgressRequest): Promise<void> {
+    const updated = await this.pg.db
+      .update(jobs)
+      .set({ progress: req.progress })
+      .where(and(eq(jobs.id, id), eq(jobs.status, 'running'), eq(jobs.attempts, req.attempt)))
+      .returning({ id: jobs.id });
+    if (updated.length > 0) return;
+
+    const [job] = await this.pg.db
+      .select({ status: jobs.status, attempts: jobs.attempts })
+      .from(jobs)
+      .where(eq(jobs.id, id));
+    if (!job) throw new NotFoundException(error('JOB_NOT_FOUND', `job ${id} not found`));
+    const rejected = decideProgress(job, req.attempt) ?? {
+      code: 'STALE_ATTEMPT' as const,
+      message: `attempt ${req.attempt} was superseded`,
+    };
+    throw new ConflictException(error(rejected.code, rejected.message));
+  }
+
+  /**
    * Sends a dead job through the pipeline again as a new generation: attempts restart
    * above the current ones, so the old executions neither count nor collide.
    */
@@ -463,6 +497,7 @@ export class JobsService {
           .values({ jobId: job.id, attempt: req.attempt, workerId: req.actor, startedAt: now })
           .onConflictDoNothing();
         patch.attempts = req.attempt;
+        patch.progress = null;
         // The scheduler's own transition is a no-op when the worker overtook it.
         patch.class = job.class ?? req.class ?? null;
         break;

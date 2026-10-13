@@ -18,3 +18,4 @@
 | [008](0008-video-worker.md)             | Відео: окремий воркер з ffmpeg                            | Прийнято |
 | [009](0009-egress-and-webhooks.md)      | Вихідні запити і вебхуки                                  | Прийнято |
 | [010](0010-observability.md)            | Observability: OTel, Tempo, VictoriaLogs, VictoriaMetrics | Прийнято |
+| [011](0011-video-transcode.md)          | Транскодинг відео: один прохід, прогрес і SLO             | Прийнято |

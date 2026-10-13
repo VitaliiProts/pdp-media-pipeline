@@ -58,7 +58,8 @@ function setup(status = 204) {
     now: () => now,
   };
   const processor = new WebhookDeliverProcessor(deps, { timeoutMs: 5000 });
-  const run = () => processor.process({ jobId: randomUUID(), attempt: 1 }, input);
+  const run = () =>
+    processor.process({ jobId: randomUUID(), attempt: 1, progress: () => undefined }, input);
   return { deps, run, nowSeconds: now / 1000 };
 }
 

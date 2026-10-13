@@ -11,6 +11,8 @@ import { WebhookEventSchema } from './webhooks';
 
 /** Internal REST API of the Metadata service, shared by the server and its clients. */
 
+export const JobProgressSchema = z.number().int().min(0).max(100);
+
 export const JobDto = z.object({
   id: z.uuid(),
   userId: z.uuid(),
@@ -30,6 +32,8 @@ export const JobDto = z.object({
   finishedAt: z.iso.datetime().nullable(),
   /** Absent in responses stored before tracing; null when tracing is off. */
   traceId: z.string().nullable().default(null),
+  /** Percent of the current attempt, for long jobs that report it; reset when one starts. */
+  progress: JobProgressSchema.nullable().default(null),
 });
 export type JobDto = z.infer<typeof JobDto>;
 
@@ -103,6 +107,16 @@ export const TransitionResponse = z.object({
   job: JobDto,
 });
 export type TransitionResponse = z.infer<typeof TransitionResponse>;
+
+/**
+ * Accepted only while the job is `running` and `attempt` is its latest one, so a stale
+ * worker cannot overwrite the progress of the attempt that replaced it.
+ */
+export const ProgressRequest = z.object({
+  attempt: z.number().int().min(1),
+  progress: JobProgressSchema,
+});
+export type ProgressRequest = z.infer<typeof ProgressRequest>;
 
 export const RedriveRequest = z.object({ actor: z.string().min(1) });
 export type RedriveRequest = z.infer<typeof RedriveRequest>;

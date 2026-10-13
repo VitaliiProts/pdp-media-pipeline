@@ -361,6 +361,97 @@ describe('video', () => {
     );
     expect(within(frames).getAllByRole('listitem')).toHaveLength(2);
   });
+
+  it('creates a transcode job when transcoding is chosen', async () => {
+    let jobBody: unknown = null;
+    server.use(
+      listJobs([]),
+      http.post('/v1/uploads', () =>
+        HttpResponse.json({
+          uploadUrl: `${STORAGE_ORIGIN}/sources/4.mp4?sig=x`,
+          sourceKey: 'sources/4.mp4',
+        }),
+      ),
+      http.options(
+        `${STORAGE_ORIGIN}/sources/4.mp4`,
+        () => new HttpResponse(null, { status: 204, headers: CORS }),
+      ),
+      http.put(
+        `${STORAGE_ORIGIN}/sources/4.mp4`,
+        () => new HttpResponse(null, { status: 200, headers: CORS }),
+      ),
+      http.post('/v1/jobs', async ({ request }) => {
+        jobBody = await request.json();
+        return HttpResponse.json({ jobId: VIDEO_JOB_ID }, { status: 201 });
+      }),
+    );
+    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    await screen.findByText(/No jobs yet/);
+
+    await user.click(screen.getByRole('radio', { name: /Transcode/ }));
+    await user.upload(
+      screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+      new File([new Uint8Array(64)], 'clip.mp4', { type: 'video/mp4' }),
+    );
+
+    await waitFor(() =>
+      expect(jobBody).toEqual({ type: 'video.transcode', sourceKey: 'sources/4.mp4' }),
+    );
+  });
+
+  it('shows the progress of a running transcode', async () => {
+    server.use(
+      listJobs([
+        job({ id: VIDEO_JOB_ID, type: 'video.transcode', status: 'running', progress: 40 }),
+      ]),
+    );
+    renderApp({ apiKey: TEST_API_KEY });
+    expect(await screen.findByRole('progressbar')).toHaveAttribute('value', '0.4');
+  });
+
+  it('lists the renditions of a finished transcode as downloads', async () => {
+    server.use(
+      listJobs([
+        job({
+          id: VIDEO_JOB_ID,
+          type: 'video.transcode',
+          status: 'succeeded',
+          attempts: 1,
+          transcode: {
+            durationSeconds: 10,
+            width: 1920,
+            height: 1080,
+            codec: 'h264',
+            preview: {
+              atSeconds: 1,
+              width: 640,
+              height: 360,
+              bytes: 4_000,
+              url: `${STORAGE_ORIGIN}/preview.jpg`,
+            },
+            renditions: [
+              {
+                rendition: '720p',
+                width: 1280,
+                height: 720,
+                durationSeconds: 10,
+                bytes: 2_500_000,
+                bitrate: 2_000_000,
+                url: `${STORAGE_ORIGIN}/720p.mp4`,
+              },
+            ],
+            skipped: [],
+          },
+        }),
+      ]),
+    );
+    renderApp({ apiKey: TEST_API_KEY });
+    const results = await screen.findByRole('list', { name: 'Results' });
+    expect(within(results).getByRole('link', { name: /720p/ })).toHaveAttribute(
+      'href',
+      `${STORAGE_ORIGIN}/720p.mp4`,
+    );
+  });
 });
 
 describe('webhooks', () => {

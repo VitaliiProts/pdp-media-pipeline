@@ -5,6 +5,10 @@ const STDERR_TAIL = 2000;
 export interface RunOptions {
   timeoutMs: number;
   maxStdoutBytes?: number;
+  /** Gets stdout as it arrives instead of in the result, for long runs that report on it. */
+  onStdout?: (chunk: string) => void;
+  /** Aborting kills the process the same way the timeout does. */
+  signal?: AbortSignal;
 }
 
 export interface RunResult {
@@ -19,6 +23,16 @@ export class ProcessTimeoutError extends Error {
   constructor(command: string, timeoutMs: number) {
     super(`${command} killed after ${timeoutMs}ms`);
     this.name = 'ProcessTimeoutError';
+  }
+}
+
+/** Transient: the job was interrupted, not the input rejected. */
+export class ProcessAbortedError extends Error {
+  readonly permanent = false;
+
+  constructor(command: string, reason: unknown) {
+    super(`${command} aborted${reason instanceof Error ? `: ${reason.message}` : ''}`);
+    this.name = 'ProcessAbortedError';
   }
 }
 
@@ -53,20 +67,29 @@ export function runProcess(
   options: RunOptions,
 ): Promise<RunResult> {
   const maxStdout = options.maxStdoutBytes ?? 1024 * 1024;
+  const { signal, onStdout } = options;
+  if (signal?.aborted) return Promise.reject(new ProcessAbortedError(command, signal.reason));
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let aborted = false;
     let spawnError: Error | undefined;
 
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGKILL');
     }, options.timeoutMs);
+    const onAbort = () => {
+      aborted = true;
+      child.kill('SIGKILL');
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
 
     child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
-      if (stdout.length < maxStdout) stdout += chunk;
+      if (onStdout) onStdout(chunk);
+      else if (stdout.length < maxStdout) stdout += chunk;
     });
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
       stderr = (stderr + chunk).slice(-STDERR_TAIL);
@@ -74,12 +97,14 @@ export function runProcess(
     child.on('error', (err) => {
       spawnError = err;
     });
-    child.on('close', (code, signal) => {
+    child.on('close', (code, exitSignal) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       if (timedOut) reject(new ProcessTimeoutError(command, options.timeoutMs));
+      else if (aborted) reject(new ProcessAbortedError(command, signal?.reason));
       else if (spawnError) reject(new ProcessFailedError(command, null, null, spawnError.message));
       else if (code === 0) resolve({ stdout, stderr });
-      else reject(new ProcessFailedError(command, code, signal, stderr));
+      else reject(new ProcessFailedError(command, code, exitSignal, stderr));
     });
   });
 }

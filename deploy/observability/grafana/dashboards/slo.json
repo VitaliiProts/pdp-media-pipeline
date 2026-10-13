@@ -27,7 +27,7 @@
         "name": "type",
         "label": "Job type",
         "type": "custom",
-        "query": "image.resize,video.frames",
+        "query": "image.resize,video.frames,video.transcode",
         "current": {
           "text": "image.resize",
           "value": "image.resize"
@@ -42,8 +42,35 @@
             "text": "video.frames",
             "value": "video.frames",
             "selected": false
+          },
+          {
+            "text": "video.transcode",
+            "value": "video.transcode",
+            "selected": false
           }
         ]
+      },
+      {
+        "name": "le",
+        "label": "Threshold, s",
+        "description": "The type's SLO threshold: the le label of job:slo_objective:ratio.",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "victoriametrics"
+        },
+        "query": {
+          "query": "label_values(job:slo_objective:ratio{type=\"$type\"}, le)",
+          "refId": "le"
+        },
+        "definition": "label_values(job:slo_objective:ratio{type=\"$type\"}, le)",
+        "refresh": 1,
+        "current": {
+          "text": "300",
+          "value": "300"
+        },
+        "options": []
       }
     ]
   },
@@ -65,7 +92,7 @@
       "id": 2,
       "type": "stat",
       "title": "Objective",
-      "description": "Share of jobs that must succeed within 5 min of creation (ADR-001, ADR-008).",
+      "description": "Share of jobs that must succeed within $le s of creation: 5 min for images and frames (ADR-001, ADR-008), 10 min for transcoding (ADR-011).",
       "gridPos": {
         "x": 0,
         "y": 1,
@@ -124,7 +151,7 @@
       "id": 3,
       "type": "stat",
       "title": "SLI, 30 days",
-      "description": "Succeeded within 5 min / finished, without permanent failures (rejected input).",
+      "description": "Succeeded within $le s / finished, without permanent failures (rejected input).",
       "gridPos": {
         "x": 4,
         "y": 1,
@@ -172,7 +199,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"300\"}[30d])) / sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[30d]))",
+          "expr": "sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"$le\"}[30d])) / sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[30d]))",
           "legendFormat": "__auto",
           "instant": true,
           "range": false
@@ -239,7 +266,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "1 - (1 - (sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"300\"}[30d])) / sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[30d])))) / (1 - scalar(job:slo_objective:ratio{type=\"$type\"}))",
+          "expr": "1 - (1 - (sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"$le\"}[30d])) / sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[30d])))) / (1 - scalar(job:slo_objective:ratio{type=\"$type\"}))",
           "legendFormat": "__auto",
           "instant": true,
           "range": false
@@ -250,7 +277,7 @@
       "id": 5,
       "type": "stat",
       "title": "Bad jobs, 30 days",
-      "description": "Jobs that failed or took over 5 min.",
+      "description": "Jobs that failed or took over $le s.",
       "gridPos": {
         "x": 12,
         "y": 1,
@@ -298,7 +325,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[30d])) - sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"300\"}[30d]))",
+          "expr": "sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[30d])) - sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"$le\"}[30d]))",
           "legendFormat": "__auto",
           "instant": true,
           "range": false
@@ -357,7 +384,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"300\"}[$__range])) / sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[$__range]))",
+          "expr": "sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"$le\"}[$__range])) / sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[$__range]))",
           "legendFormat": "__auto",
           "instant": true,
           "range": false
@@ -610,7 +637,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "1 - (1 - (sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"300\"}[30d])) / sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[30d])))) / (1 - scalar(job:slo_objective:ratio{type=\"$type\"}))",
+          "expr": "1 - (1 - (sum(increase(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"$le\"}[30d])) / sum(increase(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[30d])))) / (1 - scalar(job:slo_objective:ratio{type=\"$type\"}))",
           "legendFormat": "budget left"
         }
       ]
@@ -619,7 +646,7 @@
       "id": 11,
       "type": "timeseries",
       "title": "Good and bad jobs",
-      "description": "Per minute: succeeded within 5 min, and the rest. Permanent failures are not counted. Click a series for slow or failed traces.",
+      "description": "Per minute: succeeded within $le s, and the rest. Permanent failures are not counted. Click a series for slow or failed traces.",
       "gridPos": {
         "x": 0,
         "y": 14,
@@ -645,8 +672,8 @@
           },
           "links": [
             {
-              "title": "Traces of $type over 5 min",
-              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7B%20span.job.type%20%3D%20%5C%22${type}%5C%22%20%26%26%20traceDuration%20%3E%205m%20%7D%22%2C%22tableType%22%3A%22traces%22%2C%22limit%22%3A50%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
+              "title": "Traces of $type over $le s",
+              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7B%20span.job.type%20%3D%20%5C%22${type}%5C%22%20%26%26%20traceDuration%20%3E%20${le}s%20%7D%22%2C%22tableType%22%3A%22traces%22%2C%22limit%22%3A50%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
               "targetBlank": true
             },
             {
@@ -707,7 +734,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "sum(rate(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"300\"}[$__rate_interval])) * 60",
+          "expr": "sum(rate(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"$le\"}[$__rate_interval])) * 60",
           "legendFormat": "good"
         },
         {
@@ -716,7 +743,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "(sum(rate(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[$__rate_interval])) - sum(rate(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"300\"}[$__rate_interval]))) * 60",
+          "expr": "(sum(rate(job_e2e_duration_seconds_count{type=\"$type\", outcome!=\"permanent\"}[$__rate_interval])) - sum(rate(job_e2e_duration_seconds_bucket{type=\"$type\", outcome=\"succeeded\", le=\"$le\"}[$__rate_interval]))) * 60",
           "legendFormat": "bad"
         }
       ]
@@ -725,7 +752,7 @@
       "id": 12,
       "type": "timeseries",
       "title": "Latency percentiles",
-      "description": "p50, p95 and p99 from creation to the end; the dashed line is the 5 min threshold.",
+      "description": "p50, p95 and p99 from creation to the end; the dashed line is the type's threshold ($le s).",
       "gridPos": {
         "x": 12,
         "y": 14,
@@ -754,8 +781,8 @@
           },
           "links": [
             {
-              "title": "Traces of $type over 5 min",
-              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7B%20span.job.type%20%3D%20%5C%22${type}%5C%22%20%26%26%20traceDuration%20%3E%205m%20%7D%22%2C%22tableType%22%3A%22traces%22%2C%22limit%22%3A50%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
+              "title": "Traces of $type over $le s",
+              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7B%20span.job.type%20%3D%20%5C%22${type}%5C%22%20%26%26%20traceDuration%20%3E%20${le}s%20%7D%22%2C%22tableType%22%3A%22traces%22%2C%22limit%22%3A50%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
               "targetBlank": true
             },
             {
@@ -763,22 +790,36 @@
               "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22victorialogs%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22victoriametrics-logs-datasource%22%2C%22uid%22%3A%22victorialogs%22%7D%2C%22expr%22%3A%22job_type%3A%3D%5C%22${type}%5C%22%20severity_text%3Ain%28%5C%22warn%5C%22%2C%20%5C%22error%5C%22%29%22%2C%22queryType%22%3A%22instant%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
               "targetBlank": true
             }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "threshold"
+            },
+            "properties": [
               {
-                "color": "transparent",
-                "value": null
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
               },
               {
-                "color": "red",
-                "value": 300
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [10, 10]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
               }
             ]
           }
-        },
-        "overrides": []
+        ]
       },
       "options": {
         "legend": {
@@ -818,6 +859,15 @@
           },
           "expr": "histogram_quantile(0.99, sum by (le) (rate(job_e2e_duration_seconds_bucket{type=\"$type\"}[$__rate_interval])))",
           "legendFormat": "p99"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "max(job:slo_objective:ratio{type=\"$type\"}) * 0 + $le",
+          "legendFormat": "threshold"
         }
       ]
     },

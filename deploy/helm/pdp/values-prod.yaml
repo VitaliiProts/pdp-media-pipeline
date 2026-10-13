@@ -36,6 +36,12 @@ video-worker:
     requests: { cpu: '1', memory: 512Mi }
     limits: { cpu: '2', memory: 1Gi }
 
+video-transcode:
+  replicaCount: 2
+  resources:
+    requests: { cpu: '2', memory: 1Gi }
+    limits: { cpu: '2', memory: 1536Mi }
+
 web:
   replicaCount: 2
   env:

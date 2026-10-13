@@ -9,7 +9,8 @@ import {
 import { Module, type OnApplicationShutdown, type Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type s3EnvSchema } from '@pdp/config';
-import { createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { type z } from 'zod';
@@ -68,6 +69,21 @@ export class ObjectStorage implements OnApplicationShutdown {
     await this.client.send(
       new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
     );
+  }
+
+  /** Streams from disk; a transcoded video is too large to read into memory first. */
+  async uploadFile(key: string, path: string, contentType: string): Promise<number> {
+    const { size } = await stat(path);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: createReadStream(path),
+        ContentLength: size,
+        ContentType: contentType,
+      }),
+    );
+    return size;
   }
 
   /** Fails when the storage is unreachable or the bucket does not exist. */

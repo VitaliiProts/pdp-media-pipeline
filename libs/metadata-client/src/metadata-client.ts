@@ -6,6 +6,7 @@ import {
   type ListJobsQuery,
   MetadataErrorBody,
   type MetadataErrorCode,
+  type ProgressRequest,
   type RedriveRequest,
   ResolveApiKeyResponse,
   type TransitionRequest,
@@ -15,7 +16,7 @@ import {
   WebhookEndpointDto,
   WebhookEndpointWithSecretDto,
 } from '@pdp/contracts';
-import { type z } from 'zod';
+import { z } from 'zod';
 
 export interface MetadataClientOptions {
   baseUrl: string;
@@ -72,6 +73,15 @@ export class MetadataClient {
       'POST',
       `/internal/jobs/${encodeURIComponent(id)}/transitions`,
       TransitionResponse,
+      body,
+    );
+  }
+
+  async reportProgress(id: string, body: ProgressRequest): Promise<void> {
+    await this.request(
+      'POST',
+      `/internal/jobs/${encodeURIComponent(id)}/progress`,
+      z.unknown(),
       body,
     );
   }

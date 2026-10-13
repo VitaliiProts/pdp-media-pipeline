@@ -7,6 +7,8 @@ export {
   type JobResult,
   type JobStatus,
   type JobStatusFilter,
+  type Rendition,
+  type TranscodeResult,
   type VideoFrame,
   type VideoResult,
 } from './model/types';

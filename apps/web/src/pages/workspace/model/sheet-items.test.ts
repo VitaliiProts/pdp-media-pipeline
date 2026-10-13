@@ -61,6 +61,45 @@ describe('buildSheetItems', () => {
     expect(item?.kind === 'job' && item.frames.map((f) => f.atSeconds)).toEqual([0, 2]);
   });
 
+  it('shows the progress of a running job as a fraction, and none once it finished', () => {
+    const running = job({ type: 'video.transcode', progress: 40 });
+    expect(buildSheetItems([running], [])[0]).toMatchObject({ progress: 0.4 });
+    const done = job({ type: 'video.transcode', status: 'succeeded', progress: 40 });
+    expect(buildSheetItems([done], [])[0]).toMatchObject({ progress: null });
+  });
+
+  it('lists the renditions of a finished transcode as results', () => {
+    const transcode = {
+      durationSeconds: 4,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      preview: { atSeconds: 1, width: 640, height: 360, bytes: 100, url: 'https://s3/preview' },
+      renditions: [
+        {
+          rendition: '480p' as const,
+          width: 854,
+          height: 480,
+          durationSeconds: 4,
+          bytes: 1_000,
+          bitrate: 2_000,
+          url: 'https://s3/480p.mp4',
+        },
+      ],
+      skipped: [],
+    };
+    const [item] = buildSheetItems(
+      [job({ type: 'video.transcode', status: 'succeeded', transcode })],
+      [],
+    );
+    expect(item).toMatchObject({
+      previewUrl: 'https://s3/preview',
+      results: [
+        { preset: '480p', width: 854, height: 480, bytes: 1_000, url: 'https://s3/480p.mp4' },
+      ],
+    });
+  });
+
   it('keeps failed uploads with their problem', () => {
     const uploads: Upload[] = [
       { ...base, id: 'u1', phase: 'failed', problem: 'size', detail: null },

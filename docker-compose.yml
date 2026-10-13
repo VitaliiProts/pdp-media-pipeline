@@ -187,12 +187,30 @@ services:
       NATS_URL: nats://nats:4222
       METADATA_URL: http://metadata:3000
       VIDEO_CONCURRENCY: 1
+      VIDEO_JOB_TYPES: video.frames
     ports: ['${VIDEO_WORKER_HOST_PORT:-18085}:3000']
     depends_on:
       # The image worker must narrow its consumer filters first: filters on one
       # work-queue stream may not overlap.
       worker: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
+
+  # Same image, only video.transcode: a transcode taking minutes never holds the slot a
+  # frames job is waiting for.
+  video-transcode:
+    <<: *app
+    image: pdp/video-worker:dev
+    pull_policy: never
+    environment:
+      <<: [*app-env, *s3-env]
+      NATS_URL: nats://nats:4222
+      METADATA_URL: http://metadata:3000
+      VIDEO_CONCURRENCY: 1
+      VIDEO_JOB_TYPES: video.transcode
+    ports: ['${VIDEO_TRANSCODE_HOST_PORT:-18086}:3000']
+    depends_on:
+      # Built by video-worker.
+      video-worker: { condition: service_healthy }
 
   # Test endpoint for webhooks: /ok, /fail, /status/<code>, /slow?ms=, /drop, /flaky?failures=.
   webhook-receiver:

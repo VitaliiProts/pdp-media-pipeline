@@ -32,6 +32,10 @@ video-worker:
   env:
     EGRESS_PRIVATE_HOSTS: webhook-receiver
 
+video-transcode:
+  env:
+    EGRESS_PRIVATE_HOSTS: webhook-receiver
+
 web:
   env:
     # Opened by the browser, so the ingress host rather than the service name.

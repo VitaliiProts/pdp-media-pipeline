@@ -1,13 +1,14 @@
 import { type Counter, type Histogram, type MeterProvider, metrics } from '@opentelemetry/api';
 
 /**
- * Bucket bounds for job latencies, in seconds. 300 is the SLO threshold of ADR-001 and
- * ADR-008: the SLI counts the `le="300"` bucket, so it has to stay a bound.
+ * Bucket bounds for job latencies, in seconds. The SLI counts the bucket at each type's
+ * threshold (the `le` of `job:slo_objective:ratio`): 300 for images and frames (ADR-008),
+ * 600 for transcoding (ADR-011). Both have to stay bounds.
  */
 export const JOB_LATENCY_BUCKETS = [1, 2.5, 5, 10, 20, 30, 60, 120, 180, 300, 600, 1800, 3600];
 
-/** One attempt in a worker: from milliseconds for a thumbnail to minutes for a video. */
-export const JOB_ATTEMPT_BUCKETS = [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300];
+/** One attempt in a worker: from milliseconds for a thumbnail to ten minutes for a transcode. */
+export const JOB_ATTEMPT_BUCKETS = [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600];
 
 /** How a job ended: `exhausted` and `permanent` are the two dead reasons. */
 export type JobOutcome = 'succeeded' | 'exhausted' | 'permanent';

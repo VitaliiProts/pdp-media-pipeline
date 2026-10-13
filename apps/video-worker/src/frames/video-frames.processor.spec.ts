@@ -7,6 +7,8 @@ import { type VideoFramesDeps, VideoFramesProcessor } from './video-frames.proce
 /** Minimal JPEG header for a 640x360 frame. */
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0x68, 0x02, 0x80, 0x03]);
 
+const job = (jobId: string) => ({ jobId, attempt: 1, progress: () => undefined });
+
 async function setup(frameCount = 3) {
   const workDir = await mkdtemp(join(tmpdir(), 'video-frames-spec-'));
   const deps = {
@@ -44,10 +46,11 @@ async function setup(frameCount = 3) {
 describe('VideoFramesProcessor', () => {
   it('uploads a preview and interval frames under deterministic keys', async () => {
     const { deps, processor } = await setup();
-    const output = await processor.process(
-      { jobId: 'j1', attempt: 1 },
-      { sourceUrl: 'https://cdn.example/v.mp4', intervalSeconds: 2, maxFrames: 10 },
-    );
+    const output = await processor.process(job('j1'), {
+      sourceUrl: 'https://cdn.example/v.mp4',
+      intervalSeconds: 2,
+      maxFrames: 10,
+    });
 
     expect(deps.download).toHaveBeenCalledWith(
       { kind: 'url', url: 'https://cdn.example/v.mp4' },
@@ -78,28 +81,19 @@ describe('VideoFramesProcessor', () => {
   it('takes the preview from the middle of very short videos', async () => {
     const { deps, processor } = await setup();
     deps.probe.mockResolvedValueOnce({ durationSeconds: 1, width: 64, height: 64, codec: 'vp9' });
-    await processor.process(
-      { jobId: 'j1', attempt: 1 },
-      { sourceKey: 'k', intervalSeconds: 2, maxFrames: 1 },
-    );
+    await processor.process(job('j1'), { sourceKey: 'k', intervalSeconds: 2, maxFrames: 1 });
     expect(deps.extractPreview.mock.calls[0]?.[2]).toBe(0.5);
   });
 
   it('removes the scratch directory after success and after failure', async () => {
     const ok = await setup();
-    await ok.processor.process(
-      { jobId: 'j1', attempt: 1 },
-      { sourceKey: 'k', intervalSeconds: 2, maxFrames: 3 },
-    );
+    await ok.processor.process(job('j1'), { sourceKey: 'k', intervalSeconds: 2, maxFrames: 3 });
     expect(await readdir(ok.workDir)).toEqual([]);
 
     const failing = await setup();
     failing.deps.probe.mockRejectedValueOnce(new PermanentError('video is 61.0s, limit 60s'));
     await expect(
-      failing.processor.process(
-        { jobId: 'j2', attempt: 1 },
-        { sourceKey: 'k', intervalSeconds: 2, maxFrames: 3 },
-      ),
+      failing.processor.process(job('j2'), { sourceKey: 'k', intervalSeconds: 2, maxFrames: 3 }),
     ).rejects.toThrow('limit 60s');
     expect(failing.deps.extractFrames).not.toHaveBeenCalled();
     expect(await readdir(failing.workDir)).toEqual([]);
@@ -108,7 +102,7 @@ describe('VideoFramesProcessor', () => {
   it('fails permanently when no frame could be decoded', async () => {
     const { processor } = await setup(0);
     const err = await processor
-      .process({ jobId: 'j1', attempt: 1 }, { sourceKey: 'k', intervalSeconds: 2, maxFrames: 3 })
+      .process(job('j1'), { sourceKey: 'k', intervalSeconds: 2, maxFrames: 3 })
       .catch((e: unknown) => e);
     expect(isPermanentError(err)).toBe(true);
   });
