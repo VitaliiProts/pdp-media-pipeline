@@ -1,3 +1,4 @@
+import { type SerializedError } from '@reduxjs/toolkit';
 import axios, { isAxiosError, isCancel } from 'axios';
 
 export type AppError =
@@ -52,7 +53,7 @@ function messageOf(data: unknown): string | null {
 const DEFAULT_RETRY_AFTER_S = 5;
 
 /** Only the delta-seconds form; the gateway never sends an HTTP date. */
-function retryAfterOf(header: unknown): number | null {
+function parseRetryAfter(header: unknown): number | null {
   const seconds = typeof header === 'string' ? Number.parseInt(header, 10) : Number.NaN;
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
@@ -63,9 +64,22 @@ export function toAppError(error: unknown): AppError {
   const status = error.response?.status;
   if (!status) return { kind: 'network' };
   if (status === 401) return { kind: 'unauthorized' };
-  const retryAfterS = retryAfterOf(error.response?.headers['retry-after']);
+  const retryAfterS = parseRetryAfter(error.response?.headers['retry-after']);
   if (status === 429)
     return { kind: 'retryLater', status, retryAfterS: retryAfterS ?? DEFAULT_RETRY_AFTER_S };
   if (status === 503 && retryAfterS !== null) return { kind: 'retryLater', status, retryAfterS };
   return { kind: 'http', status, message: messageOf(error.response?.data) ?? error.message };
+}
+
+type QueryError = AppError | SerializedError | undefined;
+
+const isAppError = (error: QueryError): error is AppError => error !== undefined && 'kind' in error;
+
+/** Seconds the gateway asked to wait, if the request was refused for timing. */
+export function retryAfterOf(error: QueryError): number | null {
+  return isAppError(error) && error.kind === 'retryLater' ? error.retryAfterS : null;
+}
+
+export function isUnauthorized(error: QueryError): boolean {
+  return isAppError(error) && error.kind === 'unauthorized';
 }

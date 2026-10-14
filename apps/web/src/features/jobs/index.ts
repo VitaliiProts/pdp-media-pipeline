@@ -12,7 +12,7 @@ export {
   type VideoFrame,
   type VideoResult,
 } from './model/types';
-export { retryAfterOf, useLiveJobs } from './model/use-live-jobs';
+export { useLiveJobs } from './model/use-live-jobs';
 export { STATUS_LABEL_KEY } from './model/status-labels';
 export { RedriveButton } from './ui/RedriveButton';
 export { StatusFilter } from './ui/StatusFilter';
