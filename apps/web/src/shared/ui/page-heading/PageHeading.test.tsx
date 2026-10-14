@@ -7,12 +7,7 @@ function renderPages() {
     [
       {
         path: '/library',
-        element: (
-          <>
-            <button type="button">Upload</button>
-            <PageHeading>Library</PageHeading>
-          </>
-        ),
+        element: <PageHeading>Library</PageHeading>,
       },
       { path: '/jobs', element: <PageHeading>Jobs</PageHeading> },
     ],
@@ -28,6 +23,7 @@ describe('PageHeading', () => {
     const heading = screen.getByRole('heading', { level: 1, name: 'Library' });
     expect(document.title).toBe('Library — PDP Media Pipeline');
     expect(heading).not.toHaveFocus();
+    expect(document.body).toHaveFocus();
   });
 
   it('takes focus and renames the tab after navigation', async () => {
