@@ -3,20 +3,21 @@ import userEvent from '@testing-library/user-event';
 import { type ToastInput, useToast } from './toast-context';
 import { TOAST_TIMEOUT_MS, ToastProvider } from './ToastProvider';
 
-function Trigger({ toast }: { toast: ToastInput }) {
+function Trigger({ makeToast }: { makeToast: () => ToastInput }) {
   const show = useToast();
   return (
-    <button type="button" onClick={() => show(toast)}>
+    <button type="button" onClick={() => show(makeToast())}>
       Show
     </button>
   );
 }
 
-function setup(toast: ToastInput) {
+function setup(toast: ToastInput | (() => ToastInput)) {
   const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+  const makeToast = typeof toast === 'function' ? toast : () => toast;
   render(
     <ToastProvider closeLabel="Close">
-      <Trigger toast={toast} />
+      <Trigger makeToast={makeToast} />
     </ToastProvider>,
   );
   return { user, show: () => user.click(screen.getByRole('button', { name: 'Show' })) };
@@ -59,13 +60,41 @@ describe('toasts', () => {
     expect(screen.queryByText('Hold me')).not.toBeInTheDocument();
   });
 
-  it('closes with its button and keeps at most three', async () => {
-    const { user, show } = setup({ message: 'Again' });
+  it('keeps waiting while focused, even after the pointer leaves', async () => {
+    const { user, show } = setup({ message: 'Focus me' });
+    await show();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
+    await user.hover(screen.getByText('Focus me'));
+    await user.unhover(screen.getByText('Focus me'));
+    act(() => {
+      vi.advanceTimersByTime(TOAST_TIMEOUT_MS * 2);
+    });
+    expect(screen.getByText('Focus me')).toBeInTheDocument();
+    await user.tab({ shift: true });
+    expect(screen.getByRole('button', { name: 'Show' })).toHaveFocus();
+    act(() => {
+      vi.advanceTimersByTime(TOAST_TIMEOUT_MS);
+    });
+    expect(screen.queryByText('Focus me')).not.toBeInTheDocument();
+  });
+
+  it('closes with its button and keeps the newest three', async () => {
+    let count = 0;
+    const { user, show } = setup(() => {
+      count += 1;
+      return { message: `Toast ${count}` };
+    });
     for (let i = 0; i < 4; i++) await show();
-    expect(screen.getAllByText('Again')).toHaveLength(3);
+    expect(screen.queryByText('Toast 1')).not.toBeInTheDocument();
+    for (const message of ['Toast 2', 'Toast 3', 'Toast 4']) {
+      expect(screen.getByText(message)).toBeInTheDocument();
+    }
     const [first] = screen.getAllByRole('button', { name: 'Close' });
     if (!first) throw new Error('no close button');
     await user.click(first);
-    expect(screen.getAllByText('Again')).toHaveLength(2);
+    expect(screen.queryByText('Toast 2')).not.toBeInTheDocument();
+    expect(screen.getByText('Toast 3')).toBeInTheDocument();
+    expect(screen.getByText('Toast 4')).toBeInTheDocument();
   });
 });

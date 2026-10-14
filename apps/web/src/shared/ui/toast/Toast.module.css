@@ -4,13 +4,19 @@
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   width: min(24rem, calc(100vw - 2 * var(--space-4)));
   pointer-events: none;
 }
 
+/* A real box, not display: contents, which can drop it from the accessibility tree. */
 .region {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.region:not(:empty) + .region:not(:empty) {
+  margin-top: var(--space-2);
 }
 
 .toast {

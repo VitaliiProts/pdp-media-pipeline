@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type FocusEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../button/Button';
 import { ToastContext, type ToastInput } from './toast-context';
 import styles from './Toast.module.css';
@@ -56,7 +56,9 @@ type ToastCardProps = {
 };
 
 function ToastCard({ toast, closeLabel, onDismiss }: ToastCardProps) {
-  const [isPaused, setPaused] = useState(false);
+  const [isHovered, setHovered] = useState(false);
+  const [isFocused, setFocused] = useState(false);
+  const isPaused = isHovered || isFocused;
   const { id } = toast;
 
   useEffect(() => {
@@ -65,14 +67,19 @@ function ToastCard({ toast, closeLabel, onDismiss }: ToastCardProps) {
     return () => clearTimeout(timer);
   }, [isPaused, id, onDismiss]);
 
+  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    setFocused(false);
+  };
+
   return (
     <div
       className={styles.toast}
       data-tone={toast.tone ?? 'neutral'}
-      onPointerEnter={() => setPaused(true)}
-      onPointerLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={handleBlur}
     >
       <div className={styles.message}>{toast.message}</div>
       {toast.action}
