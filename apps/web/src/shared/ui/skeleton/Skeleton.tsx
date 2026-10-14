@@ -2,10 +2,12 @@ import { type ComponentProps } from 'react';
 import { cx } from '../../lib/cx';
 import styles from './Skeleton.module.css';
 
-type SkeletonProps = Omit<ComponentProps<'div'>, 'children'> & {
+type SkeletonProps = Omit<ComponentProps<'div'>, 'children' | 'aria-hidden'> & {
   width?: string;
   height?: string;
   radius?: 'control' | 'mount';
+  'aria-hidden'?: never;
+  'data-radius'?: never;
 };
 
 /** A placeholder in the shape of content that is loading; the container sets `aria-busy`. */

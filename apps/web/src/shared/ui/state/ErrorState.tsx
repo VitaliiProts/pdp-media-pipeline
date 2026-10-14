@@ -8,6 +8,7 @@ type ErrorStateProps = Omit<ComponentProps<'div'>, 'title' | 'role' | 'children'
   children?: ReactNode;
   retry?: { label: string; onRetry: () => void };
   headingLevel?: 2 | 3;
+  'data-tone'?: never;
 };
 
 export function ErrorState({

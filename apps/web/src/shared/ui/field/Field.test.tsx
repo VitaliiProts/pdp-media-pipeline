@@ -20,4 +20,28 @@ describe('Field', () => {
     expect(input).not.toHaveAttribute('aria-describedby');
     expect(input).not.toHaveAttribute('aria-invalid');
   });
+
+  it('treats an empty error as absent', () => {
+    const { container } = render(
+      <Field label="Name" error="">
+        {(control) => <Input {...control} />}
+      </Field>,
+    );
+    const input = screen.getByLabelText('Name');
+    expect(input).not.toHaveAttribute('aria-describedby');
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(container.querySelector('p')).toBeNull();
+  });
+
+  it('passes native div props to its root', () => {
+    const { container } = render(
+      <Field label="Name" className="extra" id="name-field">
+        {(control) => <Input {...control} />}
+      </Field>,
+    );
+    const root = container.firstElementChild;
+    expect(root).toHaveAttribute('id', 'name-field');
+    expect(root).toHaveClass('extra');
+    expect(root?.classList.length).toBeGreaterThan(1);
+  });
 });
