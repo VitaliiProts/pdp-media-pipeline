@@ -1,5 +1,6 @@
 export * from './accounts';
 export * from './api-key';
+export * from './assets';
 export * from './envelope';
 export * from './events';
 export * from './idempotency';

@@ -32,16 +32,12 @@ import {
   IDEMPOTENCY_KEY_PATTERN,
   IDEMPOTENT_REPLAYED_HEADER,
   ImageResizeInputV1,
-  ImageResizeOutputV1,
   type JobDto,
   MEDIA_JOB_TYPES,
   selectClass,
   uploadKeyPrefix,
-  type VideoFrame,
   VideoFramesInputV1,
-  VideoFramesOutputV1,
   VideoTranscodeInputV1,
-  VideoTranscodeOutputV1,
 } from '@pdp/contracts';
 import { EgressClient } from '@pdp/egress';
 import { MetadataClient, MetadataError } from '@pdp/metadata-client';
@@ -55,6 +51,7 @@ import { assertPublicUrl } from '../common/public-url';
 import { type Env } from '../config';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { StorageService } from '../storage/storage.service';
+import { JobPresenter } from './job-presenter';
 import {
   type CreatableJobType,
   CreateJobDto,
@@ -62,10 +59,7 @@ import {
   JobResponseDto,
   ListJobsQueryDto,
   ListJobsResponseDto,
-  type VideoFrameDto,
 } from './jobs.dto';
-
-export const RESULT_URL_TTL_S = 60 * 60;
 
 const REDRIVE_ACTOR = (userId: string) => `user:${userId}`;
 
@@ -79,6 +73,7 @@ export class JobsController {
   constructor(
     @Inject(MetadataClient) private readonly metadata: MetadataClient,
     private readonly storage: StorageService,
+    private readonly presenter: JobPresenter,
     private readonly backpressure: BackpressureService,
     private readonly egress: EgressClient,
     config: ConfigService<Env, true>,
@@ -147,7 +142,7 @@ export class JobsController {
     // Webhook deliveries are jobs too, but they are listed per endpoint under /v1/webhooks.
     const page = await this.metadata.listJobs({ userId, ...query, types: [...MEDIA_JOB_TYPES] });
     return {
-      items: await Promise.all(page.items.map((job) => this.toResponse(job))),
+      items: await Promise.all(page.items.map((job) => this.presenter.toResponse(job))),
       nextCursor: page.nextCursor,
     };
   }
@@ -159,7 +154,7 @@ export class JobsController {
     @UserId() userId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<JobResponseDto> {
-    return this.toResponse(await this.ownJob(userId, id));
+    return this.presenter.toResponse(await this.ownJob(userId, id));
   }
 
   /** Sends a dead job through the pipeline again; its earlier attempts stay in the history. */
@@ -176,7 +171,9 @@ export class JobsController {
     await this.backpressure.assertAccepting(
       job.class ?? selectClass({ type: job.type, priority: job.priority }),
     );
-    return this.toResponse(await this.metadata.redrive(id, { actor: REDRIVE_ACTOR(userId) }));
+    return this.presenter.toResponse(
+      await this.metadata.redrive(id, { actor: REDRIVE_ACTOR(userId) }),
+    );
   }
 
   private async assertUploaded(userId: string, key: string, type: CreatableJobType): Promise<void> {
@@ -198,68 +195,6 @@ export class JobsController {
     });
     if (!job || job.userId !== userId) throw new NotFoundException(`job ${id} not found`);
     return job;
-  }
-
-  /** Presigning is a local HMAC, so result URLs are cheap enough to include in lists too. */
-  private async toResponse(job: JobDto): Promise<JobResponseDto> {
-    const response: JobResponseDto = {
-      id: job.id,
-      type: job.type,
-      status: job.status,
-      priority: job.priority,
-      input: job.input,
-      attempts: job.attempts,
-      lastError: job.lastError,
-      deadReason: job.deadReason,
-      createdAt: job.createdAt,
-      updatedAt: job.updatedAt,
-      finishedAt: job.finishedAt,
-      traceId: job.traceId,
-      // The last value of an earlier attempt would be stale once the job left `running`.
-      progress: job.status === 'running' ? job.progress : null,
-    };
-    if (job.status !== 'succeeded') return response;
-
-    if (job.type === 'image.resize') {
-      const output = ImageResizeOutputV1.safeParse(job.output);
-      if (!output.success) return response;
-      response.results = await Promise.all(
-        output.data.results.map(async ({ key, ...result }) => ({
-          ...result,
-          url: await this.storage.presignGet(key, RESULT_URL_TTL_S),
-        })),
-      );
-    }
-    if (job.type === 'video.frames') {
-      const output = VideoFramesOutputV1.safeParse(job.output);
-      if (!output.success) return response;
-      const { preview, frames, ...video } = output.data;
-      response.video = {
-        ...video,
-        preview: await this.presignFrame(preview),
-        frames: await Promise.all(frames.map((frame) => this.presignFrame(frame))),
-      };
-    }
-    if (job.type === 'video.transcode') {
-      const output = VideoTranscodeOutputV1.safeParse(job.output);
-      if (!output.success) return response;
-      const { preview, renditions, ...video } = output.data;
-      response.transcode = {
-        ...video,
-        preview: await this.presignFrame(preview),
-        renditions: await Promise.all(
-          renditions.map(async ({ key, ...rendition }) => ({
-            ...rendition,
-            url: await this.storage.presignGet(key, RESULT_URL_TTL_S),
-          })),
-        ),
-      };
-    }
-    return response;
-  }
-
-  private async presignFrame({ key, ...frame }: VideoFrame): Promise<VideoFrameDto> {
-    return { ...frame, url: await this.storage.presignGet(key, RESULT_URL_TTL_S) };
   }
 }
 

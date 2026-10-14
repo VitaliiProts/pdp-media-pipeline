@@ -49,7 +49,7 @@ describe('redelivery after a lost ack', () => {
     );
 
     const sourceKey = `uploads/${userId}/redelivery.png`;
-    await putSource(infra.s3, sourceKey, await pngImage(400, 300));
+    await putSource(infra.s3, pool, sourceKey, await pngImage(400, 300));
     const { job } = await client.createJob({
       userId,
       type: 'image.resize',

@@ -54,8 +54,9 @@
 - **Redis із сесіями.** Досі Redis тримав лише лічильники rate limit, і їх втрата нічого не
   ламала. Тепер у ньому сесії: падіння або перезапуск без даних розлогінює всіх. Потрібні
   персистентність (AOF) і PVC на `gp3`; ElastiCache в ADR-017 порівнюється вже з цими вимогами.
-- **S3.** Оригінали зберігаються навмисно (медіатека): lifecycle-правило для `uploads/`, з яких
-  не створили задачу, і видалення об'єктів воркером через роль пода.
+- **S3.** Оригінали зберігаються навмисно (медіатека). Завантаження, з яких не створили задачу,
+  прибирає janitor Metadata, а не lifecycle-правило (ADR-014); об'єкти видаляє воркер через роль
+  пода (`s3:ListBucket`, `s3:DeleteObject`).
 - **Ключ провайдера дубляжу.** Не в репозиторії й не в values: SSM SecureString у Terraform, шар
   `cluster` створює з нього Secret у namespace `pdp`, як і `postgres-app`.
 - **`video-dub`.** Ще один Deployment воркерів: requests і максимум реплік входять у розрахунок
@@ -104,8 +105,8 @@
   - Route 53 hosted zone; NS-записи вручну в реєстратора, перевірка `dig NS <домен>`;
   - VPC: 2 AZ, публічні й приватні підмережі, без NAT, S3 gateway endpoint;
   - RDS PostgreSQL: приватні підмережі, SG лише з SG вузлів, бекапи 1 день, `deletion_protection`;
-  - S3-бакет медіа: Block Public Access, CORS для `https://app.<домен>`, шифрування,
-    lifecycle-правило для `uploads/` без задачі;
+  - S3-бакет медіа: Block Public Access, CORS для `https://app.<домен>`, шифрування (без
+    lifecycle-правила для `uploads/`: їх прибирає janitor, ADR-014);
   - SSM SecureString для ключа провайдера дубляжу (значення вносите ви, не Terraform);
   - ECR-репозиторії для 7 образів з lifecycle policy;
   - GitHub OIDC provider і роль деплою;

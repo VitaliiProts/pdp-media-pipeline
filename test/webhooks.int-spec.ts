@@ -83,7 +83,7 @@ describe('webhooks', () => {
     };
     const finishImageJob = async (name: string, image?: Buffer) => {
       const sourceKey = `uploads/${user.userId}/${name}.png`;
-      await putSource(infra.s3, sourceKey, image ?? (await pngImage(200, 100)));
+      await putSource(infra.s3, pool, sourceKey, image ?? (await pngImage(200, 100)));
       const created = await api<{ jobId: string }>('/v1/jobs', {
         method: 'POST',
         body: JSON.stringify({ type: 'image.resize', sourceKey, presets: ['thumb'] }),

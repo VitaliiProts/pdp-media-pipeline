@@ -2,25 +2,27 @@ import {
   Body,
   Controller,
   HttpCode,
+  Inject,
   PayloadTooLargeException,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiOkResponse, ApiTags, ApiTooManyRequestsResponse } from '@nestjs/swagger';
-import { uploadKeyPrefix } from '@pdp/contracts';
+import {
+  ApiOkResponse,
+  ApiPayloadTooLargeResponse,
+  ApiTags,
+  ApiTooManyRequestsResponse,
+} from '@nestjs/swagger';
+import { assetKindOf, type UploadContentType, uploadKeyPrefix } from '@pdp/contracts';
+import { MetadataClient } from '@pdp/metadata-client';
 import { randomUUID } from 'node:crypto';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user';
 import { type Env } from '../config';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { StorageService } from '../storage/storage.service';
-import {
-  CreateUploadDto,
-  isVideoContentType,
-  type UploadContentType,
-  UploadResponseDto,
-} from './uploads.dto';
+import { CreateUploadDto, UploadResponseDto } from './uploads.dto';
 
 export const UPLOAD_URL_TTL_S = 10 * 60;
 
@@ -43,24 +45,37 @@ export class UploadsController {
 
   constructor(
     private readonly storage: StorageService,
+    @Inject(MetadataClient) private readonly metadata: MetadataClient,
     config: ConfigService<Env, true>,
   ) {
     this.maxImageBytes = config.get('MAX_UPLOAD_BYTES', { infer: true });
     this.maxVideoBytes = config.get('MAX_VIDEO_UPLOAD_BYTES', { infer: true });
   }
 
+  /** The declared size is reserved against the storage quota before the URL is signed. */
   @Post()
   @HttpCode(200)
   @ApiOkResponse({ type: UploadResponseDto })
+  @ApiPayloadTooLargeResponse({
+    description: 'The file is over the size limit, or code STORAGE_QUOTA_EXCEEDED: it does not fit',
+  })
   async create(
     @UserId() userId: string,
     @Body() body: CreateUploadDto,
   ): Promise<UploadResponseDto> {
-    const maxBytes = isVideoContentType(body.contentType) ? this.maxVideoBytes : this.maxImageBytes;
+    const maxBytes =
+      assetKindOf(body.contentType) === 'video' ? this.maxVideoBytes : this.maxImageBytes;
     if (body.size > maxBytes) {
       throw new PayloadTooLargeException(`file exceeds ${maxBytes} bytes`);
     }
     const sourceKey = `${uploadKeyPrefix(userId)}${randomUUID()}.${EXTENSIONS[body.contentType]}`;
+    const asset = await this.metadata.createAsset({
+      userId,
+      key: sourceKey,
+      contentType: body.contentType,
+      size: body.size,
+      name: body.name,
+    });
     const uploadUrl = await this.storage.presignPut(
       sourceKey,
       body.contentType,
@@ -70,6 +85,7 @@ export class UploadsController {
     return {
       uploadUrl,
       sourceKey,
+      assetId: asset.id,
       expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_S * 1000).toISOString(),
     };
   }

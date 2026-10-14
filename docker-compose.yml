@@ -110,6 +110,9 @@ services:
       <<: *app-env
       DATABASE_URL: postgres://pdp:pdp@postgres:5432/metadata
       NATS_URL: nats://nats:4222
+      STORAGE_QUOTA_BYTES: ${STORAGE_QUOTA_BYTES:-5368709120}
+      ASSET_UNUSED_TTL_S: ${ASSET_UNUSED_TTL_S:-86400}
+      ASSET_JANITOR_INTERVAL_MS: ${ASSET_JANITOR_INTERVAL_MS:-600000}
     ports: ['${METADATA_HOST_PORT:-18081}:3000']
     depends_on:
       postgres: { condition: service_healthy }

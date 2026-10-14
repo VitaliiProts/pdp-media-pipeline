@@ -10,6 +10,7 @@ import {
   ObjectStorageModule,
   sourceFetcherProvider,
 } from '@pdp/worker-kit';
+import { AssetPurgeService } from './assets/asset-purge.service';
 import { type Env, envSchema } from './config';
 import { JobsService } from './jobs/jobs.service';
 
@@ -41,6 +42,7 @@ import { JobsService } from './jobs/jobs.service';
     egressClientProvider('pdp-worker'),
     sourceFetcherProvider,
     JobsService,
+    AssetPurgeService,
   ],
 })
 export class AppModule {}

@@ -869,6 +869,71 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 6. Документи: [ADR-013](docs/adr/0013-user-authentication.md),
    [план 5c–5d](docs/plan/stages-5c-5d.md).
 
+### Етап 5c.2. Медіатека
+
+**Критерій підетапу:** кожне завантаження стає asset'ом; медіатека з курсором і фільтром
+«фото / відео» показує файли, з якими створили задачу; сторінка файлу віддає оригінал і результати
+всіх задач; видалення прибирає об'єкти з MinIO; покинуті завантаження прибирає janitor; квота
+дає зрозумілу помилку; чужий файл і чужа задача — `404`.
+
+1. Завантаження повертає `assetId`, але в медіатеці файл з'являється лише після першої задачі:
+   ```bash
+   IMG=perf/k6/fixtures/source.png
+   UP=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"contentType\":\"image/png\",\"size\":$(wc -c < $IMG | tr -d ' '),\"name\":\"source.png\"}" \
+     localhost:18080/v1/uploads)
+   curl -s -X PUT -H 'content-type: image/png' --data-binary @$IMG "$(jq -r .uploadUrl <<<"$UP")"
+   A=$(jq -r .assetId <<<"$UP")
+   curl -s -H "x-api-key: $KEY" localhost:18080/v1/assets | jq --arg a $A '[.items[].id] | index($a)'  # null
+   JOB=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"image.resize\",\"sourceKey\":\"$(jq -r .sourceKey <<<"$UP")\",\"presets\":[\"thumb\",\"medium\"]}" \
+     localhost:18080/v1/jobs | jq -r .jobId)
+   sleep 3
+   curl -s -H "x-api-key: $KEY" 'localhost:18080/v1/assets?kind=image&limit=5' \
+     | jq -c '.items[0] | {id, name, width, height, preview: .preview.width, latestJob}'
+   ```
+   Очікувано: файл першим у списку, `width` і `height` оригіналу, прев'ю `thumb` і `succeeded`.
+   Наступна сторінка — `?cursor=<nextCursor>`, відео — `?kind=video`.
+2. Сторінка файлу: оригінал і результати всіх задач із presigned URL:
+   ```bash
+   D=$(curl -s -H "x-api-key: $KEY" localhost:18080/v1/assets/$A)
+   jq -c '{size, jobs: [.jobs[] | {id, status, results: (.results | length)}]}' <<<"$D"
+   curl -s -o /dev/null -w '%{http_code}\n' "$(jq -r .originalUrl <<<"$D")"            # 200
+   ```
+3. Ізоляція: інший користувач не бачить ні файлу, ні задачі:
+   ```bash
+   OTHER=$(docker compose exec -T metadata node dist/seed-user.js --name other | jq -r .apiKey)
+   curl -s -o /dev/null -w '%{http_code}\n' -H "x-api-key: $OTHER" localhost:18080/v1/assets/$A   # 404
+   curl -s -o /dev/null -w '%{http_code}\n' -H "x-api-key: $OTHER" localhost:18080/v1/jobs/$JOB   # 404
+   ```
+4. Видалення: `204`, файл одразу зникає з API, а за секунду-дві воркер видаляє оригінал і
+   `results/{jobId}/` з MinIO (старі presigned URL починають давати `404`):
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' -H "x-api-key: $KEY" -X DELETE localhost:18080/v1/assets/$A  # 204
+   sleep 2
+   curl -s -o /dev/null -w '%{http_code}\n' "$(jq -r .originalUrl <<<"$D")"                 # 404
+   curl -s -o /dev/null -w '%{http_code}\n' "$(jq -r '.jobs[0].results[0].url' <<<"$D")"    # 404
+   docker compose exec -T postgres psql -U pdp -d metadata -c \
+     "select action, data->>'reason' reason from audit_log where entity_id = '$A'"
+   ```
+   Поки на файлі є незавершена задача, `DELETE` дає `409 ASSET_BUSY`.
+5. Квота і janitor (перезапуск Metadata з малими значеннями, окремий користувач):
+   ```bash
+   STORAGE_QUOTA_BYTES=1000000 ASSET_UNUSED_TTL_S=60 ASSET_JANITOR_INTERVAL_MS=5000 \
+     docker compose up -d metadata
+   Q=$(docker compose exec -T metadata node dist/seed-user.js --name quota | jq -r .apiKey)
+   up() { curl -s -H "x-api-key: $Q" -H 'content-type: application/json' \
+     -d '{"contentType":"image/jpeg","size":600000}' localhost:18080/v1/uploads; }
+   up | jq -c '{assetId}'; up | jq -c '{statusCode, code, message}'   # 413 STORAGE_QUOTA_EXCEEDED
+   sleep 70; up | jq -c '{assetId}'   # janitor видалив файл без задачі, квота звільнилась
+   docker compose up -d metadata      # повернути значення за замовчуванням
+   ```
+6. Тести: unit — `libs/contracts/src/assets.spec.ts`,
+   `apps/worker/src/assets/asset-purge.handler.spec.ts`, `apps/worker/src/image/resize.spec.ts`;
+   інтеграційний — `test/assets.int-spec.ts` (ізоляція, курсор і фільтр, видалення з очищенням
+   MinIO, `409`, квота, janitor, бекфіл).
+7. Документи: [ADR-014](docs/adr/0014-media-library.md), [план 5c–5d](docs/plan/stages-5c-5d.md).
+
 ## Конфігурація Етапу 2
 
 Ліміти й пороги задаються через env gateway; у `docker-compose.yml` їх можна перевизначити
@@ -952,6 +1017,15 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 | `AUTH_IP_RATE_PER_MIN` / `AUTH_IP_BURST`       | 10 / 20          | Ліміт логіну й реєстрації за IP                               |
 | `AUTH_EMAIL_RATE_PER_MIN` / `AUTH_EMAIL_BURST` | 1 / 5            | Ліміт логіну за email                                         |
 | `API_KEY_MAX_PER_USER` (контракт)              | 10               | Скільки активних ключів може мати користувач                  |
+
+## Конфігурація Етапу 5c.2
+
+| Змінна                                 | За замовчуванням  | Що робить                                                                        |
+| -------------------------------------- | ----------------- | -------------------------------------------------------------------------------- |
+| `STORAGE_QUOTA_BYTES` (metadata)       | 5368709120 (5 ГБ) | Сума заявлених розмірів живих файлів користувача                                 |
+| `ASSET_UNUSED_TTL_S` (metadata)        | 86400 (24 год)    | Скільки живе завантаження, з якого не створили задачу                            |
+| `ASSET_JANITOR_INTERVAL_MS` (metadata) | 600000 (10 хв)    | Як часто janitor шукає такі завантаження                                         |
+| `ASSET_DETAIL_JOBS` (контракт)         | 50                | Скільки задач віддає `GET /v1/assets/:id`; решта — через `GET /v1/jobs?assetId=` |
 
 ## Документація
 

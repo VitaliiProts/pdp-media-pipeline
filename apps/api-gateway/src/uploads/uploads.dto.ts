@@ -1,13 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, Min } from 'class-validator';
-
-export const IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
-export const VIDEO_CONTENT_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'] as const;
-export const UPLOAD_CONTENT_TYPES = [...IMAGE_CONTENT_TYPES, ...VIDEO_CONTENT_TYPES] as const;
-export type UploadContentType = (typeof UPLOAD_CONTENT_TYPES)[number];
-
-export const isVideoContentType = (type: UploadContentType): boolean =>
-  (VIDEO_CONTENT_TYPES as readonly string[]).includes(type);
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ASSET_NAME_MAX_LENGTH,
+  UPLOAD_CONTENT_TYPES,
+  type UploadContentType,
+} from '@pdp/contracts';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateUploadDto {
   @ApiProperty({ enum: UPLOAD_CONTENT_TYPES })
@@ -18,6 +15,17 @@ export class CreateUploadDto {
   @IsInt()
   @Min(1)
   size!: number;
+
+  @ApiPropertyOptional({
+    description: 'Original file name, shown and searched in the media library.',
+    maxLength: ASSET_NAME_MAX_LENGTH,
+    example: 'beach.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(ASSET_NAME_MAX_LENGTH)
+  name?: string;
 }
 
 export class UploadResponseDto {
@@ -26,6 +34,12 @@ export class UploadResponseDto {
 
   @ApiProperty({ example: 'uploads/5b0c.../0f3e....png' })
   sourceKey!: string;
+
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Media library entry of the file; it is listed once a job uses it.',
+  })
+  assetId!: string;
 
   @ApiProperty({ format: 'date-time' })
   expiresAt!: string;

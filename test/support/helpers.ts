@@ -32,10 +32,32 @@ export const pngImage = (width = 1200, height = 800) =>
     .png()
     .toBuffer();
 
-export async function putSource(s3: S3Client, key: string, body: Buffer): Promise<void> {
+/**
+ * What `POST /v1/uploads` records in Metadata, for tests that put objects into storage
+ * directly: a job may only read an upload its user owns. The owner comes from the key.
+ */
+export async function registerUpload(pool: Pool, key: string, size = 1): Promise<string> {
+  const userId = /^uploads\/([^/]+)\//.exec(key)?.[1];
+  if (!userId) throw new Error(`${key} is not under uploads/{userId}/`);
+  const video = /\.(mp4|webm|mov)$/.test(key);
+  const { rows } = await pool.query<{ id: string }>(
+    `INSERT INTO assets (user_id, key, kind, content_type, size) VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (key) DO UPDATE SET key = EXCLUDED.key RETURNING id`,
+    [userId, key, video ? 'video' : 'image', video ? 'video/mp4' : 'image/png', size],
+  );
+  return rows[0]!.id;
+}
+
+export async function putSource(
+  s3: S3Client,
+  pool: Pool,
+  key: string,
+  body: Buffer,
+): Promise<void> {
   await s3.send(
     new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType: 'image/png' }),
   );
+  await registerUpload(pool, key, body.length);
 }
 
 /** Reads everything currently stored for `subject` through an ephemeral ordered consumer. */

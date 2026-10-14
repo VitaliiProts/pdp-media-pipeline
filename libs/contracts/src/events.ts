@@ -58,3 +58,22 @@ export const JobDeadLetteredV1 = defineEvent(
   }),
 );
 export type JobDeadLetteredV1 = EventOf<typeof JobDeadLetteredV1>;
+
+export const ASSET_DELETE_REASONS = ['user', 'unused'] as const;
+
+/**
+ * Written in the transaction that soft-deletes an asset. The purge consumer removes the
+ * original and every job's results from object storage; the rows stay as history.
+ */
+export const AssetDeletedV1 = defineEvent(
+  'asset.deleted',
+  1,
+  z.object({
+    assetId: z.uuid(),
+    userId: z.uuid(),
+    key: z.string(),
+    /** `unused`: reserved by an upload that no job ever read. */
+    reason: z.enum(ASSET_DELETE_REASONS),
+  }),
+);
+export type AssetDeletedV1 = EventOf<typeof AssetDeletedV1>;

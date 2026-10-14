@@ -5,6 +5,7 @@ import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
 import { HealthModule, ObservabilityModule } from '@pdp/observability';
+import { AssetsController } from './assets/assets.controller';
 import { ApiKeyGuard } from './auth/api-key.guard';
 import { ApiKeysController } from './auth/api-keys.controller';
 import { AuthController } from './auth/auth.controller';
@@ -17,6 +18,7 @@ import { MetadataErrorFilter } from './common/metadata-error.filter';
 import { egressClientProvider } from './common/public-url';
 import { RetryLaterFilter } from './common/retry-later';
 import { type Env, envSchema } from './config';
+import { JobPresenter } from './jobs/job-presenter';
 import { JobsController } from './jobs/jobs.controller';
 import { RateLimitGuard } from './rate-limit/rate-limit.guard';
 import { RateLimiterService } from './rate-limit/rate-limiter.service';
@@ -50,6 +52,7 @@ import { WebhooksController } from './webhooks/webhooks.controller';
     ApiKeysController,
     UploadsController,
     JobsController,
+    AssetsController,
     WebhooksController,
   ],
   providers: [
@@ -63,6 +66,7 @@ import { WebhooksController } from './webhooks/webhooks.controller';
         }),
     },
     egressClientProvider,
+    JobPresenter,
     RateLimiterService,
     ApiKeyGuard,
     SessionService,

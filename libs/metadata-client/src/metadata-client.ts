@@ -1,5 +1,9 @@
 import {
   ApiKeyDto,
+  AssetDto,
+  type CreateAssetRequest,
+  ListAssetsResponse,
+  type ListAssetsQuery,
   type CreateApiKeyRequest,
   CreatedApiKeyDto,
   ListApiKeysResponse,
@@ -70,9 +74,40 @@ export class MetadataClient {
     if (query.status) params.set('status', query.status);
     if (query.types) params.set('types', query.types.join(','));
     if (query.webhookEndpointId) params.set('webhookEndpointId', query.webhookEndpointId);
+    if (query.assetId) params.set('assetId', query.assetId);
     if (query.limit !== undefined) params.set('limit', String(query.limit));
     if (query.cursor) params.set('cursor', query.cursor);
     return this.request('GET', `/internal/jobs?${params.toString()}`, ListJobsResponse);
+  }
+
+  createAsset(body: CreateAssetRequest): Promise<AssetDto> {
+    return this.request('POST', '/internal/assets', AssetDto, body);
+  }
+
+  listAssets(query: ListAssetsQuery): Promise<ListAssetsResponse> {
+    const params = new URLSearchParams({ userId: query.userId });
+    if (query.kind) params.set('kind', query.kind);
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+    if (query.cursor) params.set('cursor', query.cursor);
+    return this.request('GET', `/internal/assets?${params.toString()}`, ListAssetsResponse);
+  }
+
+  getAsset(id: string, userId: string): Promise<AssetDto> {
+    const params = new URLSearchParams({ userId });
+    return this.request(
+      'GET',
+      `/internal/assets/${encodeURIComponent(id)}?${params.toString()}`,
+      AssetDto,
+    );
+  }
+
+  deleteAsset(id: string, userId: string): Promise<AssetDto> {
+    const params = new URLSearchParams({ userId });
+    return this.request(
+      'DELETE',
+      `/internal/assets/${encodeURIComponent(id)}?${params.toString()}`,
+      AssetDto,
+    );
   }
 
   transition(id: string, body: TransitionRequest): Promise<TransitionResponse> {
