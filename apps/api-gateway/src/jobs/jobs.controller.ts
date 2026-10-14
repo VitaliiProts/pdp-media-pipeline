@@ -27,7 +27,6 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import {
-  API_KEY_HEADER,
   DEFAULT_JOB_PRIORITY,
   IDEMPOTENCY_KEY_HEADER,
   IDEMPOTENCY_KEY_PATTERN,
@@ -49,7 +48,8 @@ import { MetadataClient, MetadataError } from '@pdp/metadata-client';
 import { type Response } from 'express';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { ApiKeyGuard, UserId } from '../auth/api-key.guard';
+import { AuthGuard } from '../auth/auth.guard';
+import { UserId } from '../auth/user';
 import { BackpressureService } from '../backpressure/backpressure.service';
 import { assertPublicUrl } from '../common/public-url';
 import { type Env } from '../config';
@@ -70,9 +70,8 @@ export const RESULT_URL_TTL_S = 60 * 60;
 const REDRIVE_ACTOR = (userId: string) => `user:${userId}`;
 
 @ApiTags('jobs')
-@ApiHeader({ name: API_KEY_HEADER, required: true })
 @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded, see Retry-After' })
-@UseGuards(ApiKeyGuard, RateLimitGuard)
+@UseGuards(AuthGuard, RateLimitGuard)
 @Controller('v1/jobs')
 export class JobsController {
   private readonly maxBytes: Record<CreatableJobType, number>;

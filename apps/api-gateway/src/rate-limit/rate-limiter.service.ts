@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { toRetryAfterSeconds } from '../common/retry-later';
 import { type Env } from '../config';
@@ -35,6 +36,8 @@ export class RateLimiterService {
   private readonly user: Limit;
   private readonly global: Limit;
   private readonly ip: Limit;
+  private readonly authIp: Limit;
+  private readonly authEmail: Limit;
   private readonly replicas: number;
   private readonly redisRetryMs: number;
   private redisRetryAt = 0;
@@ -51,6 +54,11 @@ export class RateLimiterService {
       burst: get('RATE_LIMIT_GLOBAL_BURST'),
     };
     this.ip = { ratePerSec: get('RATE_LIMIT_IP_RPS'), burst: get('RATE_LIMIT_IP_BURST') };
+    this.authIp = { ratePerSec: get('AUTH_IP_RATE_PER_MIN') / 60, burst: get('AUTH_IP_BURST') };
+    this.authEmail = {
+      ratePerSec: get('AUTH_EMAIL_RATE_PER_MIN') / 60,
+      burst: get('AUTH_EMAIL_BURST'),
+    };
     this.replicas = get('RATE_LIMIT_REPLICAS');
     this.redisRetryMs = get('RATE_LIMIT_REDIS_RETRY_MS');
   }
@@ -65,6 +73,19 @@ export class RateLimiterService {
 
   checkAnonymous(ip: string): Promise<RateCheck> {
     return this.check([{ key: ipKey(ip), ...this.ip }]);
+  }
+
+  /**
+   * Login and register: per IP against spraying many accounts, per email against guessing
+   * one password from many IPs. The email is hashed, so Redis holds no addresses.
+   */
+  checkAuth(ip: string, email?: string): Promise<RateCheck> {
+    const rules: RateRule[] = [{ key: `rl:auth:ip:${ip}`, ...this.authIp }];
+    if (email) {
+      const digest = createHash('sha256').update(email).digest('hex');
+      rules.push({ key: `rl:auth:email:${digest}`, ...this.authEmail });
+    }
+    return this.check(rules);
   }
 
   async check(rules: readonly RateRule[]): Promise<RateCheck> {

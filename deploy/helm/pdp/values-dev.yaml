@@ -12,6 +12,7 @@ api-gateway:
   env:
     # Presigned URLs are signed for the host the client uses.
     S3_PUBLIC_ENDPOINT: http://s3.pdp.localhost:19080
+    APP_ORIGINS: http://app.pdp.localhost:19080
     # The only host allowed to resolve to a private address, so webhooks can reach it.
     EGRESS_PRIVATE_HOSTS: webhook-receiver
   ingress:

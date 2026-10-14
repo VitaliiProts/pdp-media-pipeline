@@ -38,13 +38,40 @@ export const executionOutcome = pgEnum('execution_outcome', [
   'interrupted',
 ]);
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  apiKeyHash: text('api_key_hash').notNull().unique(),
-  apiKeyPrefix: text('api_key_prefix').notNull(),
-  createdAt: ts('created_at').notNull().defaultNow(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    /** Lower case; null for users that only have API keys (`seed:user`). */
+    email: text('email'),
+    /** argon2id in PHC format, parameters included; null when the user cannot log in. */
+    passwordHash: text('password_hash'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  // On lower(): the application lower-cases, the index holds even if a row slips through.
+  (t) => [uniqueIndex('users_email_uq').on(sql`lower(${t.email})`)],
+);
+
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    name: text('name').notNull(),
+    /** SHA-256 of the key; the key itself is shown once and never stored. */
+    hash: text('hash').notNull().unique(),
+    prefix: text('prefix').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    /** Updated at most once a minute, so a busy key does not write on every lookup. */
+    lastUsedAt: ts('last_used_at'),
+    /** Revoked keys stay for the audit trail and the list of what a user once had. */
+    revokedAt: ts('revoked_at'),
+  },
+  (t) => [index('api_keys_user_idx').on(t.userId, t.createdAt)],
+);
 
 export const jobs = pgTable(
   'jobs',
@@ -207,5 +234,7 @@ export const webhookEndpoints = pgTable(
   (t) => [index('webhook_endpoints_user_idx').on(t.userId, t.createdAt)],
 );
 
+export type UserRow = typeof users.$inferSelect;
+export type ApiKeyRow = typeof apiKeys.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;

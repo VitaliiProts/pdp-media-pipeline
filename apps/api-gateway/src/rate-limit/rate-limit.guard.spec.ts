@@ -54,6 +54,6 @@ describe('RateLimitGuard', () => {
 
   it('fails loudly when it runs before authentication', async () => {
     const { guard, ctx } = setup({ allowed: true, retryAfterS: 0, limits, source: 'redis' }, {});
-    await expect(guard.canActivate(ctx)).rejects.toThrow('after ApiKeyGuard');
+    await expect(guard.canActivate(ctx)).rejects.toThrow('after AuthGuard');
   });
 });

@@ -129,6 +129,8 @@ services:
       S3_PUBLIC_ENDPOINT: http://localhost:${MINIO_HOST_PORT:-59000}
       # The web container's nginx sits in front; its X-Forwarded-For hop is the client.
       TRUST_PROXY_HOPS: 1
+      # The Web UI in compose and in `pnpm dev:web`; sessions are accepted from these only.
+      APP_ORIGINS: http://localhost:${WEB_HOST_PORT:-18090},http://localhost:5173
       RATE_LIMIT_USER_RPS: ${RATE_LIMIT_USER_RPS:-20}
       RATE_LIMIT_USER_BURST: ${RATE_LIMIT_USER_BURST:-20}
       RATE_LIMIT_GLOBAL_RPS: ${RATE_LIMIT_GLOBAL_RPS:-200}

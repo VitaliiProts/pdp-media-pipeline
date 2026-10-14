@@ -13,7 +13,7 @@ NATS JetStream, стан задач живе в PostgreSQL, файли в S3-с�
 
 ```mermaid
 flowchart LR
-  Browser[Web UI / клієнт] -->|REST, X-API-Key| GW[API Gateway]
+  Browser[Web UI / клієнт] -->|REST, cookie або X-API-Key| GW[API Gateway]
   Browser -->|PUT presigned URL| S3[(MinIO)]
   GW -->|rate limit, Lua GCRA| Redis[(Redis)]
   GW -->|глибина черг| NATS
@@ -148,7 +148,7 @@ flowchart LR
 
 | Шлях                                   | Що там                                                              |
 | -------------------------------------- | ------------------------------------------------------------------- |
-| `apps/api-gateway`                     | Публічний REST API, auth за API-ключем, rate limiting, backpressure |
+| `apps/api-gateway`                     | Публічний REST API, сесія або API-ключ, rate limiting, backpressure |
 | `apps/metadata`                        | PostgreSQL (Drizzle), машина станів, outbox, внутрішній REST        |
 | `apps/scheduler`                       | `job.created` → стрім класу                                         |
 | `apps/worker`                          | `image.resize` через sharp і доставка вебхуків `webhook.deliver`    |
@@ -179,11 +179,19 @@ docker compose ps      # усі сервіси healthy, metadata-migrate і mini
 > Не плутайте з `pnpm up`: це вбудована команда pnpm (`pnpm update`), вона оновить залежності
 > замість запуску Docker.
 
-Створити користувача і запам'ятати ключ у змінній поточного терміналу:
+Два способи увійти. Для скриптів і Web UI до екранів входу (5c.4) — API-ключ:
 
 ```bash
 KEY=$(docker compose exec -T metadata node dist/seed-user.js --name me | jq -r .apiKey)
 echo "$KEY"            # цей ключ вставляється у Web UI
+```
+
+Для браузера — реєстрація (відповідь ставить cookie `pdp_session`):
+
+```bash
+curl -s -c - -H 'origin: http://localhost:18090' -H 'content-type: application/json' \
+  -d '{"email":"me@example.com","password":"correct horse battery"}' \
+  http://localhost:18090/v1/auth/register | jq -c '{id, email}'
 ```
 
 | Що                              | Адреса                                                      |
@@ -821,6 +829,46 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
    [відповідність ADR номерам PDF](docs/adr/README.md#відповідність-номерам-pdf),
    [план етапу](docs/plan/stage-5.md).
 
+### Етап 5c.1. Автентифікація користувачів
+
+**Критерій підетапу:** реєстрація і вхід через публічний API, захищені ендпоінти приймають
+сесію або `X-API-Key`, наявні ключі працюють після міграції, чужий Origin і перебір пароля
+відсікаються.
+
+1. Міграція переносить ключі в `api_keys`; старий ключ лишається валідним:
+   ```bash
+   docker compose exec -T postgres psql -U pdp -d metadata -c \
+     "select count(*) users, (select count(*) from api_keys) keys from users"
+   curl -s -H "x-api-key: $KEY" localhost:18080/v1/me | jq -c '{name, email, authMethod}'
+   ```
+   Очікувано: `users` = `keys`, `email: null`, `authMethod: "api-key"`.
+2. Реєстрація ставить cookie; сесія бачить `/v1/me` і створює API-ключ:
+   ```bash
+   O=http://localhost:18090
+   curl -s -c jar.txt -H "origin: $O" -H 'content-type: application/json' \
+     -d '{"email":"demo@example.com","password":"correct horse battery"}' $O/v1/auth/register
+   curl -s -b jar.txt $O/v1/me | jq -c '{email, authMethod}'          # session
+   curl -s -b jar.txt -H "origin: $O" -H 'content-type: application/json' \
+     -d '{"name":"ci"}' $O/v1/api-keys | jq -c '{prefix, key: (.key[:12]+"…")}'
+   ```
+3. Однакова відповідь для невідомого email і неправильного пароля; чужий Origin — `403`:
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'content-type: application/json' \
+     -d '{"email":"demo@example.com","password":"wrong"}' $O/v1/auth/login   # 401
+   curl -s -o /dev/null -w '%{http_code}\n' -b jar.txt -H 'origin: https://evil.example' \
+     -H 'content-type: application/json' -d '{"name":"x"}' $O/v1/api-keys     # 403
+   ```
+4. Logout інвалідує сесію; ключ, виданий із сесії, працює без cookie:
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' -b jar.txt -c jar.txt -H "origin: $O" \
+     -X POST $O/v1/auth/logout                                                # 204
+   curl -s -o /dev/null -w '%{http_code}\n' -b jar.txt $O/v1/me               # 401
+   ```
+5. Тести: unit — `apps/api-gateway/src/auth/*.spec.ts`, `apps/metadata/src/auth/passwords.spec.ts`;
+   інтеграційний — `test/auth.int-spec.ts`; алерт — `pnpm alerts:test` (`LoginFailuresSpike`).
+6. Документи: [ADR-013](docs/adr/0013-user-authentication.md),
+   [план 5c–5d](docs/plan/stages-5c-5d.md).
+
 ## Конфігурація Етапу 2
 
 Ліміти й пороги задаються через env gateway; у `docker-compose.yml` їх можна перевизначити
@@ -893,9 +941,21 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 | `autoscaling.lagThreshold`                | слотів на под       | Лаг консюмера на один под                                                  |
 | `autoscaling.scaleDown`                   | 60 с, 1 под / 30 с  | `behavior.scaleDown` HPA; у `video-transcode` — 120 с, 1 под / 60 с        |
 
+## Конфігурація Етапу 5c.1
+
+| Змінна (gateway)                               | За замовчуванням | Що робить                                                     |
+| ---------------------------------------------- | ---------------- | ------------------------------------------------------------- |
+| `SESSION_IDLE_TTL_S`                           | 604800 (7 д)     | Idle TTL сесії в Redis (`GETEX`)                              |
+| `SESSION_MAX_AGE_S`                            | 2592000 (30 д)   | Абсолютний вік сесії і `Max-Age` cookie                       |
+| `SESSION_COOKIE_SECURE`                        | `true`           | Прапорець `Secure` на `pdp_session` (працює на `*.localhost`) |
+| `APP_ORIGINS`                                  | Vite і compose   | Дозволені значення `Origin` для запитів із сесією             |
+| `AUTH_IP_RATE_PER_MIN` / `AUTH_IP_BURST`       | 10 / 20          | Ліміт логіну й реєстрації за IP                               |
+| `AUTH_EMAIL_RATE_PER_MIN` / `AUTH_EMAIL_BURST` | 1 / 5            | Ліміт логіну за email                                         |
+| `API_KEY_MAX_PER_USER` (контракт)              | 10               | Скільки активних ключів може мати користувач                  |
+
 ## Документація
 
-- Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md), [Етап 4](docs/plan/stage-4.md), [Етап 5](docs/plan/stage-5.md)
+- Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md), [Етап 4](docs/plan/stage-4.md), [Етап 5](docs/plan/stage-5.md), [Етапи 5c–5d](docs/plan/stages-5c-5d.md)
 - ADR: [docs/adr](docs/adr/README.md)
 - Спайк JetStream проти BullMQ: [docs/spikes](docs/spikes/01-jetstream-vs-bullmq.md)
 - Звіти навантаження: [Етап 2](perf/reports/stage-2.md), [Етап 5](perf/reports/stage-5.md)

@@ -2,10 +2,10 @@ import { apiKeyPrefix, generateApiKey, hashApiKey } from '@pdp/contracts';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { parseArgs } from 'node:util';
 import { Pool } from 'pg';
-import { auditLog, users } from './database/schema';
+import { apiKeys, auditLog, users } from './database/schema';
 
 /**
- * Creates a user and prints its API key once; only the hash is stored.
+ * Creates a user without a password and prints its API key once; only the hash is stored.
  * `--api-key` sets a known key (local dev, tests); otherwise one is generated.
  */
 export async function seedUser(
@@ -17,11 +17,14 @@ export async function seedUser(
   try {
     const db = drizzle(pool);
     const userId = await db.transaction(async (tx) => {
-      const [user] = await tx
-        .insert(users)
-        .values({ name, apiKeyHash: hashApiKey(apiKey), apiKeyPrefix: apiKeyPrefix(apiKey) })
-        .returning({ id: users.id });
+      const [user] = await tx.insert(users).values({ name }).returning({ id: users.id });
       if (!user) throw new Error('insert returned no row');
+      await tx.insert(apiKeys).values({
+        userId: user.id,
+        name: 'default',
+        hash: hashApiKey(apiKey),
+        prefix: apiKeyPrefix(apiKey),
+      });
       await tx
         .insert(auditLog)
         .values({ actor: 'cli', action: 'user.created', entityId: user.id, data: { name } });

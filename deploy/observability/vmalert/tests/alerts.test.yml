@@ -143,3 +143,30 @@ tests:
             exp_annotations:
               summary: 'JOBS_CPU/worker-cpu: backlog over 100 and growing'
               description: See the Queues dashboard; the gateway starts answering 503 at its backpressure limit.
+
+  # 40 wrong passwords and 10 throttled attempts a minute: 50 > 30. Successful logins,
+  # however many, do not count.
+  - name: burst of failed logins
+    interval: 1m
+    input_series:
+      - series: 'auth_logins_total{outcome="invalid_credentials",service_name="api-gateway"}'
+        values: '0+40x20'
+      - series: 'auth_logins_total{outcome="rate_limited",service_name="api-gateway"}'
+        values: '0+10x20'
+      - series: 'auth_logins_total{outcome="success",service_name="api-gateway"}'
+        values: '0+500x20'
+    alert_rule_test:
+      - eval_time: 3m
+        groupname: auth-alerts
+        alertname: LoginFailuresSpike
+        exp_alerts: []
+      - eval_time: 15m
+        groupname: auth-alerts
+        alertname: LoginFailuresSpike
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations:
+              summary: Over 30 failed or throttled logins a minute (5m)
+              description: >-
+                Password guessing or credential stuffing (ADR-013). The per-IP and per-email limits
+                hold it back; find the sources in the gateway logs for POST /v1/auth/login.
