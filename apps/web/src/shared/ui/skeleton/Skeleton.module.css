@@ -1,0 +1,25 @@
+.skeleton {
+  border-radius: var(--radius-control);
+  background: linear-gradient(90deg, var(--table-lit) 25%, var(--glow) 50%, var(--table-lit) 75%) 0
+    0 / 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.skeleton[data-radius='mount'] {
+  border-radius: var(--radius-mount);
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
