@@ -1,0 +1,80 @@
+/*
+ * Light table: a cool, evenly lit work surface; slides sit on it as warm card
+ * stock. Colour is reserved for state. tokens.test.ts checks the pairs used for
+ * text (4.5:1) and for marks and control borders (3:1).
+ */
+:root {
+  --table: #dce3e8;
+  --table-lit: #e9eef1;
+  --glow: #f6f8fa;
+  --mount: #fdfcf8;
+  --film: #c9d1d8;
+  --ink: #1b2530;
+  --graphite: #56636f;
+  --rule: #cfd6dc;
+  --rule-strong: #a9b4bd;
+  /* A border that alone shows where a control is. */
+  --rule-control: #6f7c88;
+  --amber: #b06a00;
+  --green: #2a7550;
+  --red: #ad3528;
+  --focus: #2f6fd0;
+
+  /* State tones: text and the wash behind it. */
+  --tone-neutral: var(--graphite);
+  --tone-neutral-wash: var(--table-lit);
+  --tone-progress: #2f5fa8;
+  --tone-progress-wash: #e2ebf7;
+  --tone-success: #236a47;
+  --tone-success-wash: #e1efe6;
+  --tone-warning: #8a5300;
+  --tone-warning-wash: #f6ead3;
+  --tone-danger: var(--red);
+  --tone-danger-wash: #f7e1dd;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4.5rem;
+
+  /* Modular scale, ratio 1.25 */
+  --text-sm: 0.8rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5625rem;
+  --text-2xl: 1.953rem;
+  --text-3xl: clamp(2.2rem, 5vw, 3.815rem);
+
+  --weight-regular: 400;
+  --weight-medium: 550;
+  --weight-semibold: 650;
+  --weight-bold: 720;
+  --weight-display: 800;
+
+  --radius-mount: 10px;
+  --radius-window: 3px;
+  --radius-control: 6px;
+  --radius-pill: 999px;
+  --shadow-mount: 0 1px 0 rgb(27 37 48 / 0.06), 0 6px 14px -8px rgb(27 37 48 / 0.35);
+  --shadow-overlay: 0 2px 4px rgb(27 37 48 / 0.08), 0 18px 40px -12px rgb(27 37 48 / 0.45);
+
+  --z-header: 10;
+  --z-overlay: 100;
+  --z-toast: 200;
+
+  --motion-fast: 120ms;
+  --motion-slow: 320ms;
+
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-slow: 0ms;
+  }
+}

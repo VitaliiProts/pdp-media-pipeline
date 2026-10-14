@@ -14,6 +14,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    css: false,
+    // Stylesheets stay out of jsdom; `?raw` imports still need their text.
+    css: { include: [/\.css\?raw$/] },
   },
 });

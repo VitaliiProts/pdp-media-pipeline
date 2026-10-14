@@ -1,4 +1,5 @@
 import '@fontsource-variable/archivo/wdth.css';
+import './shared/ui/tokens.css';
 import './app/global.css';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
