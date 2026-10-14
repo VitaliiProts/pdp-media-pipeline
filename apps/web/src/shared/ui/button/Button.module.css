@@ -1,0 +1,99 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast),
+    border-color var(--motion-fast),
+    color var(--motion-fast);
+}
+
+.sm {
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.primary {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--mount);
+}
+
+.primary:hover {
+  background: color-mix(in srgb, var(--ink) 86%, var(--mount));
+}
+
+.secondary {
+  border-color: var(--rule-control);
+  background: var(--mount);
+  color: var(--ink);
+}
+
+.secondary:hover {
+  border-color: var(--ink);
+}
+
+.quiet {
+  background: transparent;
+  color: var(--graphite);
+  font-weight: var(--weight-medium);
+}
+
+.quiet:hover {
+  border-color: var(--rule);
+  color: var(--ink);
+}
+
+.danger {
+  border-color: var(--red);
+  background: var(--mount);
+  color: var(--red);
+}
+
+.danger:hover {
+  background: var(--tone-danger-wash);
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.button[aria-busy='true'] {
+  cursor: progress;
+  opacity: 1;
+}
+
+.button[aria-busy='true']::before {
+  content: '';
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button[aria-busy='true']::before {
+    animation-duration: 2.4s;
+  }
+}
