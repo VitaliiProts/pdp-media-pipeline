@@ -6,6 +6,11 @@ import { NatsModule, NatsService } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
 import { HealthModule, ObservabilityModule } from '@pdp/observability';
 import { ApiKeyGuard } from './auth/api-key.guard';
+import { ApiKeysController } from './auth/api-keys.controller';
+import { AuthController } from './auth/auth.controller';
+import { AuthGuard } from './auth/auth.guard';
+import { SessionCookie } from './auth/session-cookie';
+import { SessionService } from './auth/session.service';
 import { BackpressureService } from './backpressure/backpressure.service';
 import { QueueDepthService } from './backpressure/queue-depth.service';
 import { MetadataErrorFilter } from './common/metadata-error.filter';
@@ -29,7 +34,8 @@ import { WebhooksController } from './webhooks/webhooks.controller';
     RedisModule,
     StorageModule,
     // Redis is left out on purpose: rate limiting fails open (ADR-005), so a Redis
-    // outage must not take every gateway replica out of the load balancer.
+    // outage must not take every gateway replica out of the load balancer. Sessions
+    // fail closed, but API keys keep working without Redis (ADR-013).
     HealthModule.forRootAsync({
       imports: [StorageModule],
       inject: [NatsService, StorageService],
@@ -39,7 +45,13 @@ import { WebhooksController } from './webhooks/webhooks.controller';
       ],
     }),
   ],
-  controllers: [UploadsController, JobsController, WebhooksController],
+  controllers: [
+    AuthController,
+    ApiKeysController,
+    UploadsController,
+    JobsController,
+    WebhooksController,
+  ],
   providers: [
     {
       provide: MetadataClient,
@@ -53,6 +65,9 @@ import { WebhooksController } from './webhooks/webhooks.controller';
     egressClientProvider,
     RateLimiterService,
     ApiKeyGuard,
+    SessionService,
+    SessionCookie,
+    AuthGuard,
     RateLimitGuard,
     QueueDepthService,
     BackpressureService,

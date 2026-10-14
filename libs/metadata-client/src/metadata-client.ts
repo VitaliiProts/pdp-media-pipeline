@@ -1,4 +1,11 @@
 import {
+  ApiKeyDto,
+  type CreateApiKeyRequest,
+  CreatedApiKeyDto,
+  ListApiKeysResponse,
+  type LoginRequest,
+  type RegisterRequest,
+  UserDto,
   type CreateJobRequest,
   CreateJobResponse,
   JobDto,
@@ -114,6 +121,42 @@ export class MetadataClient {
       'DELETE',
       `/internal/webhooks/${encodeURIComponent(id)}?${params.toString()}`,
       WebhookEndpointDto,
+    );
+  }
+
+  register(body: RegisterRequest): Promise<UserDto> {
+    return this.request('POST', '/internal/auth/register', UserDto, body);
+  }
+
+  /** Null for an unknown email and for a wrong password alike. */
+  async login(body: LoginRequest): Promise<UserDto | null> {
+    try {
+      return await this.request('POST', '/internal/auth/login', UserDto, body);
+    } catch (err) {
+      if (err instanceof MetadataError && err.code === 'INVALID_CREDENTIALS') return null;
+      throw err;
+    }
+  }
+
+  getUser(id: string): Promise<UserDto> {
+    return this.request('GET', `/internal/users/${encodeURIComponent(id)}`, UserDto);
+  }
+
+  listApiKeys(userId: string): Promise<ListApiKeysResponse> {
+    const params = new URLSearchParams({ userId });
+    return this.request('GET', `/internal/api-keys?${params.toString()}`, ListApiKeysResponse);
+  }
+
+  createApiKey(body: CreateApiKeyRequest): Promise<CreatedApiKeyDto> {
+    return this.request('POST', '/internal/api-keys', CreatedApiKeyDto, body);
+  }
+
+  revokeApiKey(id: string, userId: string): Promise<ApiKeyDto> {
+    const params = new URLSearchParams({ userId });
+    return this.request(
+      'DELETE',
+      `/internal/api-keys/${encodeURIComponent(id)}?${params.toString()}`,
+      ApiKeyDto,
     );
   }
 

@@ -168,6 +168,10 @@ export const METADATA_ERROR_CODES = [
   'IDEMPOTENCY_KEY_REUSED',
   'WEBHOOK_NOT_FOUND',
   'WEBHOOK_LIMIT_REACHED',
+  'USER_NOT_FOUND',
+  'EMAIL_TAKEN',
+  'INVALID_CREDENTIALS',
+  'API_KEY_LIMIT_REACHED',
 ] as const;
 export type MetadataErrorCode = (typeof METADATA_ERROR_CODES)[number];
 

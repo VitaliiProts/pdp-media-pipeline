@@ -32,7 +32,12 @@ export class ObservabilityModule {
                 level: config.get<string>('LOG_LEVEL') ?? 'info',
                 base: { service: serviceName },
                 mixin: jobLogFields,
-                redact: ['req.headers.authorization', 'req.headers["x-api-key"]'],
+                redact: [
+                  'req.headers.authorization',
+                  'req.headers["x-api-key"]',
+                  'req.headers.cookie',
+                  'res.headers["set-cookie"]',
+                ],
                 autoLogging: { ignore: (req) => /^\/health\b/.test(req.url ?? '') },
                 transport: pretty
                   ? { target: 'pino-pretty', options: { singleLine: true } }

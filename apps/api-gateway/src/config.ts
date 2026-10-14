@@ -38,6 +38,31 @@ export const envSchema = baseEnvSchema.extend({
   /** After a Redis failure, use the local limiter for this long before trying Redis again. */
   RATE_LIMIT_REDIS_RETRY_MS: positiveInt().default(1000),
 
+  /** Sliding: every request with the session extends it by this much. */
+  SESSION_IDLE_TTL_S: positiveInt().default(7 * 24 * 3600),
+  /** Absolute: after this the user logs in again, however active. Also the cookie's Max-Age. */
+  SESSION_MAX_AGE_S: positiveInt().default(30 * 24 * 3600),
+  /** Browsers accept `Secure` cookies from http://localhost and *.localhost, so dev keeps it on. */
+  SESSION_COOKIE_SECURE: z.stringbool().default(true),
+  /**
+   * Origins of the Web UI, comma-separated. Requests that change data with a session must
+   * come from one of them; login and register refuse any other Origin (ADR-013).
+   */
+  APP_ORIGINS: z
+    .string()
+    .default('http://localhost:5173,http://localhost:18090')
+    .transform((s) =>
+      s
+        .split(',')
+        .map((o) => o.trim().replace(/\/$/, ''))
+        .filter(Boolean),
+    ),
+  /** Login and register per client IP, and login per email; failed or not. */
+  AUTH_IP_RATE_PER_MIN: positiveInt().default(10),
+  AUTH_IP_BURST: positiveInt().default(20),
+  AUTH_EMAIL_RATE_PER_MIN: positiveInt().default(1),
+  AUTH_EMAIL_BURST: positiveInt().default(5),
+
   QUEUE_DEPTH_CACHE_MS: positiveInt().default(1000),
   BACKPRESSURE_MAX_DEPTH_CPU: positiveInt().default(2000),
   BACKPRESSURE_MAX_DEPTH_IO: positiveInt().default(2000),

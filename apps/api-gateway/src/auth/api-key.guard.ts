@@ -1,6 +1,5 @@
 import {
   type CanActivate,
-  createParamDecorator,
   type ExecutionContext,
   HttpStatus,
   Inject,
@@ -10,14 +9,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { API_KEY_HEADER, hashApiKey } from '@pdp/contracts';
 import { MetadataClient } from '@pdp/metadata-client';
-import { type Request } from 'express';
 import { RetryLaterException } from '../common/retry-later';
 import { type Env } from '../config';
 import { RateLimiterService } from '../rate-limit/rate-limiter.service';
-
-export interface AuthenticatedRequest extends Request {
-  userId?: string;
-}
+import { type AuthenticatedRequest } from './user';
 
 const MAX_CACHE_ENTRIES = 10_000;
 
@@ -85,9 +80,3 @@ export class ApiKeyGuard implements CanActivate {
     return userId;
   }
 }
-
-export const UserId = createParamDecorator((_data: unknown, context: ExecutionContext) => {
-  const userId = context.switchToHttp().getRequest<AuthenticatedRequest>().userId;
-  if (!userId) throw new UnauthorizedException();
-  return userId;
-});

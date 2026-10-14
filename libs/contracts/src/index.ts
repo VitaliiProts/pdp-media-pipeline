@@ -1,3 +1,4 @@
+export * from './accounts';
 export * from './api-key';
 export * from './envelope';
 export * from './events';

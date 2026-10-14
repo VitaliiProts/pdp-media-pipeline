@@ -49,3 +49,18 @@ groups:
         annotations:
           summary: '{{ $labels.stream }}/{{ $labels.consumer }}: backlog over 100 and growing'
           description: See the Queues dashboard; the gateway starts answering 503 at its backpressure limit.
+
+  - name: auth-alerts
+    interval: 15s
+    rules:
+      # A mistyped password now and then is normal; dozens a minute across all users is
+      # someone guessing. Throttled attempts count too: they are the guessing the limit stopped.
+      - alert: LoginFailuresSpike
+        expr: sum(rate(auth_logins_total{outcome=~"invalid_credentials|rate_limited"}[5m])) * 60 > 30
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: Over 30 failed or throttled logins a minute (5m)
+          description: >-
+            Password guessing or credential stuffing (ADR-013). The per-IP and per-email limits
+            hold it back; find the sources in the gateway logs for POST /v1/auth/login.

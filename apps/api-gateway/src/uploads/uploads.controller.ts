@@ -7,10 +7,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiHeader, ApiOkResponse, ApiTags, ApiTooManyRequestsResponse } from '@nestjs/swagger';
-import { API_KEY_HEADER, uploadKeyPrefix } from '@pdp/contracts';
+import { ApiOkResponse, ApiTags, ApiTooManyRequestsResponse } from '@nestjs/swagger';
+import { uploadKeyPrefix } from '@pdp/contracts';
 import { randomUUID } from 'node:crypto';
-import { ApiKeyGuard, UserId } from '../auth/api-key.guard';
+import { AuthGuard } from '../auth/auth.guard';
+import { UserId } from '../auth/user';
 import { type Env } from '../config';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { StorageService } from '../storage/storage.service';
@@ -33,9 +34,8 @@ const EXTENSIONS: Record<UploadContentType, string> = {
 };
 
 @ApiTags('uploads')
-@ApiHeader({ name: API_KEY_HEADER, required: true })
 @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded, see Retry-After' })
-@UseGuards(ApiKeyGuard, RateLimitGuard)
+@UseGuards(AuthGuard, RateLimitGuard)
 @Controller('v1/uploads')
 export class UploadsController {
   private readonly maxImageBytes: number;

@@ -15,14 +15,12 @@ import {
 import {
   ApiConflictResponse,
   ApiCreatedResponse,
-  ApiHeader,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
   ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import {
-  API_KEY_HEADER,
   type JobDto,
   WEBHOOK_EVENTS,
   WEBHOOK_MAX_ENDPOINTS_PER_USER,
@@ -32,7 +30,8 @@ import {
 } from '@pdp/contracts';
 import { EgressClient } from '@pdp/egress';
 import { MetadataClient } from '@pdp/metadata-client';
-import { ApiKeyGuard, UserId } from '../auth/api-key.guard';
+import { AuthGuard } from '../auth/auth.guard';
+import { UserId } from '../auth/user';
 import { assertPublicUrl } from '../common/public-url';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import {
@@ -53,9 +52,8 @@ const toDto = ({ id, url, events, createdAt }: WebhookEndpointDto): WebhookDto =
 });
 
 @ApiTags('webhooks')
-@ApiHeader({ name: API_KEY_HEADER, required: true })
 @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded, see Retry-After' })
-@UseGuards(ApiKeyGuard, RateLimitGuard)
+@UseGuards(AuthGuard, RateLimitGuard)
 @Controller('v1/webhooks')
 export class WebhooksController {
   constructor(
