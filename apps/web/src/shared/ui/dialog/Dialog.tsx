@@ -5,7 +5,15 @@ import styles from './Dialog.module.css';
 
 type DialogProps = Omit<
   ComponentProps<'dialog'>,
-  'open' | 'onClose' | 'title' | 'children' | 'ref' | 'onCancel' | 'onClick' | 'aria-labelledby'
+  | 'open'
+  | 'onClose'
+  | 'title'
+  | 'children'
+  | 'ref'
+  | 'onCancel'
+  | 'onClick'
+  | 'onPointerDown'
+  | 'aria-labelledby'
 > & {
   open: boolean;
   onClose: () => void;
@@ -15,6 +23,7 @@ type DialogProps = Omit<
   ref?: never;
   onCancel?: never;
   onClick?: never;
+  onPointerDown?: never;
   'aria-labelledby'?: never;
 };
 
@@ -32,6 +41,7 @@ export function Dialog({
   ...rest
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const pressedBackdrop = useRef(false);
   const titleId = useId();
 
   useEffect(() => {
@@ -55,8 +65,17 @@ export function Dialog({
         event.preventDefault();
         onClose();
       }}
+      onClose={() => {
+        if (open) onClose();
+      }}
+      onPointerDown={(event) => {
+        pressedBackdrop.current = event.target === event.currentTarget;
+      }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        // A press that starts inside and is released over the backdrop also targets the dialog.
+        const onBackdrop = pressedBackdrop.current && event.target === event.currentTarget;
+        pressedBackdrop.current = false;
+        if (onBackdrop) onClose();
       }}
     >
       {open && (

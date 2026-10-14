@@ -16,6 +16,15 @@ HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
   this.open = false;
   this.dispatchEvent(new Event('close'));
 };
+// jsdom does not submit forms; a `method="dialog"` submission closes its dialog.
+document.addEventListener('submit', (event) => {
+  const form = event.target;
+  if (event.defaultPrevented || !(form instanceof HTMLFormElement) || form.method !== 'dialog') {
+    return;
+  }
+  event.preventDefault();
+  form.closest('dialog')?.close();
+});
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
