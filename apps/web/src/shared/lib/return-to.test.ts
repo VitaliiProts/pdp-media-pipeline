@@ -16,6 +16,12 @@ describe('return address after sign-in', () => {
     ['/LOGIN?next=/jobs', DEFAULT_RETURN_TO],
     ['/Login', DEFAULT_RETURN_TO],
     ['/login#x', DEFAULT_RETURN_TO],
+    ['/.//evil.example', DEFAULT_RETURN_TO],
+    ['/a/..//evil.example', DEFAULT_RETURN_TO],
+    ['/%2e//evil.example', DEFAULT_RETURN_TO],
+    ['/%6Cogin', DEFAULT_RETURN_TO],
+    ['/%E0%A4%A', DEFAULT_RETURN_TO],
+    ['/jobs/./x', '/jobs/x'],
   ])('%s → %s', (raw, expected) => {
     expect(safeReturnTo(raw)).toBe(expected);
   });
