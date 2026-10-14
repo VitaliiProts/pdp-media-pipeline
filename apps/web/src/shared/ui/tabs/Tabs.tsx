@@ -23,7 +23,8 @@ type TabsProps = Omit<ComponentProps<'div'>, 'children' | 'onSelect'> & {
 export function Tabs({ label, items, selectedId, onSelect, className, ...rest }: TabsProps) {
   const baseId = useId();
   const [ownSelectedId, setOwnSelectedId] = useState(items[0]?.id);
-  const current = selectedId ?? ownSelectedId;
+  const requested = selectedId ?? ownSelectedId;
+  const current = items.some((item) => item.id === requested) ? requested : items[0]?.id;
   const tabs = useRef(new Map<string, HTMLButtonElement>());
 
   const select = (id: string) => {

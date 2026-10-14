@@ -26,9 +26,24 @@
   color: var(--ink);
 }
 
+/* The scrolling list clips anything outside it, so the ring goes inside the tab. */
+.tab:focus-visible {
+  outline-offset: -3px;
+}
+
 .tab[aria-selected='true'] {
   border-bottom-color: var(--ink);
   color: var(--ink);
+}
+
+@media (forced-colors: active) {
+  .tab {
+    border-bottom-color: Canvas;
+  }
+
+  .tab[aria-selected='true'] {
+    border-bottom-color: CanvasText;
+  }
 }
 
 .panel {
