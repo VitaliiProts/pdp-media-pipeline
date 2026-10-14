@@ -12,21 +12,25 @@ type PageHeadingProps = Omit<ComponentProps<'h1'>, 'children' | 'ref' | 'tabInde
 };
 
 /**
- * The page's `h1`. It names the browser tab and, after client-side navigation,
- * takes focus, so screen readers notice the new page. The first render keeps
- * focus where the browser put it.
+ * The page's `h1`. It names the browser tab and, after client-side navigation
+ * to another path, takes focus, so screen readers notice the new page. The first
+ * render keeps focus where the browser put it.
  */
 export function PageHeading({ children, className, ...rest }: PageHeadingProps) {
   const ref = useRef<HTMLHeadingElement>(null);
-  const { key } = useLocation();
+  const focusedPathname = useRef<string | null>(null);
+  const { key, pathname } = useLocation();
 
   useEffect(() => {
     document.title = `${children} — ${APP_NAME}`;
   }, [children]);
 
   useEffect(() => {
+    // Query-only navigations (filters) keep the focus on the control that caused them.
+    if (focusedPathname.current === pathname) return;
+    focusedPathname.current = pathname;
     if (key !== 'default') ref.current?.focus();
-  }, [key]);
+  }, [key, pathname]);
 
   return (
     <h1 {...rest} ref={ref} tabIndex={-1} className={cx(styles.heading, className)}>

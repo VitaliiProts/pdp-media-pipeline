@@ -2,16 +2,24 @@ import { act, render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { PageHeading } from './PageHeading';
 
-function renderPages() {
+function renderPages(initialEntry = '/library') {
   const router = createMemoryRouter(
     [
       {
         path: '/library',
         element: <PageHeading>Library</PageHeading>,
       },
-      { path: '/jobs', element: <PageHeading>Jobs</PageHeading> },
+      {
+        path: '/jobs',
+        element: (
+          <>
+            <PageHeading>Jobs</PageHeading>
+            <button type="button">Status</button>
+          </>
+        ),
+      },
     ],
-    { initialEntries: ['/library'] },
+    { initialEntries: [initialEntry] },
   );
   render(<RouterProvider router={router} />);
   return router;
@@ -33,6 +41,39 @@ describe('PageHeading', () => {
     });
     expect(screen.getByRole('heading', { level: 1, name: 'Jobs' })).toHaveFocus();
     expect(document.title).toBe('Jobs — PDP Media Pipeline');
+  });
+
+  it('keeps focus where it is when only the query changes', async () => {
+    const router = renderPages();
+    await act(async () => {
+      await router.navigate('/jobs');
+    });
+    expect(screen.getByRole('heading', { level: 1, name: 'Jobs' })).toHaveFocus();
+
+    const status = screen.getByRole('button', { name: 'Status' });
+    act(() => {
+      status.focus();
+    });
+    await act(async () => {
+      await router.navigate('/jobs?status=dead');
+    });
+    expect(status).toHaveFocus();
+    await act(async () => {
+      await router.navigate('/jobs?status=failed', { replace: true });
+    });
+    expect(status).toHaveFocus();
+  });
+
+  it('keeps focus where it is when the query changes on the first page', async () => {
+    const router = renderPages('/jobs');
+    const status = screen.getByRole('button', { name: 'Status' });
+    act(() => {
+      status.focus();
+    });
+    await act(async () => {
+      await router.navigate('/jobs?status=dead', { replace: true });
+    });
+    expect(status).toHaveFocus();
   });
 
   it('passes native props through and merges the class name', () => {
