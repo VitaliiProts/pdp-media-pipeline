@@ -19,7 +19,7 @@ describe('Button', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Plain' }));
     expect(onSubmit).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledOnce();
   });
 
   it('ignores clicks while busy but stays focusable', async () => {

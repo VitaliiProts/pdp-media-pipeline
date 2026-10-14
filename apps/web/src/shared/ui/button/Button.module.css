@@ -94,6 +94,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .button[aria-busy='true']::before {
-    animation-duration: 2.4s;
+    animation: none;
   }
 }
