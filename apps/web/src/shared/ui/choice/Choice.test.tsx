@@ -32,4 +32,17 @@ describe('choices', () => {
     expect(screen.getByRole('radio', { name: 'Transcode' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Frames' })).not.toBeChecked();
   });
+
+  it('passes native fieldset props to the group', () => {
+    render(
+      <ChoiceGroup legend="Sizes" className="extra" id="sizes" disabled>
+        <Checkbox label="Thumbnail" />
+      </ChoiceGroup>,
+    );
+    const group = screen.getByRole('group', { name: 'Sizes' });
+    expect(group).toHaveAttribute('id', 'sizes');
+    expect(group).toHaveClass('extra');
+    expect(group.classList.length).toBeGreaterThan(1);
+    expect(screen.getByRole('checkbox', { name: /Thumbnail/ })).toBeDisabled();
+  });
 });
