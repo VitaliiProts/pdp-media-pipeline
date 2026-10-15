@@ -22,7 +22,7 @@ export function AppLayout() {
 
   const handleStarted = (count: number) => {
     if (pathname !== '/library') {
-      headingTo('/library');
+      headingTo({ pathname: '/library', search: '' });
       void navigate('/library');
     }
     toast({ tone: 'progress', message: t('upload.started', { count }) });

@@ -1,10 +1,10 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 import { useLiveAssets } from '../../features/assets';
-import { selectUploads, useOpenUpload } from '../../features/upload';
+import { selectUploads, uploadsListed, useOpenUpload } from '../../features/upload';
 import { retryAfterOf } from '../../shared/api/http';
-import { useAppSelector } from '../../shared/lib/redux';
+import { useAppDispatch, useAppSelector } from '../../shared/lib/redux';
 import { Button } from '../../shared/ui/button/Button';
 import { PageHeading } from '../../shared/ui/page-heading/PageHeading';
 import { Skeleton } from '../../shared/ui/skeleton/Skeleton';
@@ -14,7 +14,7 @@ import { VisuallyHidden } from '../../shared/ui/visually-hidden/VisuallyHidden';
 import styles from './LibraryPage.module.css';
 import { useLibraryParams } from './lib/use-library-params';
 import { useNextPageA11y } from './lib/use-next-page-a11y';
-import { pendingUploads } from './model/pending-uploads';
+import { awaitedJobIds, newlyListedJobIds, pendingUploads } from './model/pending-uploads';
 import { AssetTile } from './ui/AssetTile';
 import { LibraryFilters } from './ui/LibraryFilters';
 import { LoadMore } from './ui/LoadMore';
@@ -30,13 +30,11 @@ export function LibraryPage() {
   const [filters, setFilters] = useLibraryParams();
   const searchRef = useRef<HTMLInputElement>(null);
   const isFiltered = filters.kind !== null || filters.status !== null || filters.q !== '';
+  const dispatch = useAppDispatch();
   const uploads = useAppSelector(selectUploads);
   // Local tiles only without filters: whether a file will match them is not known yet.
-  const awaitedJobIds = useMemo(
-    () => (isFiltered ? [] : uploads.flatMap((u) => (u.phase === 'submitted' ? [u.jobId] : []))),
-    [isFiltered, uploads],
-  );
-  const assets = useLiveAssets(filters, { awaitedJobIds });
+  const awaited = useMemo(() => (isFiltered ? [] : awaitedJobIds(uploads)), [isFiltered, uploads]);
+  const assets = useLiveAssets(filters, { awaitedJobIds: awaited });
   // `currentData`, not `data`: after a filter change the old results must not stand in for the new.
   const pages = assets.currentData?.pages;
   const items = useMemo(() => pages?.flatMap((page) => page.items) ?? [], [pages]);
@@ -44,6 +42,10 @@ export function LibraryPage() {
     () => (isFiltered ? [] : pendingUploads(uploads, items)),
     [isFiltered, uploads, items],
   );
+  const newlyListed = useMemo(() => newlyListedJobIds(uploads, items), [uploads, items]);
+  useEffect(() => {
+    if (newlyListed.length > 0) dispatch(uploadsListed(newlyListed));
+  }, [newlyListed, dispatch]);
   const linkState = useMemo(() => ({ librarySearch: search }), [search]);
 
   const gridRef = useRef<HTMLUListElement>(null);
@@ -121,7 +123,7 @@ export function LibraryPage() {
         <ul ref={gridRef} className={styles.grid}>
           {pending.map((upload) => (
             <li key={upload.id}>
-              <UploadTile upload={upload} />
+              <UploadTile upload={upload} fallbackFocusRef={searchRef} />
             </li>
           ))}
           {items.map((asset) => (

@@ -1,7 +1,12 @@
-import { useId } from 'react';
+import { type RefObject, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { STATUS_LABEL_KEY, STATUS_TONE } from '../../../features/jobs';
-import { dismissUpload, type Upload, type UploadProblem } from '../../../features/upload';
+import {
+  Countdown,
+  dismissUpload,
+  type Upload,
+  type UploadProblem,
+} from '../../../features/upload';
 import { useAppDispatch } from '../../../shared/lib/redux';
 import { Badge } from '../../../shared/ui/badge/Badge';
 import { Button } from '../../../shared/ui/button/Button';
@@ -21,8 +26,19 @@ const PROBLEM_KEY = {
   quotaExceeded: 'problem.quotaExceeded',
 } as const satisfies Record<UploadProblem, string>;
 
+const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+const firstFocusable = (element: Element | null | undefined) =>
+  element?.querySelector<HTMLElement>(FOCUSABLE) ?? null;
+
+type UploadTileProps = {
+  upload: Upload;
+  /** Takes focus when a removed tile leaves no neighbour to move on to. */
+  fallbackFocusRef: RefObject<HTMLElement | null>;
+};
+
 /** A file of this tab that the server list does not show yet. */
-export function UploadTile({ upload }: { upload: Upload }) {
+export function UploadTile({ upload, fallbackFocusRef }: UploadTileProps) {
   const { t } = useTranslation('workspace');
   const { t: tJobs } = useTranslation('jobs');
   const { t: tAssets } = useTranslation('assets');
@@ -32,14 +48,23 @@ export function UploadTile({ upload }: { upload: Upload }) {
   const status = (() => {
     switch (upload.phase) {
       case 'uploading':
-        return <Progress label={t('stage.uploading')} value={upload.progress} />;
+        return (
+          <Progress
+            label={t('stage.uploading')}
+            value={upload.progress}
+            aria-describedby={nameId}
+          />
+        );
       case 'creating':
         return <Badge tone="progress">{t('stage.creating')}</Badge>;
       case 'waiting':
         return (
-          <Badge tone="warning">
-            {t(upload.reason === 'rateLimited' ? 'stage.waitingRateLimit' : 'stage.waitingQueue')}
-          </Badge>
+          <>
+            <Badge tone="warning">
+              {t(upload.reason === 'rateLimited' ? 'stage.waitingRateLimit' : 'stage.waitingQueue')}
+            </Badge>
+            <Countdown until={upload.retryAt} />
+          </>
         );
       case 'submitted':
         return <Badge tone={STATUS_TONE.queued}>{tJobs(STATUS_LABEL_KEY.queued)}</Badge>;
@@ -52,9 +77,16 @@ export function UploadTile({ upload }: { upload: Upload }) {
               size="sm"
               variant="quiet"
               aria-describedby={nameId}
-              onClick={() =>
-                dispatch(dismissUpload({ id: upload.id, previewUrl: upload.previewUrl }))
-              }
+              onClick={(event) => {
+                // The button leaves with its tile; a neighbour carries on, then the search.
+                const item = event.currentTarget.closest('li');
+                const next =
+                  firstFocusable(item?.nextElementSibling) ??
+                  firstFocusable(item?.previousElementSibling) ??
+                  fallbackFocusRef.current;
+                next?.focus();
+                dispatch(dismissUpload({ id: upload.id, previewUrl: upload.previewUrl }));
+              }}
             >
               {tAssets('upload.remove')}
             </Button>

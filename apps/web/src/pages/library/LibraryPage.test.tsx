@@ -1,6 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { type AssetSummary, LIVE_POLL_MS } from '../../features/assets';
+import { uploadsSlice } from '../../features/upload';
 import { formatBytes } from '../../shared/lib/format-bytes';
 import { testAsset } from '../../test/fixtures';
 import { FakeIntersectionObserver } from '../../test/intersection-observer';
@@ -27,6 +28,14 @@ function listAssets(items: AssetSummary[] = []) {
     }),
   );
   return requests;
+}
+
+async function uploadFiles(user: ReturnType<typeof renderApp>['user'], files: File[]) {
+  await user.click(await screen.findByRole('button', { name: 'Upload' }));
+  await user.upload(
+    screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+    files,
+  );
 }
 
 describe('library', () => {
@@ -114,6 +123,71 @@ describe('library', () => {
     await user.click(await screen.findByRole('button', { name: 'Remove' }));
     expect(screen.queryByText('empty.png')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /harbour\.jpg/ })).toBeInTheDocument();
+  });
+
+  it('counts down on the tile of an upload that waits for the gateway', async () => {
+    let calls = 0;
+    server.use(
+      http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null })),
+      http.post('/v1/uploads', () =>
+        ++calls === 1
+          ? new HttpResponse(null, { status: 429, headers: { 'Retry-After': '1' } })
+          : HttpResponse.json(
+              { code: 'STORAGE_QUOTA_EXCEEDED', message: 'quota' },
+              { status: 413 },
+            ),
+      ),
+    );
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await uploadFiles(user, [new File([new Uint8Array(64)], 'busy.png', { type: 'image/png' })]);
+
+    const tile = (await screen.findByText('Rate limited, waiting')).closest('li');
+    if (!tile) throw new Error('tile not found');
+    expect(within(tile).getByRole('timer')).toHaveTextContent(/retry in \d s/);
+    // The retry comes back refused for good, which ends the upload.
+    expect(
+      await screen.findByText(
+        'Storage is full. Delete files you no longer need.',
+        {},
+        { timeout: 4000 },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('moves focus on to the next tile when a failed upload is removed', async () => {
+    listAssets([testAsset()]);
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await screen.findByRole('link', { name: /harbour\.jpg/ });
+    await uploadFiles(user, [
+      new File([], 'one.png', { type: 'image/png' }),
+      new File([], 'two.png', { type: 'image/png' }),
+    ]);
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2));
+    const [first, second] = screen.getAllByRole('button', { name: 'Remove' });
+    if (!first || !second) throw new Error('buttons not found');
+
+    await user.click(first);
+    expect(second).toHaveFocus();
+    await user.click(second);
+    expect(screen.getByRole('link', { name: /harbour\.jpg/ })).toHaveFocus();
+  });
+
+  it('moves focus back to the previous tile, then to the search, as failed uploads go', async () => {
+    listAssets();
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await screen.findByRole('heading', { name: 'Your files will live here' });
+    await uploadFiles(user, [
+      new File([], 'one.png', { type: 'image/png' }),
+      new File([], 'two.png', { type: 'image/png' }),
+    ]);
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2));
+    const [first, last] = screen.getAllByRole('button', { name: 'Remove' });
+    if (!first || !last) throw new Error('buttons not found');
+
+    await user.click(last);
+    expect(first).toHaveFocus();
+    await user.click(first);
+    expect(screen.getByRole('searchbox', { name: 'Search by name' })).toHaveFocus();
   });
 
   it('offers to reset filters that match nothing', async () => {
@@ -357,6 +431,45 @@ describe('live library', () => {
     expect(await screen.findByText('Processing')).toBeInTheDocument();
     await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS));
     expect(await screen.findByText('Done')).toBeInTheDocument();
+    const settled = calls;
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS * 3));
+    expect(calls).toBe(settled);
+  });
+
+  it('polls until the file of an upload shows up, then stops', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+    const jobId = 'b0000000-0000-4000-8000-000000000009';
+    let calls = 0;
+    server.use(
+      http.get('/v1/assets', () => {
+        calls += 1;
+        const listed = testAsset({
+          latestJob: { id: jobId, type: 'image.resize', status: 'succeeded' },
+        });
+        return HttpResponse.json({ items: calls === 1 ? [] : [listed], nextCursor: null });
+      }),
+    );
+    const { store } = renderApp({ signedIn: true, route: '/library' });
+    const { uploadStarted, uploadSubmitted } = uploadsSlice.actions;
+    act(() => {
+      store.dispatch(
+        uploadStarted({
+          id: 'u1',
+          fileName: 'new.png',
+          kind: 'image',
+          previewUrl: 'blob:new',
+          createdAt: 1,
+        }),
+      );
+      store.dispatch(uploadSubmitted({ id: 'u1', jobId }));
+    });
+
+    expect(await screen.findByText('new.png')).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS / 2));
+    expect(calls).toBe(1);
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS / 2));
+    expect(await screen.findByRole('link', { name: /harbour\.jpg/ })).toBeInTheDocument();
+    expect(screen.queryByText('new.png')).not.toBeInTheDocument();
     const settled = calls;
     await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS * 3));
     expect(calls).toBe(settled);

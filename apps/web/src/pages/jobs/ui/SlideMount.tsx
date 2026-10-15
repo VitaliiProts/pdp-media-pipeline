@@ -1,7 +1,12 @@
 import { type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type JobResult, type VideoFrame } from '../../../features/jobs';
-import { IMAGE_PRESETS, type ImagePreset, PRESET_LABEL_KEY } from '../../../features/upload';
+import {
+  Countdown,
+  IMAGE_PRESETS,
+  type ImagePreset,
+  PRESET_LABEL_KEY,
+} from '../../../features/upload';
 import { formatBytes } from '../../../shared/lib/format-bytes';
 import { Badge } from '../../../shared/ui/badge/Badge';
 import { Button } from '../../../shared/ui/button/Button';
@@ -9,7 +14,6 @@ import { Progress } from '../../../shared/ui/progress/Progress';
 import { type Tone } from '../../../shared/ui/tone';
 import { type ItemDescription, type ItemTone } from '../model/describe-item';
 import { formatTimecode } from '../model/timecode';
-import { Countdown } from './Countdown';
 import styles from './SlideMount.module.css';
 
 type SlideMountProps = {

@@ -190,6 +190,20 @@ describe('upload dialog', () => {
     expect(message.closest('[aria-live]')).toHaveAttribute('aria-live', 'assertive');
   });
 
+  it('alerts about a failure on a filtered library, which shows no upload tiles', async () => {
+    server.use(http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null })));
+    const { user, router } = renderApp({ signedIn: true, route: '/library?kind=video' });
+    await user.click(await screen.findByRole('button', { name: 'Upload' }));
+    await user.upload(
+      screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+      new File([], 'empty.png', { type: 'image/png' }),
+    );
+
+    const message = await screen.findByText('empty.png was not uploaded.');
+    expect(message.closest('[aria-live]')).toHaveAttribute('aria-live', 'assertive');
+    expect(router.state.location.search).toBe('?kind=video');
+  });
+
   it('shows on the tile when storage is full', async () => {
     server.use(
       http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null })),

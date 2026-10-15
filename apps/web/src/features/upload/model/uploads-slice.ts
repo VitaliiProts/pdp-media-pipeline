@@ -24,7 +24,8 @@ export type Upload = {
   | { phase: 'creating' }
   /** The gateway asked to come back later; the same step is retried at `retryAt`. */
   | { phase: 'waiting'; reason: WaitReason; retryAt: number }
-  | { phase: 'submitted'; jobId: string }
+  /** `listed` once the library has shown the file the job made; it is no longer awaited there. */
+  | { phase: 'submitted'; jobId: string; listed?: boolean }
   | { phase: 'failed'; problem: UploadProblem; detail: string | null }
 );
 
@@ -87,6 +88,13 @@ export const uploadsSlice = createSlice({
       const { id, problem, detail } = action.payload;
       moveTo(state, id, (base) => ({ ...base, phase: 'failed', problem, detail }));
     },
+    /** The library listed files made by these jobs. */
+    uploadsListed(state, action: PayloadAction<readonly string[]>) {
+      const jobIds = new Set(action.payload);
+      for (const upload of Object.values(state.entities)) {
+        if (upload?.phase === 'submitted' && jobIds.has(upload.jobId)) upload.listed = true;
+      }
+    },
     uploadDismissed(state, action: PayloadAction<string>) {
       adapter.removeOne(state, action.payload);
     },
@@ -106,6 +114,7 @@ export const {
   uploadFailed,
   uploadDismissed,
   uploadsCleared,
+  uploadsListed,
 } = uploadsSlice.actions;
 
 const selectors = adapter.getSelectors(
