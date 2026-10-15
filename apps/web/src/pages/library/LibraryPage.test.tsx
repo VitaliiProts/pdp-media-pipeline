@@ -1,8 +1,9 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { type AssetSummary } from '../../features/assets';
 import { formatBytes } from '../../shared/lib/format-bytes';
 import { testAsset } from '../../test/fixtures';
+import { FakeIntersectionObserver } from '../../test/intersection-observer';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 
@@ -127,5 +128,66 @@ describe('library', () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('link', { name: /harbour\.jpg/ })).toBeInTheDocument();
+  });
+});
+
+describe('library pages', () => {
+  beforeEach(() => vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    FakeIntersectionObserver.reset();
+  });
+
+  const SECOND = testAsset({ id: 'a0000000-0000-4000-8000-000000000003', name: 'dunes.jpg' });
+
+  function twoPages(
+    nextPage: () => Response | Promise<Response> = () =>
+      HttpResponse.json({ items: [SECOND], nextCursor: null }),
+  ) {
+    server.use(
+      http.get('/v1/assets', ({ request }) =>
+        new URL(request.url).searchParams.get('cursor') === 'c1'
+          ? nextPage()
+          : HttpResponse.json({ items: [testAsset()], nextCursor: 'c1' }),
+      ),
+    );
+  }
+
+  it('loads the next page from the button and says how many files came', async () => {
+    twoPages();
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+
+    expect(await screen.findByRole('link', { name: /dunes\.jpg/ })).toBeInTheDocument();
+    expect(screen.getByText('Added 1 more file.').closest('[aria-live]')).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
+  });
+
+  it('loads the next page when the end of the grid scrolls into view', async () => {
+    twoPages();
+    renderApp({ signedIn: true, route: '/library' });
+    await screen.findByRole('button', { name: 'Show more' });
+
+    act(() => FakeIntersectionObserver.latest()?.reveal());
+    expect(await screen.findByRole('link', { name: /dunes\.jpg/ })).toBeInTheDocument();
+  });
+
+  it('keeps what it has when the next page fails, and tries again', async () => {
+    let failed = false;
+    twoPages(() => {
+      if (failed) return HttpResponse.json({ items: [SECOND], nextCursor: null });
+      failed = true;
+      return HttpResponse.json({ message: 'down' }, { status: 500 });
+    });
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+
+    expect(await screen.findByText('Could not load more files.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /harbour\.jpg/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('link', { name: /dunes\.jpg/ })).toBeInTheDocument();
   });
 });

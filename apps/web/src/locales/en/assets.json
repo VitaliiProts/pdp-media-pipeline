@@ -20,7 +20,14 @@
     "upload": "Upload a file",
     "noMatchesTitle": "Nothing found",
     "noMatchesBody": "No file matches these filters.",
-    "resetFilters": "Reset filters"
+    "resetFilters": "Reset filters",
+    "more": {
+      "label": "Show more",
+      "failed": "Could not load more files.",
+      "retry": "Try again",
+      "added_one": "Added {{count}} more file.",
+      "added_other": "Added {{count}} more files."
+    }
   },
   "tile": {
     "untitled": "Untitled file",

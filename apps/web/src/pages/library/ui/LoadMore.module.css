@@ -1,0 +1,16 @@
+.more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sentinel {
+  width: 100%;
+  height: 1px;
+}
+
+.failed {
+  margin: 0;
+  color: var(--graphite);
+}

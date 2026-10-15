@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 import { useListAssetsInfiniteQuery } from '../../features/assets';
@@ -9,10 +9,12 @@ import { PageHeading } from '../../shared/ui/page-heading/PageHeading';
 import { Skeleton } from '../../shared/ui/skeleton/Skeleton';
 import { EmptyState } from '../../shared/ui/state/EmptyState';
 import { ErrorState } from '../../shared/ui/state/ErrorState';
+import { VisuallyHidden } from '../../shared/ui/visually-hidden/VisuallyHidden';
 import styles from './LibraryPage.module.css';
 import { useLibraryParams } from './lib/use-library-params';
 import { AssetTile } from './ui/AssetTile';
 import { LibraryFilters } from './ui/LibraryFilters';
+import { LoadMore } from './ui/LoadMore';
 
 const SKELETON_TILES = 8;
 
@@ -28,6 +30,21 @@ export function LibraryPage() {
   const pages = assets.currentData?.pages;
   const items = useMemo(() => pages?.flatMap((page) => page.items) ?? [], [pages]);
   const linkState = useMemo(() => ({ librarySearch: search }), [search]);
+
+  const pageCount = pages?.length ?? 0;
+  const [announced, setAnnounced] = useState({ pageCount, message: '' });
+  // A new page arrived (polling refetches keep the count): say how many files it added.
+  if (pageCount !== announced.pageCount) {
+    const added =
+      pageCount > announced.pageCount && pageCount > 1 ? (pages?.at(-1)?.items.length ?? 0) : 0;
+    setAnnounced({
+      pageCount,
+      message: added > 0 ? t('library.more.added', { count: added }) : '',
+    });
+  }
+
+  const { fetchNextPage } = assets;
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
 
   const content = (() => {
     if (!pages) {
@@ -85,13 +102,22 @@ export function LibraryPage() {
       );
     }
     return (
-      <ul className={styles.grid}>
-        {items.map((asset) => (
-          <li key={asset.id}>
-            <AssetTile asset={asset} linkState={linkState} />
-          </li>
-        ))}
-      </ul>
+      <>
+        <ul className={styles.grid}>
+          {items.map((asset) => (
+            <li key={asset.id}>
+              <AssetTile asset={asset} linkState={linkState} />
+            </li>
+          ))}
+        </ul>
+        {assets.hasNextPage && (
+          <LoadMore
+            isLoading={assets.isFetchingNextPage}
+            failed={assets.isFetchNextPageError}
+            onLoad={loadMore}
+          />
+        )}
+      </>
     );
   })();
 
@@ -100,6 +126,10 @@ export function LibraryPage() {
       <PageHeading>{t('library.title')}</PageHeading>
       <LibraryFilters filters={filters} onChange={setFilters} />
       {content}
+      <VisuallyHidden aria-live="polite">
+        {/* A new node per page: the same text twice in a row would not be read again. */}
+        <span key={announced.pageCount}>{announced.message}</span>
+      </VisuallyHidden>
     </div>
   );
 }
