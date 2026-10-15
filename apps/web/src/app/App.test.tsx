@@ -38,7 +38,7 @@ describe('API key gate', () => {
     );
     const { user } = renderApp();
 
-    await user.type(screen.getByLabelText('API key'), `  ${TEST_API_KEY} `);
+    await user.type(await screen.findByLabelText('API key'), `  ${TEST_API_KEY} `);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(await screen.findByText(/No jobs yet/)).toBeInTheDocument();
@@ -206,13 +206,13 @@ describe('jobs sheet', () => {
         return HttpResponse.json({ items: [], nextCursor: null });
       }),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user, router } = renderApp({ apiKey: TEST_API_KEY });
     await screen.findByText(/No jobs yet/);
 
     await user.click(screen.getByRole('button', { name: 'Gave up' }));
 
     expect(await screen.findByText('No jobs with this status.')).toBeInTheDocument();
-    expect(window.location.search).toBe('?status=dead');
+    expect(router.state.location.search).toBe('?status=dead');
     expect(statuses).toContain('dead');
   });
 });
@@ -477,9 +477,6 @@ describe('webhooks', () => {
     ...overrides,
   });
 
-  beforeEach(() => window.history.replaceState(null, '', '/?view=webhooks'));
-  afterEach(() => window.history.replaceState(null, '', '/'));
-
   it('adds an endpoint and shows its secret once', async () => {
     let endpoints: (typeof ENDPOINT)[] = [];
     let body: unknown = null;
@@ -494,7 +491,7 @@ describe('webhooks', () => {
         HttpResponse.json({ items: [], nextCursor: null }),
       ),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
     expect(await screen.findByText(/No endpoints yet/)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/URL that receives/), ENDPOINT.url);
@@ -519,7 +516,7 @@ describe('webhooks', () => {
         ),
       ),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
 
     await user.type(await screen.findByLabelText(/URL that receives/), 'http://10.0.0.1/hook');
     await user.click(screen.getByRole('button', { name: 'Add endpoint' }));
@@ -546,7 +543,7 @@ describe('webhooks', () => {
         });
       }),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
 
     const row = (await screen.findByText('msg_abc')).closest('tr');
     if (!row) throw new Error('row not found');
@@ -557,22 +554,6 @@ describe('webhooks', () => {
 
     await waitFor(() => expect(screen.getByText('Waiting')).toBeInTheDocument());
     expect(redriven).toBe(true);
-  });
-
-  it('switches views through the header and keeps the choice in the URL', async () => {
-    server.use(
-      listJobs([]),
-      http.get('/v1/webhooks', () => HttpResponse.json({ items: [] })),
-    );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
-    await screen.findByText(/No endpoints yet/);
-
-    await user.click(screen.getByRole('button', { name: 'Jobs' }));
-    expect(await screen.findByText(/No jobs yet/)).toBeInTheDocument();
-    expect(window.location.search).toBe('');
-
-    await user.click(screen.getByRole('button', { name: 'Webhooks' }));
-    expect(window.location.search).toBe('?view=webhooks');
   });
 });
 

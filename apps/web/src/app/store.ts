@@ -38,8 +38,13 @@ export function createStore(storage: Storage = window.localStorage) {
 
   configureHttp({
     getApiKey: () => selectApiKey(store.getState()),
-    onUnauthorized: () => {
-      if (selectApiKey(store.getState())) store.dispatch(apiKeyRejected());
+    onUnauthorized: (sentKey) => {
+      // A late 401 for a key that has since been replaced says nothing about the current one.
+      if (sentKey !== null && sentKey === selectApiKey(store.getState())) {
+        store.dispatch(apiKeyRejected());
+      }
+      // A session that expired mid-work: the shell re-checks and sends the user to sign in.
+      store.dispatch(baseApi.util.invalidateTags(['Me']));
     },
   });
 

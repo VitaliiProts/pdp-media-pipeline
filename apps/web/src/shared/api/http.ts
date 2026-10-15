@@ -11,7 +11,8 @@ export type AppError =
 
 interface HttpHooks {
   getApiKey: () => string | null;
-  onUnauthorized: () => void;
+  /** `sentKey` is the key the rejected request carried, which may no longer be the current one. */
+  onUnauthorized: (sentKey: string | null) => void;
 }
 
 let hooks: HttpHooks = { getApiKey: () => null, onUnauthorized: () => undefined };
@@ -32,7 +33,10 @@ http.interceptors.request.use((config) => {
 });
 
 http.interceptors.response.use(undefined, (error: unknown) => {
-  if (isAxiosError(error) && error.response?.status === 401) hooks.onUnauthorized();
+  if (isAxiosError(error) && error.response?.status === 401) {
+    const sentKey = error.config?.headers.get(API_KEY_HEADER);
+    hooks.onUnauthorized(typeof sentKey === 'string' ? sentKey : null);
+  }
   throw error;
 });
 

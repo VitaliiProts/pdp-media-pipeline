@@ -1,6 +1,9 @@
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../../../shared/lib/redux';
+import { Button } from '../../../shared/ui/button/Button';
+import { Field } from '../../../shared/ui/field/Field';
+import { Input } from '../../../shared/ui/field/Input';
 import { apiKeySaved, selectApiKeyWasRejected } from '../model/api-key-slice';
 import styles from './ApiKeyForm.module.css';
 
@@ -11,8 +14,6 @@ export function ApiKeyForm() {
   const dispatch = useAppDispatch();
   const wasRejected = useAppSelector(selectApiKeyWasRejected);
   const [value, setValue] = useState('');
-  const inputId = useId();
-  const hintId = useId();
   const canSubmit = value.trim().length > 0;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -21,39 +22,35 @@ export function ApiKeyForm() {
   };
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit} aria-describedby={hintId}>
-      <h1 className={styles.title}>{t('title')}</h1>
+    <form className={styles.form} onSubmit={handleSubmit}>
       <p className={styles.lead}>{t('lead')}</p>
-
-      <label className={styles.label} htmlFor={inputId}>
-        {t('label')}
-      </label>
-      <div className={styles.row}>
-        <input
-          id={inputId}
-          className={styles.input}
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          placeholder="pdp_…"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          aria-invalid={wasRejected}
-        />
-        <button className={styles.submit} type="submit" disabled={!canSubmit}>
-          {t('submit')}
-        </button>
-      </div>
-      {wasRejected && (
-        <p className={styles.error} role="alert">
-          {t('rejected')}
-        </p>
-      )}
-
-      <div id={hintId} className={styles.hint}>
-        <p>{t('hint')}</p>
-        <code className={styles.command}>{SEED_COMMAND}</code>
-      </div>
+      <Field
+        label={t('label')}
+        error={wasRejected ? <span role="alert">{t('rejected')}</span> : undefined}
+        hint={
+          <>
+            {t('hint')} <code className={styles.command}>{SEED_COMMAND}</code>
+          </>
+        }
+      >
+        {(control) => (
+          <div className={styles.row}>
+            <Input
+              {...control}
+              className={styles.input}
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="pdp_…"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+            />
+            <Button variant="primary" type="submit" disabled={!canSubmit}>
+              {t('submit')}
+            </Button>
+          </div>
+        )}
+      </Field>
     </form>
   );
 }

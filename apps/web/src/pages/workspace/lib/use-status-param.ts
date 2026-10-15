@@ -1,24 +1,27 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
+import { useSearchParams } from 'react-router';
 import { FILTERABLE_STATUSES, type JobStatusFilter } from '../../../features/jobs';
 
 const PARAM = 'status';
 
-const parse = (value: string | null): JobStatusFilter | null =>
-  FILTERABLE_STATUSES.find((status) => status === value) ?? null;
-
 /** Keeps the status filter in the URL, so a filtered view survives reload and can be shared. */
 export function useStatusParam(): [JobStatusFilter | null, (next: JobStatusFilter | null) => void] {
-  const [status, setStatus] = useState(() =>
-    parse(new URLSearchParams(window.location.search).get(PARAM)),
-  );
+  const [params, setParams] = useSearchParams();
+  const status = FILTERABLE_STATUSES.find((value) => value === params.get(PARAM)) ?? null;
 
-  const update = useCallback((next: JobStatusFilter | null) => {
-    const url = new URL(window.location.href);
-    if (next) url.searchParams.set(PARAM, next);
-    else url.searchParams.delete(PARAM);
-    window.history.replaceState(null, '', url);
-    setStatus(next);
-  }, []);
+  const update = useCallback(
+    (next: JobStatusFilter | null) =>
+      setParams(
+        (current) => {
+          const copy = new URLSearchParams(current);
+          if (next) copy.set(PARAM, next);
+          else copy.delete(PARAM);
+          return copy;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
 
   return [status, update];
 }
