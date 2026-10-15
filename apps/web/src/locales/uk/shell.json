@@ -2,7 +2,6 @@
   "brand": "PDP Media Pipeline",
   "skipToContent": "До вмісту",
   "loading": "Завантаження…",
-  "retry": "Спробувати ще",
   "close": "Закрити",
   "language": "Мова",
   "nav": {
@@ -30,14 +29,6 @@
     "apiDocs": "Документація API",
     "signOut": "Вийти",
     "signOutFailed": "Не вдалося вийти. Перевірте з'єднання і спробуйте ще."
-  },
-  "auth": {
-    "unavailableTitle": "Не вдалося перевірити вхід",
-    "unavailable": "Шлюз не відповів. Він запущений?",
-    "tooManyRequests_one": "Забагато запитів. Спробуйте за {{count}} с.",
-    "tooManyRequests_few": "Забагато запитів. Спробуйте за {{count}} с.",
-    "tooManyRequests_many": "Забагато запитів. Спробуйте за {{count}} с.",
-    "tooManyRequests_other": "Забагато запитів. Спробуйте за {{count}} с."
   },
   "landing": {
     "title": "Медіа-пайплайн",

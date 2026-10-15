@@ -2,7 +2,6 @@
   "brand": "PDP Media Pipeline",
   "skipToContent": "Skip to content",
   "loading": "Loading…",
-  "retry": "Try again",
   "close": "Close",
   "language": "Language",
   "nav": {
@@ -28,12 +27,6 @@
     "apiDocs": "API docs",
     "signOut": "Sign out",
     "signOutFailed": "Could not sign out. Check the connection and try again."
-  },
-  "auth": {
-    "unavailableTitle": "Could not check your sign-in",
-    "unavailable": "The gateway did not answer. Is it running?",
-    "tooManyRequests_one": "Too many requests. Try again in {{count}} second.",
-    "tooManyRequests_other": "Too many requests. Try again in {{count}} seconds."
   },
   "landing": {
     "title": "Media pipeline",
