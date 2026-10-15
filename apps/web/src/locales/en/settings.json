@@ -1,0 +1,15 @@
+{
+  "title": "Settings",
+  "profile": {
+    "title": "Profile",
+    "name": "Name",
+    "email": "Email"
+  },
+  "language": {
+    "title": "Language"
+  },
+  "apiKeys": {
+    "title": "API keys",
+    "lead": "Scripts and integrations call the API with a key instead of signing in."
+  }
+}

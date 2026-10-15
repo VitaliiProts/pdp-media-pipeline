@@ -1,0 +1,40 @@
+{
+  "list": {
+    "loading": "Loading API keys…",
+    "errorTitle": "Could not load API keys",
+    "error": "The gateway did not answer. Try again in a moment.",
+    "empty": "No keys yet. Scripts and integrations need one to call the API.",
+    "created": "Created {{date}}",
+    "lastUsed": "Last used {{date}}",
+    "neverUsed": "Never used",
+    "revoke": "Revoke",
+    "revokeLabel": "Revoke {{name}}"
+  },
+  "create": {
+    "name": "Key name",
+    "hint": "Up to {{count}} characters, e.g. ci or backup-script.",
+    "required": "Name the key, e.g. after the script that uses it.",
+    "submit": "Create key",
+    "limit": "You have reached the limit of {{count}} keys. Revoke one you no longer need.",
+    "failed": "Could not create the key. Try again."
+  },
+  "created": {
+    "title": "Your new API key",
+    "once": "Copy it now: it will not be shown again.",
+    "key": "API key",
+    "copy": "Copy",
+    "copied": "Copied.",
+    "copyManually": "The key is selected. Press Ctrl+C (⌘C on a Mac) to copy it.",
+    "example": "Try it:",
+    "done": "Done",
+    "close": "Close"
+  },
+  "revoke": {
+    "title": "Revoke {{name}}?",
+    "body": "Scripts that use this key will stop working at once.",
+    "confirm": "Revoke",
+    "cancel": "Cancel",
+    "close": "Close",
+    "failed": "Could not revoke the key. Try again."
+  }
+}

@@ -1,5 +1,6 @@
 .switch {
   display: flex;
+  width: fit-content;
   border: 1px solid var(--rule);
   border-radius: var(--radius-control);
   overflow: hidden;

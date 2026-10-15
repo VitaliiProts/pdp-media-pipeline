@@ -40,11 +40,6 @@
   "registerPage": {
     "title": "Create an account"
   },
-  "settings": {
-    "title": "Settings",
-    "emptyTitle": "Nothing to set up yet",
-    "emptyBody": "API keys and profile settings will appear here."
-  },
   "notFound": {
     "title": "Page not found",
     "body": "The address may be mistyped, or the page has moved.",
