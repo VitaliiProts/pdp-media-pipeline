@@ -19,6 +19,15 @@
   margin-right: var(--space-2);
 }
 
+.crumbs a {
+  color: inherit;
+  text-underline-offset: 0.2em;
+}
+
+.crumbs a:hover {
+  color: var(--ink);
+}
+
 .header {
   display: flex;
   flex-wrap: wrap;
@@ -49,12 +58,15 @@
   margin: 0;
 }
 
+/* A flex item stretches across the column; the image keeps its own width and ratio instead. */
 .original {
   display: block;
+  align-self: flex-start;
   width: auto;
   max-width: 100%;
   height: auto;
   max-height: 70vh;
+  object-fit: contain;
   border-radius: var(--radius-mount);
   background: var(--film);
 }

@@ -27,15 +27,17 @@ export function AssetPage() {
   const { t: tShell } = useTranslation('shell');
   const { assetId = '' } = useParams();
   const asset = useLiveAsset(assetId);
+  const status = asset.isError ? httpStatusOf(asset.error) : null;
+  // RTK keeps the last data after a failed refetch; a file deleted elsewhere must not linger.
+  const isMissing = status !== null && MISSING.includes(status);
 
-  if (asset.data) return <AssetView asset={asset.data} />;
+  if (asset.data && !isMissing) return <AssetView asset={asset.data} />;
   if (asset.isError) {
-    const status = httpStatusOf(asset.error);
     const retryAfterS = retryAfterOf(asset.error);
     return (
       <div className={styles.page}>
         <PageHeading>{t('asset.title')}</PageHeading>
-        {status !== null && MISSING.includes(status) ? (
+        {isMissing ? (
           <EmptyState
             title={t('asset.notFoundTitle')}
             action={

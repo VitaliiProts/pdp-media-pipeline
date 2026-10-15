@@ -258,6 +258,31 @@ describe('file page', () => {
     );
   });
 
+  it('says so when the file is deleted elsewhere while the page is open', async () => {
+    let gone = false;
+    server.use(
+      http.get(`/v1/assets/${ID}`, () =>
+        gone
+          ? HttpResponse.json({ message: 'not found' }, { status: 404 })
+          : HttpResponse.json(details()),
+      ),
+    );
+    const { store } = renderApp({ signedIn: true, route: `/library/${ID}` });
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'harbour.jpg' }),
+    ).toBeInTheDocument();
+
+    gone = true;
+    await act(async () => {
+      await store.dispatch(
+        assetsApi.endpoints.getAsset.initiate(ID, { subscribe: false, forceRefetch: true }),
+      );
+    });
+
+    expect(await screen.findByRole('heading', { name: 'File not found' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Download original' })).not.toBeInTheDocument();
+  });
+
   it('offers a retry when the gateway fails', async () => {
     let calls = 0;
     server.use(
@@ -489,7 +514,7 @@ describe('live file page', () => {
           details({
             ...VIDEO_BASE,
             // A visible change, so the test can tell the poll's answer has rendered.
-            size: calls * 1024 * 1024,
+            size: calls * 1_000_000,
             originalUrl: `${STORAGE_ORIGIN}/original?signature=${calls}`,
             jobs: [job({ type: 'video.transcode', status: 'running' })],
           }),
@@ -525,7 +550,7 @@ describe('live file page', () => {
         return HttpResponse.json(
           details({
             ...VIDEO_BASE,
-            size: calls * 1024 * 1024,
+            size: calls * 1_000_000,
             jobs: [
               job({ id: 'b0000000-0000-4000-8000-000000000002', status: 'running' }),
               transcoded(`?signature=${calls}`),
