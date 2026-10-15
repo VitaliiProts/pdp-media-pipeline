@@ -2,6 +2,7 @@ export {
   ASSET_LIST_TAG,
   ASSETS_PAGE_SIZE,
   assetsApi,
+  useDeleteAssetMutation,
   useGetAssetQuery,
   useListAssetsInfiniteQuery,
 } from './api/assets-api';
@@ -24,4 +25,5 @@ export {
   isActiveJobStatus,
 } from './model/types';
 export { useLiveAsset } from './model/use-live-asset';
+export { DeleteAssetButton } from './ui/DeleteAssetButton';
 export { LIVE_POLL_MS, useLiveAssets } from './model/use-live-assets';

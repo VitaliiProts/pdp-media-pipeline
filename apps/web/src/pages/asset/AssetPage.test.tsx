@@ -280,6 +280,63 @@ describe('file page', () => {
   });
 });
 
+describe('deleting a file', () => {
+  async function openDelete(status: number, body?: object) {
+    let deletes = 0;
+    serve(details());
+    server.use(
+      http.delete(`/v1/assets/${ID}`, () => {
+        deletes += 1;
+        return body ? HttpResponse.json(body, { status }) : new HttpResponse(null, { status });
+      }),
+      http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null })),
+    );
+    const view = renderApp({ signedIn: true, route: `/library/${ID}` });
+    await view.user.click(await screen.findByRole('button', { name: 'Delete harbour.jpg' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete harbour.jpg?' });
+    return { ...view, dialog, deletes: () => deletes };
+  }
+
+  it.each([204, 404])('goes back to the library once the file is gone (%i)', async (status) => {
+    const { user, router, dialog } = await openDelete(
+      status,
+      status === 404 ? { message: 'not found' } : undefined,
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/library'));
+    expect(router.state.historyAction).toBe('REPLACE');
+    expect(await screen.findByText('File deleted.')).toBeInTheDocument();
+  });
+
+  it('keeps the dialog open while a job still works on the file', async () => {
+    const { user, router, dialog } = await openDelete(409, { code: 'ASSET_BUSY', message: 'busy' });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'This file is still being processed. Try again when its job finishes.',
+    );
+    expect(dialog).toHaveAttribute('open');
+    expect(router.state.location.pathname).toBe(`/library/${ID}`);
+  });
+
+  it('says what the server said when deleting fails otherwise', async () => {
+    const { user, dialog } = await openDelete(500, { message: 'storage unavailable' });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Could not delete the file. storage unavailable',
+    );
+  });
+
+  it('cancels without deleting', async () => {
+    const { user, dialog, deletes } = await openDelete(204);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(dialog).not.toHaveAttribute('open');
+    expect(screen.getByRole('button', { name: 'Delete harbour.jpg' })).toHaveFocus();
+    expect(deletes()).toBe(0);
+  });
+});
+
 describe('live file page', () => {
   afterEach(() => vi.useRealTimers());
 

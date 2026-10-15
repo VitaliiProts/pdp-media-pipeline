@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation, useParams } from 'react-router';
-import { type AssetDetails, useLiveAsset } from '../../features/assets';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
+import { type AssetDetails, DeleteAssetButton, useLiveAsset } from '../../features/assets';
 import { httpStatusOf, retryAfterOf } from '../../shared/api/http';
 import { formatBytes } from '../../shared/lib/format-bytes';
 import { formatDuration } from '../../shared/lib/format-duration';
@@ -11,6 +11,7 @@ import { Skeleton } from '../../shared/ui/skeleton/Skeleton';
 import { EmptyState } from '../../shared/ui/state/EmptyState';
 import { ErrorState } from '../../shared/ui/state/ErrorState';
 import { Tabs } from '../../shared/ui/tabs/Tabs';
+import { useToast } from '../../shared/ui/toast/toast-context';
 import { librarySearchOf } from './lib/library-search';
 import { playableOf } from './model/versions';
 import { AssetJobs } from './ui/AssetJobs';
@@ -71,6 +72,9 @@ export function AssetPage() {
 function AssetView({ asset }: { asset: AssetDetails }) {
   const { t, i18n } = useTranslation('assets');
   const location = useLocation();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const librarySearch = librarySearchOf(location.state);
   const name = asset.name ?? t('tile.untitled');
   const uploaded = useMemo(
     () =>
@@ -80,13 +84,17 @@ function AssetView({ asset }: { asset: AssetDetails }) {
     [i18n.language, asset.createdAt],
   );
   const { renditions, poster } = playableOf(asset.jobs);
+  const handleDeleted = () => {
+    toast({ tone: 'success', message: t('delete.done') });
+    void navigate(`/library${librarySearch}`, { replace: true });
+  };
 
   return (
     <div className={styles.page}>
       <nav aria-label={t('asset.breadcrumbs')}>
         <ol className={styles.crumbs}>
           <li>
-            <Link to={`/library${librarySearchOf(location.state)}`}>{t('library.title')}</Link>
+            <Link to={`/library${librarySearch}`}>{t('library.title')}</Link>
           </li>
           <li aria-current="page">{name}</li>
         </ol>
@@ -97,6 +105,7 @@ function AssetView({ asset }: { asset: AssetDetails }) {
           <a className={buttonClass()} href={asset.originalDownloadUrl} download>
             {t('asset.downloadOriginal')}
           </a>
+          <DeleteAssetButton assetId={asset.id} name={name} onDeleted={handleDeleted} />
         </div>
       </div>
       <dl className={styles.facts}>

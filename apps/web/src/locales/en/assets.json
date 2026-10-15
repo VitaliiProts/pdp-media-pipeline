@@ -54,6 +54,18 @@
     "downloadOriginal": "Download original",
     "tabs": "File details"
   },
+  "delete": {
+    "open": "Delete",
+    "openLabel": "Delete {{name}}",
+    "title": "Delete {{name}}?",
+    "body": "The original and every version will be gone for good.",
+    "confirm": "Delete",
+    "cancel": "Cancel",
+    "close": "Close",
+    "busy": "This file is still being processed. Try again when its job finishes.",
+    "failed": "Could not delete the file.",
+    "done": "File deleted."
+  },
   "player": {
     "label": "Play {{name}}",
     "quality": "Quality",

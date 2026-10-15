@@ -1,4 +1,5 @@
 import { baseApi } from '../../../shared/api/base-api';
+import { httpStatusOf } from '../../../shared/api/http';
 import { type AssetDetails, type AssetFilters, type AssetPage } from '../model/types';
 
 export const ASSETS_PAGE_SIZE = 24;
@@ -33,7 +34,13 @@ export const assetsApi = baseApi.injectEndpoints({
       query: (id) => ({ url: `/v1/assets/${encodeURIComponent(id)}` }),
       providesTags: (_result, _error, id) => [{ type: 'Asset', id }],
     }),
+    // The file's own page is left alone: refetching it would only show a 404 on the way out.
+    deleteAsset: build.mutation<void, string>({
+      query: (id) => ({ url: `/v1/assets/${encodeURIComponent(id)}`, method: 'DELETE' }),
+      invalidatesTags: (_result, error) =>
+        error && httpStatusOf(error) !== 404 ? [] : [ASSET_LIST_TAG],
+    }),
   }),
 });
 
-export const { useGetAssetQuery, useListAssetsInfiniteQuery } = assetsApi;
+export const { useDeleteAssetMutation, useGetAssetQuery, useListAssetsInfiniteQuery } = assetsApi;
