@@ -19,7 +19,9 @@
   outline-offset: 2px;
 }
 
+/* Shown above the name, but after it in the DOM: the name leads the link's accessible name. */
 .frame {
+  order: -1;
   position: relative;
   display: grid;
   place-items: center;

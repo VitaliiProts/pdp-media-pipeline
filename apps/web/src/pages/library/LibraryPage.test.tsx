@@ -42,7 +42,8 @@ describe('library', () => {
     expect(within(photoTile).getByText('Done')).toBeInTheDocument();
     expect(within(photoTile).getByText(formatBytes(2_400_000, 'en'))).toBeInTheDocument();
 
-    const video = screen.getByRole('link', { name: /cliffs\.mp4/ });
+    // The file name leads the link's name; the type and length follow it.
+    const video = screen.getByRole('link', { name: /^cliffs\.mp4/ });
     expect(video).toHaveTextContent('Video · 0:12');
     expect(screen.getByText('Queued')).toBeInTheDocument();
   });
@@ -97,7 +98,10 @@ describe('library', () => {
     await user.click(screen.getByRole('button', { name: 'Reset filters' }));
 
     await waitFor(() => expect(router.state.location.search).toBe(''));
-    expect(screen.getByRole('searchbox', { name: 'Search by name' })).toHaveValue('');
+    const searchBox = screen.getByRole('searchbox', { name: 'Search by name' });
+    expect(searchBox).toHaveValue('');
+    // The reset button is gone with its empty state; focus goes where the user carries on.
+    expect(searchBox).toHaveFocus();
   });
 
   it('shows a skeleton first, and a way back from an error', async () => {

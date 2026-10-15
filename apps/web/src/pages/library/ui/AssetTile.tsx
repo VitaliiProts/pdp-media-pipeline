@@ -21,6 +21,9 @@ export function AssetTile({ asset, linkState }: AssetTileProps) {
   return (
     <Card className={styles.tile}>
       <Link to={`/library/${asset.id}`} state={linkState} className={styles.link}>
+        <span className={styles.name} title={name}>
+          {name}
+        </span>
         <span className={styles.frame}>
           {asset.preview ? (
             <img
@@ -43,9 +46,6 @@ export function AssetTile({ asset, linkState }: AssetTileProps) {
                 : t('tile.videoWithDuration', { duration: formatDuration(asset.durationSeconds) })}
             </span>
           )}
-        </span>
-        <span className={styles.name} title={name}>
-          {name}
         </span>
       </Link>
       <span className={styles.meta}>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 import { useListAssetsInfiniteQuery } from '../../features/assets';
@@ -24,6 +24,7 @@ export function LibraryPage() {
   const { search } = useLocation();
   const openUpload = useOpenUpload();
   const [filters, setFilters] = useLibraryParams();
+  const searchRef = useRef<HTMLInputElement>(null);
   const isFiltered = filters.kind !== null || filters.status !== null || filters.q !== '';
   const assets = useListAssetsInfiniteQuery(filters);
   // `currentData`, not `data`: after a filter change the old results must not stand in for the new.
@@ -81,7 +82,13 @@ export function LibraryPage() {
         <EmptyState
           title={t('library.noMatchesTitle')}
           action={
-            <Button onClick={() => setFilters({ kind: null, status: null, q: '' })}>
+            <Button
+              onClick={() => {
+                setFilters({ kind: null, status: null, q: '' });
+                // The button leaves with its empty state; the cleared search is where to carry on.
+                searchRef.current?.focus();
+              }}
+            >
               {t('library.resetFilters')}
             </Button>
           }
@@ -124,7 +131,7 @@ export function LibraryPage() {
   return (
     <div className={styles.page}>
       <PageHeading>{t('library.title')}</PageHeading>
-      <LibraryFilters filters={filters} onChange={setFilters} />
+      <LibraryFilters filters={filters} onChange={setFilters} searchRef={searchRef} />
       {content}
       <VisuallyHidden aria-live="polite">
         {/* A new node per page: the same text twice in a row would not be read again. */}

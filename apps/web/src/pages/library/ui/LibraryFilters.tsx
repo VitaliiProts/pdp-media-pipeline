@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { type Ref, useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ASSET_SEARCH_MAX_LENGTH,
@@ -16,9 +16,13 @@ import styles from './LibraryFilters.module.css';
 const SEARCH_DEBOUNCE_MS = 300;
 const KIND_OPTIONS = [null, 'image', 'video'] as const;
 
-type LibraryFiltersProps = { filters: AssetFilters; onChange: SetFilters };
+type LibraryFiltersProps = {
+  filters: AssetFilters;
+  onChange: SetFilters;
+  searchRef: Ref<HTMLInputElement>;
+};
 
-export function LibraryFilters({ filters, onChange }: LibraryFiltersProps) {
+export function LibraryFilters({ filters, onChange, searchRef }: LibraryFiltersProps) {
   const { t } = useTranslation('assets');
   const kindName = useId();
   const [draft, setDraft] = useState(filters.q);
@@ -72,6 +76,7 @@ export function LibraryFilters({ filters, onChange }: LibraryFiltersProps) {
         {(control) => (
           <Input
             {...control}
+            ref={searchRef}
             type="search"
             maxLength={ASSET_SEARCH_MAX_LENGTH}
             value={draft}
