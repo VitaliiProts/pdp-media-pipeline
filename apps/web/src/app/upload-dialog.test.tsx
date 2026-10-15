@@ -190,18 +190,45 @@ describe('upload dialog', () => {
     expect(message.closest('[aria-live]')).toHaveAttribute('aria-live', 'assertive');
   });
 
-  it('alerts about a failure on a filtered library, which shows no upload tiles', async () => {
-    server.use(http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null })));
+  it('takes an upload from a filtered library to the unfiltered one, where its tile shows', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    uploadHandlers();
+    server.use(
+      http.put(`${STORAGE_ORIGIN}/sources/9.png`, async () => {
+        await held;
+        return new HttpResponse(null, { status: 200, headers: CORS });
+      }),
+    );
     const { user, router } = renderApp({ signedIn: true, route: '/library?kind=video' });
+    await user.click(await screen.findByRole('button', { name: 'Upload' }));
+    await user.upload(
+      screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+      new File([new Uint8Array(64)], 'harbour.png', { type: 'image/png' }),
+    );
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/library'));
+    expect(router.state.location.search).toBe('');
+    expect(await screen.findByRole('progressbar', { name: 'Uploading' })).toBeInTheDocument();
+    expect(screen.getByText('harbour.png')).toBeInTheDocument();
+    release();
+    expect(await screen.findByRole('link', { name: /harbour\.png/ })).toBeInTheDocument();
+  });
+
+  it('shows a failure from a filtered library on its tile, not as an alert', async () => {
+    server.use(http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null })));
+    const { user, router } = renderApp({ signedIn: true, route: '/library?q=harbour' });
     await user.click(await screen.findByRole('button', { name: 'Upload' }));
     await user.upload(
       screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
       new File([], 'empty.png', { type: 'image/png' }),
     );
 
-    const message = await screen.findByText('empty.png was not uploaded.');
-    expect(message.closest('[aria-live]')).toHaveAttribute('aria-live', 'assertive');
-    expect(router.state.location.search).toBe('?kind=video');
+    expect(await screen.findByText('The file is empty.')).toBeInTheDocument();
+    expect(router.state.location.search).toBe('');
+    expect(screen.queryByText('empty.png was not uploaded.')).not.toBeInTheDocument();
   });
 
   it('shows on the tile when storage is full', async () => {

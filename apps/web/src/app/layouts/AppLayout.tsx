@@ -16,12 +16,13 @@ const NAV_ITEMS = [
 export function AppLayout() {
   const { t } = useTranslation('shell');
   const toast = useToast();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const headingTo = useUploadFailureToasts();
 
   const handleStarted = (count: number) => {
-    if (pathname !== '/library') {
+    // Filters hide upload tiles: whether a new file matches them is not known yet.
+    if (pathname !== '/library' || search !== '') {
       headingTo({ pathname: '/library', search: '' });
       void navigate('/library');
     }

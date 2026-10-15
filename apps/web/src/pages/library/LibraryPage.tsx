@@ -14,6 +14,7 @@ import { VisuallyHidden } from '../../shared/ui/visually-hidden/VisuallyHidden';
 import styles from './LibraryPage.module.css';
 import { useLibraryParams } from './lib/use-library-params';
 import { useNextPageA11y } from './lib/use-next-page-a11y';
+import { hasFilters } from './model/filters';
 import { awaitedJobIds, newlyListedJobIds, pendingUploads } from './model/pending-uploads';
 import { AssetTile } from './ui/AssetTile';
 import { LibraryFilters } from './ui/LibraryFilters';
@@ -29,7 +30,7 @@ export function LibraryPage() {
   const openUpload = useOpenUpload();
   const [filters, setFilters] = useLibraryParams();
   const searchRef = useRef<HTMLInputElement>(null);
-  const isFiltered = filters.kind !== null || filters.status !== null || filters.q !== '';
+  const isFiltered = hasFilters(filters);
   const dispatch = useAppDispatch();
   const uploads = useAppSelector(selectUploads);
   // Local tiles only without filters: whether a file will match them is not known yet.
