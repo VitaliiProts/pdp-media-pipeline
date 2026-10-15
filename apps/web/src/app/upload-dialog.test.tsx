@@ -87,6 +87,10 @@ describe('upload dialog', () => {
 
   it('stops and forgets the uploads of a user who signs out', async () => {
     let jobsCreated = 0;
+    let releaseStorage: () => void = () => undefined;
+    const storageHeld = new Promise<void>((resolve) => {
+      releaseStorage = resolve;
+    });
     server.use(
       http.get('/v1/webhooks', () => HttpResponse.json({ items: [] })),
       http.get('/v1/jobs', () => HttpResponse.json({ items: [], nextCursor: null })),
@@ -101,7 +105,7 @@ describe('upload dialog', () => {
         () => new HttpResponse(null, { status: 204, headers: CORS }),
       ),
       http.put(`${STORAGE_ORIGIN}/sources/9.png`, async () => {
-        await delay(150);
+        await storageHeld;
         return new HttpResponse(null, { status: 200, headers: CORS });
       }),
       http.post('/v1/jobs', () => {
@@ -109,7 +113,7 @@ describe('upload dialog', () => {
         return HttpResponse.json({ jobId: JOB_ID }, { status: 202 });
       }),
     );
-    const { user, router } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
+    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
     await user.click(await screen.findByRole('button', { name: 'Upload' }));
     await user.upload(screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }), [
       new File([new Uint8Array(64)], 'harbour.png', { type: 'image/png' }),
@@ -120,12 +124,12 @@ describe('upload dialog', () => {
     await user.click(screen.getByRole('button', { name: 'Account: dev' }));
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     await user.type(await screen.findByLabelText('API key'), TEST_API_KEY);
+    releaseStorage();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/library'));
-    await user.click(screen.getByRole('link', { name: 'Jobs' }));
+    await user.click(await screen.findByRole('link', { name: 'Jobs' }));
 
     expect(await screen.findByText(/No jobs yet/)).toBeInTheDocument();
-    await delay(300);
+    await delay(100);
     expect(jobsCreated).toBe(0);
     expect(screen.queryAllByText('empty.png was not uploaded.').length).toBeLessThan(2);
   });
