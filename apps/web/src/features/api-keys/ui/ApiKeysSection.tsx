@@ -9,7 +9,12 @@ import { CreateKeyForm } from './CreateKeyForm';
 import { NewKeyDialog } from './NewKeyDialog';
 import { RevokeKeyButton } from './RevokeKeyButton';
 
-export function ApiKeysSection() {
+type ApiKeysSectionProps = {
+  /** Runs once a revoked key has left the list, taking the focused row with it. */
+  onRevoked: () => void;
+};
+
+export function ApiKeysSection({ onRevoked }: ApiKeysSectionProps) {
   const { t, i18n } = useTranslation('apiKeys');
   const { t: tShell } = useTranslation('shell');
   const keys = useListApiKeysQuery();
@@ -19,16 +24,14 @@ export function ApiKeysSection() {
     [i18n.language],
   );
   const items = keys.data?.items ?? [];
-  const listRef = useRef<HTMLDivElement>(null);
   const revokedId = useRef<string | null>(null);
 
-  // The revoked row takes its button with it; focus would fall back to the page body.
   useEffect(() => {
     const id = revokedId.current;
     if (id === null || keys.data?.items.some((key) => key.id === id)) return;
     revokedId.current = null;
-    listRef.current?.focus();
-  }, [keys.data]);
+    onRevoked();
+  }, [keys.data, onRevoked]);
 
   const list = (() => {
     if (keys.isLoading) {
@@ -80,9 +83,7 @@ export function ApiKeysSection() {
 
   return (
     <div className={styles.stack}>
-      <div ref={listRef} tabIndex={-1} className={styles.list}>
-        {list}
-      </div>
+      {list}
       <CreateKeyForm atLimit={items.length >= API_KEY_MAX_PER_USER} onCreated={setCreated} />
       <NewKeyDialog apiKey={created} onClose={() => setCreated(null)} />
     </div>

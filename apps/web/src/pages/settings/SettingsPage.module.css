@@ -3,6 +3,10 @@
   font-size: var(--text-lg);
 }
 
+.heading:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .lead {
   margin: 0 0 var(--space-4);
   color: var(--graphite);

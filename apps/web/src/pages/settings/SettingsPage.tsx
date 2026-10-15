@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useCallback, useId, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiKeysSection } from '../../features/api-keys';
 import { useGetMeQuery } from '../../features/auth';
@@ -12,6 +12,8 @@ export function SettingsPage() {
   const { t } = useTranslation('settings');
   const { data: me } = useGetMeQuery();
   const ids = { profile: useId(), language: useId(), keys: useId() };
+  const keysHeading = useRef<HTMLHeadingElement>(null);
+  const focusKeysHeading = useCallback(() => keysHeading.current?.focus(), []);
 
   return (
     <div className={`${pageStyles.page} ${pageStyles.narrow}`}>
@@ -47,11 +49,11 @@ export function SettingsPage() {
       </Card>
       <Card>
         <section aria-labelledby={ids.keys}>
-          <h2 id={ids.keys} className={styles.heading}>
+          <h2 id={ids.keys} ref={keysHeading} tabIndex={-1} className={styles.heading}>
             {t('apiKeys.title')}
           </h2>
           <p className={styles.lead}>{t('apiKeys.lead')}</p>
-          <ApiKeysSection />
+          <ApiKeysSection onRevoked={focusKeysHeading} />
         </section>
       </Card>
     </div>

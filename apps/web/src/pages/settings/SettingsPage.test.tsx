@@ -73,12 +73,13 @@ describe('settings', () => {
 
   it('shows a new key once, copies it, and forgets it on close', async () => {
     keysApi();
-    const { user } = renderApp({ signedIn: true, route: '/settings' });
+    const { user, store } = renderApp({ signedIn: true, route: '/settings' });
     await user.type(await screen.findByLabelText('Key name'), 'deploy');
     await user.click(screen.getByRole('button', { name: 'Create key' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Your new API key' });
     expect(within(dialog).getByLabelText('API key')).toHaveValue(SECRET);
+    expect(JSON.stringify(store.getState())).not.toContain(SECRET);
     expect(within(dialog).getByText(new RegExp(`X-API-Key: ${SECRET}`))).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Copy' }));
     expect(await navigator.clipboard.readText()).toBe(SECRET);
@@ -89,6 +90,7 @@ describe('settings', () => {
     expect(screen.queryByDisplayValue(SECRET)).not.toBeInTheDocument();
     expect(await screen.findByText('deploy')).toBeInTheDocument();
     expect(screen.getByLabelText('Key name')).toHaveValue('');
+    expect(JSON.stringify(store.getState())).not.toContain(SECRET);
   });
 
   it('selects the key for a manual copy when the clipboard refuses', async () => {
@@ -138,6 +140,18 @@ describe('settings', () => {
     expect(screen.getByLabelText('Key name')).toHaveFocus();
   });
 
+  it('drops the missing-name error once the user types', async () => {
+    keysApi();
+    const { user } = renderApp({ signedIn: true, route: '/settings' });
+    await user.click(await screen.findByRole('button', { name: 'Create key' }));
+    const required = 'Name the key, e.g. after the script that uses it.';
+    expect(screen.getByText(required)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Key name'), 'd');
+    expect(screen.queryByText(required)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Key name')).not.toHaveAttribute('aria-invalid');
+  });
+
   it('stops at ten keys', async () => {
     keysApi(
       Array.from({ length: 10 }, (_, index) => ({
@@ -165,8 +179,8 @@ describe('settings', () => {
 
     await waitFor(() => expect(revoked).toEqual([CI_KEY.id]));
     expect(await screen.findByText(/No keys yet/)).toBeInTheDocument();
-    const section = screen.getByRole('region', { name: 'API keys' });
-    await waitFor(() => expect(section.contains(document.activeElement)).toBe(true));
+    const heading = screen.getByRole('heading', { level: 2, name: 'API keys' });
+    await waitFor(() => expect(heading).toHaveFocus());
   });
 
   it('holds the revoke dialog until the gateway answers, then says it failed', async () => {

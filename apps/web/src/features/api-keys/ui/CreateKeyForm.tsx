@@ -19,7 +19,7 @@ export function CreateKeyForm({ atLimit, onCreated }: CreateKeyFormProps) {
   const [isNameMissing, setNameMissing] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const limitText = t('create.limit', { count: API_KEY_MAX_PER_USER });
+  const limitText = t('create.limit', { max: API_KEY_MAX_PER_USER });
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -32,7 +32,11 @@ export function CreateKeyForm({ atLimit, onCreated }: CreateKeyFormProps) {
     }
     setNameMissing(false);
     try {
-      const created = await createApiKey({ name: trimmed }).unwrap();
+      const request = createApiKey({ name: trimmed });
+      const created = await request.unwrap();
+      // The store would otherwise keep the key as this mutation's result. The hook's `reset`
+      // is the one from before the request started here, and would do nothing.
+      request.reset();
       setName('');
       onCreated(created);
     } catch (error) {
@@ -44,7 +48,7 @@ export function CreateKeyForm({ atLimit, onCreated }: CreateKeyFormProps) {
     <form className={styles.create} noValidate onSubmit={(event) => void handleSubmit(event)}>
       <Field
         label={t('create.name')}
-        hint={atLimit ? limitText : t('create.hint', { count: API_KEY_NAME_MAX_LENGTH })}
+        hint={atLimit ? limitText : t('create.hint', { max: API_KEY_NAME_MAX_LENGTH })}
         error={isNameMissing ? t('create.required') : undefined}
         className={styles.name}
       >
@@ -55,7 +59,10 @@ export function CreateKeyForm({ atLimit, onCreated }: CreateKeyFormProps) {
             value={name}
             maxLength={API_KEY_NAME_MAX_LENGTH}
             disabled={atLimit}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => {
+              setName(event.target.value);
+              setNameMissing(false);
+            }}
           />
         )}
       </Field>

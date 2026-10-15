@@ -12,10 +12,10 @@
   },
   "create": {
     "name": "Key name",
-    "hint": "Up to {{count}} characters, e.g. ci or backup-script.",
+    "hint": "Up to {{max}} characters, e.g. ci or backup-script.",
     "required": "Name the key, e.g. after the script that uses it.",
     "submit": "Create key",
-    "limit": "You have reached the limit of {{count}} keys. Revoke one you no longer need.",
+    "limit": "You have reached the limit of {{max}} keys. Revoke one you no longer need.",
     "failed": "Could not create the key. Try again."
   },
   "created": {
