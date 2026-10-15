@@ -27,8 +27,19 @@ const CORS = {
 const listJobs = (items: Job[]) =>
   http.get('/v1/jobs', () => HttpResponse.json({ items, nextCursor: null }));
 
+/** Starting an upload takes the user to the library. */
+const emptyLibrary = http.get('/v1/assets', () =>
+  HttpResponse.json({ items: [], nextCursor: null }),
+);
+
 async function openUpload(user: ReturnType<typeof renderApp>['user']) {
   await user.click(screen.getByRole('button', { name: 'Upload' }));
+}
+
+async function backToJobs({ user, router }: ReturnType<typeof renderApp>) {
+  await waitFor(() => expect(router.state.location.pathname).toBe('/library'));
+  await user.click(screen.getByRole('link', { name: 'Jobs' }));
+  await waitFor(() => expect(router.state.location.pathname).toBe('/jobs'));
 }
 
 describe('jobs sheet', () => {
@@ -218,6 +229,7 @@ describe('uploading', () => {
     let jobBody: unknown = null;
     let idempotencyKey: string | null = null;
     server.use(
+      emptyLibrary,
       http.get('/v1/jobs', () =>
         HttpResponse.json({ items: created ? [job({ id: jobId })] : [], nextCursor: null }),
       ),
@@ -243,7 +255,8 @@ describe('uploading', () => {
         return HttpResponse.json({ jobId }, { status: 201 });
       }),
     );
-    const { user } = renderApp({ signedIn: true });
+    const app = renderApp({ signedIn: true });
+    const { user } = app;
     await screen.findByText(/No jobs yet/);
     await openUpload(user);
 
@@ -252,6 +265,7 @@ describe('uploading', () => {
       screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
       new File([new Uint8Array(64)], 'harbour.png', { type: 'image/png' }),
     );
+    await backToJobs(app);
 
     const mount = (await screen.findByRole('heading', { name: 'harbour.png' })).closest('article');
     if (!mount) throw new Error('mount not found');
@@ -266,8 +280,9 @@ describe('uploading', () => {
   });
 
   it('rejects unusable files locally and lets the user remove them', async () => {
-    server.use(listJobs([]));
-    const { user } = renderApp({ signedIn: true });
+    server.use(listJobs([]), emptyLibrary);
+    const app = renderApp({ signedIn: true });
+    const { user } = app;
     await screen.findByText(/No jobs yet/);
     await openUpload(user);
 
@@ -275,6 +290,7 @@ describe('uploading', () => {
       screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
       new File([], 'empty.png', { type: 'image/png' }),
     );
+    await backToJobs(app);
 
     expect(await screen.findByText('The file is empty.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remove' }));
@@ -287,6 +303,7 @@ describe('video', () => {
     let jobBody: unknown = null;
     server.use(
       listJobs([]),
+      emptyLibrary,
       http.post('/v1/uploads', () =>
         HttpResponse.json({
           uploadUrl: `${STORAGE_ORIGIN}/sources/3.mp4?sig=x`,
@@ -362,6 +379,7 @@ describe('video', () => {
     let jobBody: unknown = null;
     server.use(
       listJobs([]),
+      emptyLibrary,
       http.post('/v1/uploads', () =>
         HttpResponse.json({
           uploadUrl: `${STORAGE_ORIGIN}/sources/4.mp4?sig=x`,
@@ -456,16 +474,23 @@ describe('when the gateway asks to come back later', () => {
     const jobId = 'dddddddd-0000-4000-8000-000000000004';
     let attempts = 0;
     const keys: (string | null)[] = [];
+    // Held until the user is back on the sheet: the wait it leads to lasts about a second.
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     server.use(
+      emptyLibrary,
       http.get('/v1/jobs', () =>
         HttpResponse.json({ items: attempts > 1 ? [job({ id: jobId })] : [], nextCursor: null }),
       ),
-      http.post('/v1/uploads', () =>
-        HttpResponse.json({
+      http.post('/v1/uploads', async () => {
+        await held;
+        return HttpResponse.json({
           uploadUrl: `${STORAGE_ORIGIN}/sources/2.png?sig=x`,
           sourceKey: 'sources/2.png',
-        }),
-      ),
+        });
+      }),
       http.options(
         `${STORAGE_ORIGIN}/sources/2.png`,
         () => new HttpResponse(null, { status: 204, headers: CORS }),
@@ -484,7 +509,8 @@ describe('when the gateway asks to come back later', () => {
           : HttpResponse.json({ jobId }, { status: 202 });
       }),
     );
-    const { user } = renderApp({ signedIn: true });
+    const app = renderApp({ signedIn: true });
+    const { user } = app;
     await screen.findByText(/No jobs yet/);
     await openUpload(user);
 
@@ -492,6 +518,8 @@ describe('when the gateway asks to come back later', () => {
       screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
       new File([new Uint8Array(64)], 'busy.png', { type: 'image/png' }),
     );
+    await backToJobs(app);
+    release();
 
     expect(await screen.findByText('Queue is full, waiting')).toBeInTheDocument();
     expect(screen.getByRole('timer')).toHaveTextContent(/retry in \d s/);

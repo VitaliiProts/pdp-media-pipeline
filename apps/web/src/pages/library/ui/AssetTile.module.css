@@ -68,3 +68,8 @@
   color: var(--graphite);
   font-size: var(--text-sm);
 }
+
+.problem {
+  flex-basis: 100%;
+  margin: 0;
+}

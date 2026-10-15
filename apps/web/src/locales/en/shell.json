@@ -18,8 +18,8 @@
     "open": "Upload",
     "started_one": "Uploading {{count}} file.",
     "started_other": "Uploading {{count}} files.",
-    "openJobs": "Open jobs",
-    "failed": "{{name}} was not uploaded."
+    "failed": "{{name}} was not uploaded.",
+    "quotaExceeded": "{{name}} was not uploaded: storage is full. Delete files you no longer need."
   },
   "menu": {
     "label": "Account: {{name}}",

@@ -43,7 +43,9 @@ function problemOf(error: AppError): { problem: UploadProblem; detail: string | 
     case 'retryLater':
       return { problem: reasonOf(error), detail: null };
     case 'http':
-      return { problem: 'rejected', detail: error.message };
+      return error.code === 'STORAGE_QUOTA_EXCEEDED'
+        ? { problem: 'quotaExceeded', detail: null }
+        : { problem: 'rejected', detail: error.message };
     default:
       return { problem: 'network', detail: null };
   }
@@ -90,6 +92,7 @@ export const uploadFiles = createAppAsyncThunk(
         uploadStarted({
           id,
           fileName: file.name,
+          kind: mediaKindOf(file.type) === 'video' ? 'video' : 'image',
           previewUrl: URL.createObjectURL(file),
           createdAt: Date.now(),
         }),
@@ -125,7 +128,7 @@ export const uploadFiles = createAppAsyncThunk(
           signal,
         );
         dispatch(uploadSubmitted({ id, jobId }));
-        dispatch(baseApi.util.invalidateTags(['Job']));
+        dispatch(baseApi.util.invalidateTags(['Job', 'Asset']));
       } catch (error) {
         dispatch(uploadFailed({ id, ...problemOf(toAppError(error)) }));
       }

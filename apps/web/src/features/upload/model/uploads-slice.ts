@@ -1,14 +1,22 @@
 import { createEntityAdapter, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { type FileProblem } from '../lib/validate-file';
+import { type FileProblem, type MediaKind } from '../lib/validate-file';
 
 export type UploadProblem =
-  FileProblem | 'unauthorized' | 'network' | 'rejected' | 'rateLimited' | 'queueFull';
+  | FileProblem
+  | 'unauthorized'
+  | 'network'
+  | 'rejected'
+  | 'rateLimited'
+  | 'queueFull'
+  | 'quotaExceeded';
 
 export type WaitReason = 'rateLimited' | 'queueFull';
 
 export type Upload = {
   id: string;
   fileName: string;
+  /** Picks the local preview: object URLs of videos do not render in an <img>. */
+  kind: MediaKind;
   previewUrl: string;
   createdAt: number;
 } & (
@@ -25,14 +33,14 @@ const adapter = createEntityAdapter<Upload>({
 });
 
 type UploadsState = ReturnType<typeof adapter.getInitialState>;
-type UploadBase = Pick<Upload, 'id' | 'fileName' | 'previewUrl' | 'createdAt'>;
+type UploadBase = Pick<Upload, 'id' | 'fileName' | 'kind' | 'previewUrl' | 'createdAt'>;
 
 /** Replaces the whole entity, so no field of the previous phase survives. */
 function moveTo(state: UploadsState, id: string, next: (base: UploadBase) => Upload): void {
   const upload = state.entities[id];
   if (!upload) return;
-  const { fileName, previewUrl, createdAt } = upload;
-  adapter.setOne(state, next({ id, fileName, previewUrl, createdAt }));
+  const { fileName, kind, previewUrl, createdAt } = upload;
+  adapter.setOne(state, next({ id, fileName, kind, previewUrl, createdAt }));
 }
 
 export const uploadsSlice = createSlice({
@@ -44,6 +52,7 @@ export const uploadsSlice = createSlice({
       action: PayloadAction<{
         id: string;
         fileName: string;
+        kind: MediaKind;
         previewUrl: string;
         createdAt: number;
       }>,

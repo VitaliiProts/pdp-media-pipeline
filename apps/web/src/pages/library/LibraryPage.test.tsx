@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { type AssetSummary } from '../../features/assets';
+import { type AssetSummary, LIVE_POLL_MS } from '../../features/assets';
 import { formatBytes } from '../../shared/lib/format-bytes';
 import { testAsset } from '../../test/fixtures';
 import { FakeIntersectionObserver } from '../../test/intersection-observer';
@@ -88,6 +88,32 @@ describe('library', () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Upload a file' }));
     expect(screen.getByRole('dialog', { name: 'Upload files' })).toHaveAttribute('open');
+  });
+
+  it('shows the uploads of this tab first, only without filters, and lets a failed one go', async () => {
+    listAssets([testAsset()]);
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await screen.findByRole('link', { name: /harbour\.jpg/ });
+    await user.click(screen.getByRole('button', { name: 'Upload' }));
+    await user.upload(
+      screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+      new File([], 'empty.png', { type: 'image/png' }),
+    );
+
+    const tile = (await screen.findByText('The file is empty.')).closest('li');
+    if (!tile) throw new Error('tile not found');
+    expect(tile.parentElement?.firstElementChild).toBe(tile);
+    expect(within(tile).getByText('empty.png')).toBeInTheDocument();
+    expect(within(tile).getByText('Not submitted')).toBeInTheDocument();
+
+    // Whether a file will match the filters is not known until the server lists it.
+    await user.click(screen.getByRole('radio', { name: 'Photos' }));
+    await waitFor(() => expect(screen.queryByText('empty.png')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('radio', { name: 'All' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+    expect(screen.queryByText('empty.png')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /harbour\.jpg/ })).toBeInTheDocument();
   });
 
   it('offers to reset filters that match nothing', async () => {
@@ -215,6 +241,24 @@ describe('library pages', () => {
     await waitFor(() => expect(dunes).toHaveFocus());
   });
 
+  it('moves focus past the files still uploading to the first file the button brought', async () => {
+    twoPages();
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await screen.findByRole('button', { name: 'Show more' });
+    await user.click(screen.getByRole('button', { name: 'Upload' }));
+    await user.upload(
+      screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+      new File([], 'empty.png', { type: 'image/png' }),
+    );
+    const uploadTile = (await screen.findByText('The file is empty.')).closest('li');
+    expect(uploadTile?.parentElement?.firstElementChild).toBe(uploadTile);
+    expect(uploadTile).not.toHaveAttribute('data-asset-id');
+
+    await user.click(screen.getByRole('button', { name: 'Show more' }));
+    const dunes = await screen.findByRole('link', { name: /^dunes\.jpg/ });
+    await waitFor(() => expect(dunes).toHaveFocus());
+  });
+
   it('loads the next page when the end of the grid scrolls into view', async () => {
     twoPages();
     const { user } = renderApp({ signedIn: true, route: '/library' });
@@ -282,5 +326,39 @@ describe('library pages', () => {
     expect(FakeIntersectionObserver.latest()).toBeUndefined();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('link', { name: /dunes\.jpg/ })).toBeInTheDocument();
+  });
+});
+
+describe('live library', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('polls while a file is processing and stops when it is done', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+    let calls = 0;
+    server.use(
+      http.get('/v1/assets', () => {
+        calls += 1;
+        return HttpResponse.json({
+          items: [
+            testAsset({
+              latestJob: {
+                id: 'b0000000-0000-4000-8000-000000000001',
+                type: 'image.resize',
+                status: calls === 1 ? 'running' : 'succeeded',
+              },
+            }),
+          ],
+          nextCursor: null,
+        });
+      }),
+    );
+    renderApp({ signedIn: true, route: '/library' });
+
+    expect(await screen.findByText('Processing')).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS));
+    expect(await screen.findByText('Done')).toBeInTheDocument();
+    const settled = calls;
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS * 3));
+    expect(calls).toBe(settled);
   });
 });

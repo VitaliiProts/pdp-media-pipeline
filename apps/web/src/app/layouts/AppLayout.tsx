@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { Link, NavLink, Outlet, useLocation } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { UploadDialogProvider, useOpenUpload } from '../../features/upload';
-import { Button, buttonClass } from '../../shared/ui/button/Button';
+import { Button } from '../../shared/ui/button/Button';
 import { useToast } from '../../shared/ui/toast/toast-context';
 import styles from './AppLayout.module.css';
 import { useUploadFailureToasts } from './use-upload-failure-toasts';
@@ -17,19 +17,16 @@ export function AppLayout() {
   const { t } = useTranslation('shell');
   const toast = useToast();
   const { pathname } = useLocation();
-  useUploadFailureToasts();
+  const navigate = useNavigate();
+  const headingTo = useUploadFailureToasts();
 
-  const handleStarted = (count: number) =>
-    toast({
-      tone: 'progress',
-      message: t('upload.started', { count }),
-      action:
-        pathname === '/jobs' ? undefined : (
-          <Link to="/jobs" className={buttonClass({ variant: 'quiet', size: 'sm' })}>
-            {t('upload.openJobs')}
-          </Link>
-        ),
-    });
+  const handleStarted = (count: number) => {
+    if (pathname !== '/library') {
+      headingTo('/library');
+      void navigate('/library');
+    }
+    toast({ tone: 'progress', message: t('upload.started', { count }) });
+  };
 
   return (
     <UploadDialogProvider onStarted={handleStarted}>

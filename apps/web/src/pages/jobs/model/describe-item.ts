@@ -32,6 +32,7 @@ const PROBLEM_KEY = {
   rejected: 'problem.rejected',
   rateLimited: 'problem.rateLimited',
   queueFull: 'problem.queueFull',
+  quotaExceeded: 'problem.quotaExceeded',
 } as const satisfies Record<UploadProblem, string>;
 
 const WAIT_LABEL_KEY = {

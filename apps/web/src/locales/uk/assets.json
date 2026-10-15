@@ -36,5 +36,8 @@
     "untitled": "Файл без назви",
     "video": "Відео",
     "videoWithDuration": "Відео · {{duration}}"
+  },
+  "upload": {
+    "remove": "Прибрати"
   }
 }

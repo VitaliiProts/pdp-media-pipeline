@@ -32,5 +32,8 @@
     "untitled": "Untitled file",
     "video": "Video",
     "videoWithDuration": "Video · {{duration}}"
+  },
+  "upload": {
+    "remove": "Remove"
   }
 }

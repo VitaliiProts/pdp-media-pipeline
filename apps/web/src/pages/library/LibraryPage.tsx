@@ -1,9 +1,10 @@
 import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
-import { useListAssetsInfiniteQuery } from '../../features/assets';
-import { useOpenUpload } from '../../features/upload';
+import { useLiveAssets } from '../../features/assets';
+import { selectUploads, useOpenUpload } from '../../features/upload';
 import { retryAfterOf } from '../../shared/api/http';
+import { useAppSelector } from '../../shared/lib/redux';
 import { Button } from '../../shared/ui/button/Button';
 import { PageHeading } from '../../shared/ui/page-heading/PageHeading';
 import { Skeleton } from '../../shared/ui/skeleton/Skeleton';
@@ -13,9 +14,11 @@ import { VisuallyHidden } from '../../shared/ui/visually-hidden/VisuallyHidden';
 import styles from './LibraryPage.module.css';
 import { useLibraryParams } from './lib/use-library-params';
 import { useNextPageA11y } from './lib/use-next-page-a11y';
+import { pendingUploads } from './model/pending-uploads';
 import { AssetTile } from './ui/AssetTile';
 import { LibraryFilters } from './ui/LibraryFilters';
 import { LoadMore } from './ui/LoadMore';
+import { UploadTile } from './ui/UploadTile';
 
 const SKELETON_TILES = 8;
 
@@ -27,10 +30,20 @@ export function LibraryPage() {
   const [filters, setFilters] = useLibraryParams();
   const searchRef = useRef<HTMLInputElement>(null);
   const isFiltered = filters.kind !== null || filters.status !== null || filters.q !== '';
-  const assets = useListAssetsInfiniteQuery(filters);
+  const uploads = useAppSelector(selectUploads);
+  // Local tiles only without filters: whether a file will match them is not known yet.
+  const awaitedJobIds = useMemo(
+    () => (isFiltered ? [] : uploads.flatMap((u) => (u.phase === 'submitted' ? [u.jobId] : []))),
+    [isFiltered, uploads],
+  );
+  const assets = useLiveAssets(filters, { awaitedJobIds });
   // `currentData`, not `data`: after a filter change the old results must not stand in for the new.
   const pages = assets.currentData?.pages;
   const items = useMemo(() => pages?.flatMap((page) => page.items) ?? [], [pages]);
+  const pending = useMemo(
+    () => (isFiltered ? [] : pendingUploads(uploads, items)),
+    [isFiltered, uploads, items],
+  );
   const linkState = useMemo(() => ({ librarySearch: search }), [search]);
 
   const gridRef = useRef<HTMLUListElement>(null);
@@ -72,7 +85,7 @@ export function LibraryPage() {
         </div>
       );
     }
-    if (items.length === 0) {
+    if (items.length === 0 && pending.length === 0) {
       return isFiltered ? (
         <EmptyState
           title={t('library.noMatchesTitle')}
@@ -106,6 +119,11 @@ export function LibraryPage() {
     return (
       <>
         <ul ref={gridRef} className={styles.grid}>
+          {pending.map((upload) => (
+            <li key={upload.id}>
+              <UploadTile upload={upload} />
+            </li>
+          ))}
           {items.map((asset) => (
             <li key={asset.id} data-asset-id={asset.id}>
               <AssetTile asset={asset} linkState={linkState} />

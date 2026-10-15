@@ -85,6 +85,7 @@ export function UploadPanel({ onSubmitted }: { onSubmitted?: (count: number) => 
       </label>
 
       <div className={styles.options}>
+        <h3 className={styles.optionsTitle}>{t('options.title')}</h3>
         <ChoiceGroup legend={t('presets.legend')}>
           {IMAGE_PRESETS.map(({ name, width }) => (
             <Checkbox

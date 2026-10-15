@@ -21,5 +21,8 @@
   "dialog": {
     "title": "Upload files",
     "close": "Close"
+  },
+  "options": {
+    "title": "What to do"
   }
 }
