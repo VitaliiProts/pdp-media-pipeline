@@ -11,28 +11,39 @@ const options = { maxInputPixels: 50_000_000 };
 
 describe('resizeImage', () => {
   it('produces webp per preset, keeping the aspect ratio', async () => {
-    const results = await resizeImage(await png(2000, 1000), ['thumb', 'medium'], options);
+    const { source, images } = await resizeImage(
+      await png(2000, 1000),
+      ['thumb', 'medium'],
+      options,
+    );
 
-    expect(results.map(({ preset, width, height }) => ({ preset, width, height }))).toEqual([
+    expect(source).toEqual({ width: 2000, height: 1000 });
+    expect(images.map(({ preset, width, height }) => ({ preset, width, height }))).toEqual([
       { preset: 'thumb', width: 200, height: 100 },
       { preset: 'medium', width: 800, height: 400 },
     ]);
-    const meta = await sharp(results[0]!.data).metadata();
+    const meta = await sharp(images[0]!.data).metadata();
     expect(meta.format).toBe('webp');
   });
 
   it('does not upscale small images', async () => {
-    const [large] = await resizeImage(await png(300, 150), ['large'], options);
+    const {
+      images: [large],
+    } = await resizeImage(await png(300, 150), ['large'], options);
     expect(large).toMatchObject({ width: 300, height: 150 });
   });
 
-  it('applies EXIF orientation', async () => {
+  it('applies EXIF orientation to the outputs and the reported source size', async () => {
     const rotated = await sharp(await png(400, 200))
       .withMetadata({ orientation: 6 })
       .jpeg()
       .toBuffer();
-    const [thumb] = await resizeImage(rotated, ['thumb'], options);
+    const {
+      source,
+      images: [thumb],
+    } = await resizeImage(rotated, ['thumb'], options);
     expect(thumb).toMatchObject({ width: 200, height: 400 });
+    expect(source).toEqual({ width: 200, height: 400 });
   });
 
   it('treats unreadable input as permanent', async () => {

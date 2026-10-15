@@ -18,6 +18,12 @@ export interface ResizeOptions {
   quality?: number;
 }
 
+export interface ResizeResult {
+  /** The original as displayed, EXIF orientation applied like in the outputs. */
+  source: { width: number; height: number };
+  images: ResizedImage[];
+}
+
 /**
  * Validates the header before decoding: unreadable or oversized input is a
  * permanent failure, while errors during the resize itself may be retried.
@@ -26,7 +32,7 @@ export async function resizeImage(
   input: Buffer,
   presets: readonly ImagePreset[],
   options: ResizeOptions,
-): Promise<ResizedImage[]> {
+): Promise<ResizeResult> {
   const meta = await traced(
     'sharp metadata',
     { attributes: { 'image.input.bytes': input.length } },
@@ -53,7 +59,7 @@ export async function resizeImage(
   }
 
   const base = sharp(input, { failOn: 'error', limitInputPixels: options.maxInputPixels }).rotate();
-  return Promise.all(
+  const images = await Promise.all(
     presets.map((preset) =>
       traced('sharp resize', { attributes: { 'image.preset': preset } }, async (span) => {
         const { data, info } = await base
@@ -70,4 +76,5 @@ export async function resizeImage(
       }),
     ),
   );
+  return { source: { width: meta.autoOrient.width, height: meta.autoOrient.height }, images };
 }

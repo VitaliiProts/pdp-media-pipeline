@@ -1,7 +1,7 @@
 import { type ImagePreset, type MediaSource } from '@pdp/contracts';
 import { type FetchLimits } from '@pdp/worker-kit';
 import { ImageResizeProcessor } from './image-resize.processor';
-import { type ResizedImage } from './resize';
+import { type ResizeResult } from './resize';
 
 function setup() {
   const deps = {
@@ -9,10 +9,16 @@ function setup() {
       Promise.resolve(Buffer.from('src')),
     ),
     putObject: jest.fn<Promise<void>, [string, Buffer, string]>(() => Promise.resolve()),
-    resize: jest.fn<Promise<ResizedImage[]>, [Buffer, readonly ImagePreset[]]>((_input, presets) =>
-      Promise.resolve(
-        presets.map((preset) => ({ preset, width: 10, height: 5, data: Buffer.from(preset) })),
-      ),
+    resize: jest.fn<Promise<ResizeResult>, [Buffer, readonly ImagePreset[]]>((_input, presets) =>
+      Promise.resolve({
+        source: { width: 40, height: 20 },
+        images: presets.map((preset) => ({
+          preset,
+          width: 10,
+          height: 5,
+          data: Buffer.from(preset),
+        })),
+      }),
     ),
   };
   return { deps, processor: new ImageResizeProcessor(deps, 1000) };
@@ -38,6 +44,7 @@ describe('ImageResizeProcessor', () => {
       { preset: 'thumb', key: 'results/j1/thumb.webp', width: 10, height: 5, bytes: 5 },
       { preset: 'medium', key: 'results/j1/medium.webp', width: 10, height: 5, bytes: 6 },
     ]);
+    expect(output.source).toEqual({ width: 40, height: 20 });
   });
 
   it('fetches a URL source through the egress path', async () => {

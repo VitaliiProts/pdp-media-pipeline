@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { createConfigModule } from '@pdp/config';
 import { NatsModule, NatsService } from '@pdp/messaging';
 import { HealthModule, ObservabilityModule } from '@pdp/observability';
+import { AssetJanitor } from './assets/asset-janitor';
+import { AssetsController } from './assets/assets.controller';
+import { AssetsService } from './assets/assets.service';
 import { AccountsService } from './auth/accounts.service';
 import { AuthController } from './auth/auth.controller';
 import { envSchema } from './config';
@@ -29,7 +32,15 @@ import { WebhooksService } from './webhooks/webhooks.service';
       ],
     }),
   ],
-  controllers: [JobsController, WebhooksController, AuthController],
-  providers: [AccountsService, JobsService, WebhooksService, OutboxRelay, IdempotencyJanitor],
+  controllers: [JobsController, WebhooksController, AuthController, AssetsController],
+  providers: [
+    AccountsService,
+    AssetsService,
+    JobsService,
+    WebhooksService,
+    OutboxRelay,
+    IdempotencyJanitor,
+    AssetJanitor,
+  ],
 })
 export class AppModule {}

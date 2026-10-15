@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Button } from '../../../shared/ui/button/Button';
 import { useDeleteWebhookMutation } from '../api/webhooks-api';
 import { problemOf } from '../model/problem';
 import { type Webhook } from '../model/types';
@@ -42,27 +43,27 @@ export function WebhookList({ webhooks, selectedId, onSelect }: WebhookListProps
             </button>
             {confirming === webhook.id ? (
               <span className={styles.confirm}>
-                <button
-                  type="button"
-                  className={styles.danger}
+                <Button
+                  variant="danger"
+                  size="sm"
                   disabled={isLoading}
                   onClick={() => void remove(webhook.id).then(() => setConfirming(null))}
                 >
                   {t('list.confirmDelete')}
-                </button>
-                <button type="button" className={styles.quiet} onClick={() => setConfirming(null)}>
+                </Button>
+                <Button variant="quiet" size="sm" onClick={() => setConfirming(null)}>
                   {t('list.cancel')}
-                </button>
+                </Button>
               </span>
             ) : (
-              <button
-                type="button"
-                className={styles.quiet}
+              <Button
+                variant="quiet"
+                size="sm"
                 aria-label={t('list.deleteLabel', { url: webhook.url })}
                 onClick={() => setConfirming(webhook.id)}
               >
                 {t('list.delete')}
-              </button>
+              </Button>
             )}
           </li>
         ))}

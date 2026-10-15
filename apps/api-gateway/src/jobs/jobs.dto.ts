@@ -21,6 +21,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -119,6 +120,11 @@ export class ListJobsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Only jobs on this media library file.' })
+  @IsOptional()
+  @IsUUID()
+  assetId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -246,6 +252,14 @@ export class JobResponseDto {
 
   @ApiProperty({ type: 'object', additionalProperties: true })
   input!: Record<string, unknown>;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Media library file the job reads; null for sourceUrl jobs.',
+  })
+  assetId!: string | null;
 
   @ApiProperty()
   attempts!: number;

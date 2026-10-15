@@ -1,5 +1,4 @@
 {
-  "title": "Media pipeline",
   "lead": "Upload images, watch the workers resize them, and download the results.",
   "label": "API key",
   "submit": "Continue",

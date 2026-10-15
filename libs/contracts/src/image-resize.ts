@@ -34,6 +34,10 @@ export type ImageResult = z.infer<typeof ImageResultSchema>;
 
 export const ImageResizeOutputV1 = z.object({
   results: z.array(ImageResultSchema),
+  /** The original as displayed (EXIF orientation applied); absent in outputs before 5c.2. */
+  source: z
+    .object({ width: z.number().int().positive(), height: z.number().int().positive() })
+    .optional(),
 });
 export type ImageResizeOutputV1 = z.infer<typeof ImageResizeOutputV1>;
 

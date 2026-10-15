@@ -1,14 +1,18 @@
 import {
+  ASSET_KINDS,
   DEAD_REASONS,
   JOB_CLASSES,
   JOB_STATUSES,
   JOB_TYPES,
   type JobDto,
+  type UploadContentType,
   WEBHOOK_EVENTS,
 } from '@pdp/contracts';
 import { type TraceCarrier } from '@pdp/observability';
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -30,6 +34,7 @@ export const jobClass = pgEnum('job_class', JOB_CLASSES);
 export const jobType = pgEnum('job_type', JOB_TYPES);
 export const deadReason = pgEnum('dead_reason', DEAD_REASONS);
 export const webhookEvent = pgEnum('webhook_event', WEBHOOK_EVENTS);
+export const assetKind = pgEnum('asset_kind', ASSET_KINDS);
 export const executionOutcome = pgEnum('execution_outcome', [
   'succeeded',
   'retry',
@@ -73,6 +78,44 @@ export const apiKeys = pgTable(
   (t) => [index('api_keys_user_idx').on(t.userId, t.createdAt)],
 );
 
+/** A file the user uploaded; jobs read it, and deleting it removes their results too. */
+export const assets = pgTable(
+  'assets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    key: text('key').notNull().unique(),
+    kind: assetKind('kind').notNull(),
+    name: text('name'),
+    contentType: text('content_type').$type<UploadContentType>().notNull(),
+    /** Declared at upload and signed into the URL, so it is the stored size; null if older. */
+    size: bigint('size', { mode: 'number' }),
+    width: integer('width'),
+    height: integer('height'),
+    durationSeconds: doublePrecision('duration_seconds'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    /** First job on the asset. Until then the upload only reserves quota and is not listed. */
+    attachedAt: ts('attached_at'),
+    /** Set together with the `asset.deleted` event; objects are purged after it. */
+    deletedAt: ts('deleted_at'),
+  },
+  (t) => [
+    // Live assets only: the library, the quota sum and the kind filter never see deleted ones.
+    index('assets_user_created_idx')
+      .on(t.userId, t.createdAt.desc(), t.id.desc())
+      .where(sql`${t.deletedAt} is null`),
+    index('assets_user_kind_created_idx')
+      .on(t.userId, t.kind, t.createdAt.desc(), t.id.desc())
+      .where(sql`${t.deletedAt} is null`),
+    // What the janitor scans: uploads no job has used yet.
+    index('assets_unattached_idx')
+      .on(t.createdAt)
+      .where(sql`${t.attachedAt} is null and ${t.deletedAt} is null`),
+  ],
+);
+
 export const jobs = pgTable(
   'jobs',
   {
@@ -95,12 +138,17 @@ export const jobs = pgTable(
     traceId: text('trace_id'),
     /** Percent of the current attempt; not a status change, so `updated_at` stays. */
     progress: smallint('progress'),
+    /** Set from `input.sourceKey`; URL sources and webhook deliveries have none. */
+    assetId: uuid('asset_id').references(() => assets.id),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
     finishedAt: ts('finished_at'),
   },
   (t) => [
     index('jobs_user_created_idx').on(t.userId, t.createdAt.desc(), t.id.desc()),
+    index('jobs_asset_created_idx')
+      .on(t.assetId, t.createdAt.desc(), t.id.desc())
+      .where(sql`${t.assetId} is not null`),
     index('jobs_user_status_created_idx').on(t.userId, t.status, t.createdAt.desc(), t.id.desc()),
     // Partial: stays small as finished jobs pile up; used to find stuck jobs.
     index('jobs_active_status_idx')
@@ -236,5 +284,6 @@ export const webhookEndpoints = pgTable(
 
 export type UserRow = typeof users.$inferSelect;
 export type ApiKeyRow = typeof apiKeys.$inferSelect;
+export type AssetRow = typeof assets.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;

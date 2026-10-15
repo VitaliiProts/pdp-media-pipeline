@@ -20,7 +20,7 @@ describe('backpressure at the gateway', () => {
     pool = db.pool;
     apiKey = db.user.apiKey;
     sourceKey = `uploads/${db.user.userId}/backpressure.png`;
-    await putSource(infra.s3, sourceKey, await pngImage(400, 300));
+    await putSource(infra.s3, pool, sourceKey, await pngImage(400, 300));
     apps = createApps(infra);
     await apps.start('metadata');
     // No worker yet: dispatched jobs pile up in the cpu stream.

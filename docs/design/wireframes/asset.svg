@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1720 900" font-family="system-ui, sans-serif" fill="#374151">
+  <title>Сторінка файлу — вайрфрейм</title>
+  <rect width="1720" height="900" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16">Десктоп 1280</text>
+  <text x="1340" y="28" font-size="16">Мобільний 375</text>
+  <g stroke="#9ca3af" fill="none"><rect x="20" y="40" width="1280" height="840" rx="8"/><rect x="1340" y="40" width="360" height="840" rx="24"/></g>
+  <!-- desktop header -->
+  <rect x="60" y="70" width="220" height="28" rx="0" fill="#d1d5db"/>
+  <text x="340" y="90" font-size="15" font-weight="700">Медіатека</text>
+  <rect x="340" y="100" width="81" height="3" rx="0" fill="#374151"/>
+  <text x="461" y="90" font-size="15">Задачі</text>
+  <text x="555" y="90" font-size="15">Вебхуки</text>
+  <rect x="1060" y="66" width="140" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="1074" y="89.0" font-size="14" fill="#fff">Завантажити</text>
+  <circle cx="1250" cy="84" r="18" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="60" y="150" font-size="14">Медіатека / harbour.jpg</text>
+  <text x="60" y="195" font-size="32" font-weight="700">harbour.jpg</text>
+  <rect x="60" y="220" width="680" height="450" rx="3" fill="#d1d5db"/>
+  <text x="330" y="450" font-size="18">Оригінал 4032 × 3024</text>
+  <text x="60" y="700" font-size="14">12.4 МБ · завантажено 9 жовтня 2026</text>
+  <rect x="60" y="720" width="230" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="74" y="743.0" font-size="14">Завантажити оригінал</text>
+  <rect x="306" y="720" width="120" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="322" y="743" font-size="14" font-weight="700">Видалити</text>
+  <rect x="442" y="720" width="200" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af" stroke-dasharray="6 4"/>
+  <text x="456" y="743.0" font-size="14">Перекласти (5d)</text>
+  <text x="60" y="790" font-size="13">Видалити — danger з підтвердженням; «Перекласти» лише для відео</text>
+  <rect x="780" y="220" width="480" height="500" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="804" y="256" font-size="15" font-weight="700">Результати</text>
+  <text x="924" y="256" font-size="15">Задачі</text>
+  <rect x="804" y="266" width="92" height="3" rx="0" fill="#374151"/>
+  <line x1="780" y1="270" x2="1260" y2="270" stroke="#9ca3af"/>
+  <text x="804" y="322" font-size="15">Мініатюра 320 px</text>
+  <text x="1040" y="322" font-size="14">18 КБ</text>
+  <text x="1140" y="322" font-size="14" text-decoration="underline">Завантажити</text>
+  <line x1="804" y1="340" x2="1236" y2="340" stroke="#9ca3af"/>
+  <text x="804" y="382" font-size="15">Середній 960 px</text>
+  <text x="1040" y="382" font-size="14">96 КБ</text>
+  <text x="1140" y="382" font-size="14" text-decoration="underline">Завантажити</text>
+  <line x1="804" y1="400" x2="1236" y2="400" stroke="#9ca3af"/>
+  <text x="804" y="442" font-size="15">Великий 1600 px</text>
+  <text x="1040" y="442" font-size="14">310 КБ</text>
+  <text x="1140" y="442" font-size="14" text-decoration="underline">Завантажити</text>
+  <line x1="804" y1="460" x2="1236" y2="460" stroke="#9ca3af"/>
+  <text x="804" y="502" font-size="15">WebP 1600 px</text>
+  <text x="1040" y="502" font-size="14">204 КБ</text>
+  <text x="1140" y="502" font-size="14" text-decoration="underline">Завантажити</text>
+  <line x1="804" y1="520" x2="1236" y2="520" stroke="#9ca3af"/>
+  <text x="804" y="700" font-size="13">Вкладки — WAI-ARIA tabs: ←/→, Home, End</text>
+  <!-- mobile -->
+  <!-- mobile header -->
+  <rect x="1360" y="70" width="120" height="24" rx="0" fill="#d1d5db"/>
+  <rect x="1574" y="64" width="44" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="1588" y="89.0" font-size="18" fill="#fff">+</text>
+  <circle cx="1662" cy="82" r="16" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1360" y="132" font-size="14" font-weight="700">Медіатека</text>
+  <text x="1456" y="132" font-size="14">Задачі</text>
+  <text x="1528" y="132" font-size="14">Вебхуки</text>
+  <text x="1360" y="166" font-size="13">Медіатека / harbour.jpg</text>
+  <rect x="1360" y="180" width="320" height="214" rx="3" fill="#d1d5db"/>
+  <text x="1440" y="292" font-size="16">Оригінал</text>
+  <text x="1360" y="420" font-size="13">12.4 МБ · 9 жовтня 2026</text>
+  <text x="1360" y="460" font-size="14" font-weight="700">Результати</text>
+  <text x="1470" y="460" font-size="14">Задачі</text>
+  <rect x="1360" y="468" width="80" height="3" rx="0" fill="#374151"/>
+  <text x="1360" y="512" font-size="14">Мініатюра 320 px</text>
+  <text x="1620" y="512" font-size="13">18 КБ</text>
+  <line x1="1360" y1="526" x2="1680" y2="526" stroke="#9ca3af"/>
+  <text x="1360" y="564" font-size="14">Середній 960 px</text>
+  <text x="1620" y="564" font-size="13">96 КБ</text>
+  <line x1="1360" y1="578" x2="1680" y2="578" stroke="#9ca3af"/>
+  <text x="1360" y="616" font-size="14">Великий 1600 px</text>
+  <text x="1620" y="616" font-size="13">310 КБ</text>
+  <line x1="1360" y1="630" x2="1680" y2="630" stroke="#9ca3af"/>
+  <text x="1360" y="668" font-size="14">WebP 1600 px</text>
+  <text x="1620" y="668" font-size="13">204 КБ</text>
+  <line x1="1360" y1="682" x2="1680" y2="682" stroke="#9ca3af"/>
+  <rect x="1340" y="800" width="360" height="80" rx="0" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="1356" y="820" width="104" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1370" y="842.5" font-size="13">Оригінал</text>
+  <rect x="1470" y="820" width="100" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1484" y="842.5" font-size="13">Видалити</text>
+  <rect x="1580" y="820" width="104" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af" stroke-dasharray="6 4"/>
+  <text x="1594" y="842.5" font-size="13">Переклад</text>
+</svg>

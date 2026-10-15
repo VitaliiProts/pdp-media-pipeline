@@ -1,5 +1,6 @@
 import { type FormEvent, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Button } from '../../../shared/ui/button/Button';
 import { useCreateWebhookMutation } from '../api/webhooks-api';
 import { problemOf } from '../model/problem';
 import { WEBHOOK_EVENTS, type WebhookEvent } from '../model/types';
@@ -72,9 +73,9 @@ export function WebhookForm({ disabled, onCreated }: WebhookFormProps) {
         {disabled && <p className={styles.hint}>{t('form.limit')}</p>}
         {problem && <ProblemText problem={problem} />}
 
-        <button type="submit" className={styles.submit} disabled={!canSubmit}>
+        <Button variant="primary" type="submit" className={styles.submit} disabled={!canSubmit}>
           {isLoading ? t('form.pending') : t('form.submit')}
-        </button>
+        </Button>
       </form>
 
       {created && (
@@ -82,9 +83,9 @@ export function WebhookForm({ disabled, onCreated }: WebhookFormProps) {
           <p className={styles.secretTitle}>{t('secret.title')}</p>
           <p className={styles.hint}>{t('secret.hint')}</p>
           <code className={styles.secretValue}>{created.secret}</code>
-          <button type="button" className={styles.quiet} onClick={reset}>
+          <Button variant="quiet" size="sm" onClick={reset}>
             {t('secret.done')}
-          </button>
+          </Button>
         </div>
       )}
     </div>

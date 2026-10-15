@@ -8,15 +8,28 @@ import {
   loadApiKeyState,
   selectApiKey,
 } from '../features/api-key';
-import { uploadsSlice } from '../features/upload';
+import { clearUploads, uploadsSlice } from '../features/upload';
 import { baseApi } from '../shared/api/base-api';
 import { configureHttp } from '../shared/api/http';
+import { type ThunkExtra } from '../shared/lib/redux';
 
 const rootReducer = combineSlices(apiKeySlice, uploadsSlice, baseApi);
 export type RootState = ReturnType<typeof rootReducer>;
 
 export function createStore(storage: Storage = window.localStorage) {
   const listener = createListenerMiddleware<RootState>();
+  let session = new AbortController();
+  const extra: ThunkExtra = { sessionSignal: () => session.signal };
+
+  listener.startListening({
+    actionCreator: apiKeyCleared,
+    effect: (_action, api) => {
+      session.abort();
+      session = new AbortController();
+      // The next user must not see, or be alerted about, the previous user's files.
+      api.dispatch(clearUploads());
+    },
+  });
 
   listener.startListening({
     matcher: isAnyOf(apiKeySaved, apiKeyRejected, apiKeyCleared),
@@ -33,13 +46,20 @@ export function createStore(storage: Storage = window.localStorage) {
     reducer: rootReducer,
     preloadedState: { apiKey: loadApiKeyState(storage) },
     middleware: (getDefault) =>
-      getDefault().prepend(listener.middleware).concat(baseApi.middleware),
+      getDefault({ thunk: { extraArgument: extra } })
+        .prepend(listener.middleware)
+        .concat(baseApi.middleware),
   });
 
   configureHttp({
     getApiKey: () => selectApiKey(store.getState()),
-    onUnauthorized: () => {
-      if (selectApiKey(store.getState())) store.dispatch(apiKeyRejected());
+    onUnauthorized: (sentKey) => {
+      // A late 401 for a key that has since been replaced says nothing about the current one.
+      if (sentKey !== null && sentKey === selectApiKey(store.getState())) {
+        store.dispatch(apiKeyRejected());
+      }
+      // A session that expired mid-work: the shell re-checks and sends the user to sign in.
+      store.dispatch(baseApi.util.invalidateTags(['Me']));
     },
   });
 

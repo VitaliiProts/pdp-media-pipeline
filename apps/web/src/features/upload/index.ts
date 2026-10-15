@@ -1,5 +1,5 @@
 export { IMAGE_PRESETS, type ImagePreset, PRESET_LABEL_KEY } from './model/presets';
-export { dismissUpload, uploadFiles } from './model/upload-files';
+export { clearUploads, dismissUpload, uploadFiles } from './model/upload-files';
 export {
   selectUploads,
   type Upload,
@@ -7,4 +7,5 @@ export {
   uploadsSlice,
   type WaitReason,
 } from './model/uploads-slice';
-export { UploadPanel } from './ui/UploadPanel';
+export { useOpenUpload } from './model/open-upload-context';
+export { UploadDialogProvider } from './ui/UploadDialogProvider';

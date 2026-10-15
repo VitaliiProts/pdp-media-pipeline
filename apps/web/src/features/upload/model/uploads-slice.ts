@@ -81,6 +81,9 @@ export const uploadsSlice = createSlice({
     uploadDismissed(state, action: PayloadAction<string>) {
       adapter.removeOne(state, action.payload);
     },
+    uploadsCleared(state) {
+      adapter.removeAll(state);
+    },
   },
 });
 
@@ -93,6 +96,7 @@ export const {
   uploadSubmitted,
   uploadFailed,
   uploadDismissed,
+  uploadsCleared,
 } = uploadsSlice.actions;
 
 const selectors = adapter.getSelectors(

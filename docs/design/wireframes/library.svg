@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1720 900" font-family="system-ui, sans-serif" fill="#374151">
+  <title>Медіатека — вайрфрейм</title>
+  <rect width="1720" height="900" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16">Десктоп 1280</text>
+  <text x="1340" y="28" font-size="16">Мобільний 375</text>
+  <g stroke="#9ca3af" fill="none"><rect x="20" y="40" width="1280" height="840" rx="8"/><rect x="1340" y="40" width="360" height="840" rx="24"/></g>
+  <!-- desktop header -->
+  <rect x="60" y="70" width="220" height="28" rx="0" fill="#d1d5db"/>
+  <text x="340" y="90" font-size="15" font-weight="700">Медіатека</text>
+  <rect x="340" y="100" width="81" height="3" rx="0" fill="#374151"/>
+  <text x="461" y="90" font-size="15">Задачі</text>
+  <text x="555" y="90" font-size="15">Вебхуки</text>
+  <rect x="1060" y="66" width="140" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="1074" y="89.0" font-size="14" fill="#fff">Завантажити</text>
+  <circle cx="1250" cy="84" r="18" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="60" y="170" font-size="36" font-weight="700">Медіатека</text>
+  <rect x="60" y="195" width="270" height="40" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="76" y="221" font-size="15" font-weight="700">Усі</text>
+  <text x="160" y="221" font-size="15">Фото</text>
+  <text x="250" y="221" font-size="15">Відео</text>
+  <g stroke="#9ca3af"><line x1="135" y1="195" x2="135" y2="235"/><line x1="225" y1="195" x2="225" y2="235"/></g>
+  <rect x="960" y="195" width="300" height="40" rx="6" fill="#fff" stroke="#9ca3af"/>
+  <text x="976" y="221" font-size="14">Пошук за назвою</text>
+  <rect x="60" y="255" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="72" y="267" width="258" height="140" rx="3" fill="#d1d5db"/>
+  <text x="72" y="433" font-size="15">harbour.jpg</text>
+  <rect x="72" y="443" width="80" height="24" rx="12.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="82" y="460" font-size="12">Готово</text>
+  <text x="278" y="460" font-size="13">2.4 МБ</text>
+  <rect x="366" y="255" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="378" y="267" width="258" height="140" rx="3" fill="#d1d5db"/>
+  <text x="378" y="433" font-size="15">night-port.png</text>
+  <rect x="378" y="443" width="80" height="24" rx="12.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="388" y="460" font-size="12">Готово</text>
+  <text x="584" y="460" font-size="13">2.4 МБ</text>
+  <rect x="672" y="255" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="684" y="267" width="258" height="140" rx="3" fill="#d1d5db"/>
+  <text x="684" y="433" font-size="15">cliffs.mp4</text>
+  <rect x="684" y="443" width="80" height="24" rx="12.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="694" y="460" font-size="12">Обробка</text>
+  <text x="890" y="460" font-size="13">2.4 МБ</text>
+  <rect x="978" y="255" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="990" y="267" width="258" height="140" rx="3" fill="#d1d5db"/>
+  <text x="990" y="433" font-size="15">bay.webp</text>
+  <rect x="990" y="443" width="80" height="24" rx="12.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1000" y="460" font-size="12">Готово</text>
+  <text x="1196" y="460" font-size="13">2.4 МБ</text>
+  <rect x="60" y="515" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="72" y="527" width="258" height="140" rx="3" fill="#d1d5db"/>
+  <text x="72" y="693" font-size="15">storm.mp4</text>
+  <rect x="72" y="703" width="80" height="24" rx="12.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="82" y="720" font-size="12">У черзі</text>
+  <text x="278" y="720" font-size="13">2.4 МБ</text>
+  <rect x="366" y="515" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="378" y="527" width="258" height="140" rx="3" fill="#d1d5db"/>
+  <text x="378" y="693" font-size="15">pier.jpg</text>
+  <rect x="378" y="703" width="80" height="24" rx="12.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="388" y="720" font-size="12">Помилка</text>
+  <text x="584" y="720" font-size="13">2.4 МБ</text>
+  <rect x="672" y="515" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="684" y="527" width="258" height="140" rx="3" fill="#d1d5db"/>
+  <text x="684" y="693" font-size="15">gulls.png</text>
+  <rect x="684" y="703" width="80" height="24" rx="12.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="694" y="720" font-size="12">Готово</text>
+  <text x="890" y="720" font-size="13">2.4 МБ</text>
+  <rect x="978" y="515" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="990" y="527" width="258" height="140" rx="3" fill="#d1d5db"/>
+  <text x="990" y="693" font-size="15">dock.jpg</text>
+  <rect x="990" y="703" width="80" height="24" rx="12.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1000" y="720" font-size="12">Готово</text>
+  <text x="1196" y="720" font-size="13">2.4 МБ</text>
+  <rect x="570" y="790" width="180" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="584" y="813.0" font-size="14">Показати ще</text>
+  <text x="770" y="813" font-size="13">курсорна пагінація</text>
+  <!-- mobile -->
+  <!-- mobile header -->
+  <rect x="1360" y="70" width="120" height="24" rx="0" fill="#d1d5db"/>
+  <rect x="1574" y="64" width="44" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="1588" y="89.0" font-size="18" fill="#fff">+</text>
+  <circle cx="1662" cy="82" r="16" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1360" y="132" font-size="14" font-weight="700">Медіатека</text>
+  <text x="1456" y="132" font-size="14">Задачі</text>
+  <text x="1528" y="132" font-size="14">Вебхуки</text>
+  <rect x="1360" y="140" width="80" height="3" rx="0" fill="#374151"/>
+  <text x="1360" y="186" font-size="28" font-weight="700">Медіатека</text>
+  <rect x="1360" y="202" width="320" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1374" y="226" font-size="14">Усі · Фото · Відео</text>
+  <rect x="1360" y="252" width="152" height="128" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="1368" y="260" width="136" height="70" rx="3" fill="#d1d5db"/>
+  <text x="1368" y="348" font-size="13">harbour.jpg</text>
+  <rect x="1368" y="354" width="72" height="18" rx="9.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1378" y="367" font-size="11">Готово</text>
+  <rect x="1528" y="252" width="152" height="128" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="1536" y="260" width="136" height="70" rx="3" fill="#d1d5db"/>
+  <text x="1536" y="348" font-size="13">night-por…</text>
+  <rect x="1536" y="354" width="72" height="18" rx="9.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1546" y="367" font-size="11">Готово</text>
+  <rect x="1360" y="392" width="152" height="128" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="1368" y="400" width="136" height="70" rx="3" fill="#d1d5db"/>
+  <text x="1368" y="488" font-size="13">cliffs.mp4</text>
+  <rect x="1368" y="494" width="72" height="18" rx="9.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1378" y="507" font-size="11">Обробка</text>
+  <rect x="1528" y="392" width="152" height="128" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="1536" y="400" width="136" height="70" rx="3" fill="#d1d5db"/>
+  <text x="1536" y="488" font-size="13">bay.webp</text>
+  <rect x="1536" y="494" width="72" height="18" rx="9.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1546" y="507" font-size="11">Готово</text>
+  <rect x="1360" y="532" width="152" height="128" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="1368" y="540" width="136" height="70" rx="3" fill="#d1d5db"/>
+  <text x="1368" y="628" font-size="13">storm.mp4</text>
+  <rect x="1368" y="634" width="72" height="18" rx="9.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1378" y="647" font-size="11">У черзі</text>
+  <rect x="1528" y="532" width="152" height="128" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="1536" y="540" width="136" height="70" rx="3" fill="#d1d5db"/>
+  <text x="1536" y="628" font-size="13">pier.jpg</text>
+  <rect x="1536" y="634" width="72" height="18" rx="9.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1546" y="647" font-size="11">Помилка</text>
+  <rect x="1360" y="672" width="152" height="128" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="1368" y="680" width="136" height="70" rx="3" fill="#d1d5db"/>
+  <text x="1368" y="768" font-size="13">gulls.png</text>
+  <rect x="1368" y="774" width="72" height="18" rx="9.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1378" y="787" font-size="11">Готово</text>
+  <rect x="1528" y="672" width="152" height="128" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="1536" y="680" width="136" height="70" rx="3" fill="#d1d5db"/>
+  <text x="1536" y="768" font-size="13">dock.jpg</text>
+  <rect x="1536" y="774" width="72" height="18" rx="9.0" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1546" y="787" font-size="11">Готово</text>
+  <rect x="1440" y="822" width="160" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1454" y="845.0" font-size="14">Показати ще</text>
+</svg>

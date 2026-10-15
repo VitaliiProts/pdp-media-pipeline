@@ -1,0 +1,12 @@
+.heading {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-stretch: 62%;
+  font-weight: var(--weight-display);
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.heading:focus:not(:focus-visible) {
+  outline: none;
+}

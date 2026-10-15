@@ -5,14 +5,6 @@
   gap: var(--space-1);
 }
 
-.action {
-  composes: quiet from '../../../shared/ui/button.module.css';
-  margin-top: var(--space-1);
-  border-color: var(--rule);
-  color: var(--ink);
-  font-size: var(--text-sm);
-}
-
 .problem {
   margin: 0;
   color: var(--red);

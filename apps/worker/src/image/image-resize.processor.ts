@@ -7,12 +7,12 @@ import {
   mediaSourceOf,
 } from '@pdp/contracts';
 import { type FetchLimits, type JobContext, type JobProcessor } from '@pdp/worker-kit';
-import { type ResizedImage } from './resize';
+import { type ResizeResult } from './resize';
 
 export interface ImageResizeDeps {
   fetchSource: (source: MediaSource, limits: FetchLimits) => Promise<Buffer>;
   putObject: (key: string, body: Buffer, contentType: string) => Promise<void>;
-  resize: (input: Buffer, presets: readonly ImagePreset[]) => Promise<ResizedImage[]>;
+  resize: (input: Buffer, presets: readonly ImagePreset[]) => Promise<ResizeResult>;
 }
 
 export class ImageResizeProcessor implements JobProcessor<ImageResizeInputV1> {
@@ -28,7 +28,7 @@ export class ImageResizeProcessor implements JobProcessor<ImageResizeInputV1> {
     const source = await this.deps.fetchSource(mediaSourceOf(input), {
       maxBytes: this.maxSourceBytes,
     });
-    const images = await this.deps.resize(source, input.presets);
+    const { source: original, images } = await this.deps.resize(source, input.presets);
     const results = await Promise.all(
       images.map(async (image) => {
         const key = imageResultKey(job.jobId, image.preset);
@@ -42,6 +42,6 @@ export class ImageResizeProcessor implements JobProcessor<ImageResizeInputV1> {
         };
       }),
     );
-    return { results };
+    return { results, source: original };
   }
 }

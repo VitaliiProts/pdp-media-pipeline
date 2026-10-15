@@ -34,6 +34,8 @@ export const JobDto = z.object({
   traceId: z.string().nullable().default(null),
   /** Percent of the current attempt, for long jobs that report it; reset when one starts. */
   progress: JobProgressSchema.nullable().default(null),
+  /** The uploaded original the job reads; null for URL sources and webhook deliveries. */
+  assetId: z.uuid().nullable().default(null),
 });
 export type JobDto = z.infer<typeof JobDto>;
 
@@ -66,6 +68,7 @@ export const ListJobsQuery = z.object({
     .optional(),
   /** Deliveries to one endpoint; implies `types = [webhook.deliver]`. */
   webhookEndpointId: z.uuid().optional(),
+  assetId: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
 });
@@ -172,6 +175,9 @@ export const METADATA_ERROR_CODES = [
   'EMAIL_TAKEN',
   'INVALID_CREDENTIALS',
   'API_KEY_LIMIT_REACHED',
+  'ASSET_NOT_FOUND',
+  'ASSET_BUSY',
+  'STORAGE_QUOTA_EXCEEDED',
 ] as const;
 export type MetadataErrorCode = (typeof METADATA_ERROR_CODES)[number];
 

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1720 900" font-family="system-ui, sans-serif" fill="#374151">
+  <title>Діалог завантаження — вайрфрейм</title>
+  <rect width="1720" height="900" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16">Десктоп 1280</text>
+  <text x="1340" y="28" font-size="16">Мобільний 375</text>
+  <g stroke="#9ca3af" fill="none"><rect x="20" y="40" width="1280" height="840" rx="8"/><rect x="1340" y="40" width="360" height="840" rx="24"/></g>
+  <!-- desktop header -->
+  <rect x="60" y="70" width="220" height="28" rx="0" fill="#d1d5db"/>
+  <text x="340" y="90" font-size="15">Медіатека</text>
+  <text x="461" y="90" font-size="15" font-weight="700">Задачі</text>
+  <rect x="461" y="100" width="54" height="3" rx="0" fill="#374151"/>
+  <text x="555" y="90" font-size="15">Вебхуки</text>
+  <rect x="1060" y="66" width="140" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="1074" y="89.0" font-size="14" fill="#fff">Завантажити</text>
+  <circle cx="1250" cy="84" r="18" fill="#e5e7eb" stroke="#9ca3af"/>
+  <rect x="60" y="160" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="366" y="160" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="672" y="160" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="978" y="160" width="282" height="240" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="20" y="40" width="1280" height="840" rx="8" fill="#111827" opacity="0.45"/>
+  <rect x="340" y="110" width="640" height="660" rx="12" fill="#fff" stroke="#9ca3af"/>
+  <text x="370" y="160" font-size="24" font-weight="700">Завантаження файлів</text>
+  <rect x="920" y="136" width="36" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="931" y="160" font-size="16">✕</text>
+  <rect x="370" y="190" width="580" height="170" rx="10" fill="#f9fafb" stroke="#9ca3af" stroke-dasharray="8 6" stroke-width="2"/>
+  <text x="500" y="262" font-size="20">Перетягніть фото чи відео сюди</text>
+  <text x="575" y="292" font-size="15">або виберіть файли</text>
+  <text x="530" y="334" font-size="13">Фото до 25 МБ, відео до 500 МБ</text>
+  <text x="370" y="402" font-size="16" font-weight="700">Що зробити з фото</text>
+  <rect x="370" y="423" width="16" height="16" rx="3" fill="#fff" stroke="#9ca3af"/>
+  <text x="398" y="436" font-size="15">Мініатюра · 320 px</text>
+  <rect x="370" y="455" width="16" height="16" rx="3" fill="#fff" stroke="#9ca3af"/>
+  <text x="398" y="468" font-size="15">Середній · 960 px</text>
+  <rect x="370" y="487" width="16" height="16" rx="3" fill="#fff" stroke="#9ca3af"/>
+  <text x="398" y="500" font-size="15">Великий · 1600 px</text>
+  <text x="370" y="556" font-size="16" font-weight="700">Що зробити з відео</text>
+  <circle cx="378" cy="585" r="8" fill="#fff" stroke="#9ca3af"/>
+  <text x="398" y="590" font-size="15">Кадри — прев'ю кожні N секунд</text>
+  <circle cx="378" cy="617" r="8" fill="#fff" stroke="#9ca3af"/>
+  <text x="398" y="622" font-size="15">Транскодинг — 720p і 480p</text>
+  <circle cx="378" cy="649" r="8" fill="#fff" stroke="#9ca3af" stroke-dasharray="4 3"/>
+  <text x="398" y="654" font-size="15">Переклад (5d)</text>
+  <text x="370" y="720" font-size="13">Діалог закривається після вибору файлів; прогрес — у тості й на сторінці «Задачі»</text>
+  <text x="370" y="742" font-size="13">Esc і клік по фону закривають; фокус повертається на кнопку «Завантажити»</text>
+  <!-- mobile -->
+  <!-- mobile header -->
+  <rect x="1360" y="70" width="120" height="24" rx="0" fill="#d1d5db"/>
+  <rect x="1574" y="64" width="44" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="1588" y="89.0" font-size="18" fill="#fff">+</text>
+  <circle cx="1662" cy="82" r="16" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1360" y="132" font-size="14">Медіатека</text>
+  <text x="1456" y="132" font-size="14" font-weight="700">Задачі</text>
+  <text x="1528" y="132" font-size="14">Вебхуки</text>
+  <rect x="1340" y="40" width="360" height="840" rx="24" fill="#111827" opacity="0.45"/>
+  <path d="M1340 320 a24 24 0 0 1 24 -24 h312 a24 24 0 0 1 24 24 v536 a24 24 0 0 1 -24 24 h-312 a24 24 0 0 1 -24 -24 z" fill="#fff" stroke="#9ca3af"/>
+  <rect x="1490" y="306" width="60" height="5" rx="2" fill="#d1d5db"/>
+  <text x="1360" y="346" font-size="20" font-weight="700">Завантаження файлів</text>
+  <rect x="1644" y="324" width="36" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1655" y="348" font-size="16">✕</text>
+  <rect x="1360" y="372" width="320" height="120" rx="10" fill="#f9fafb" stroke="#9ca3af" stroke-dasharray="8 6" stroke-width="2"/>
+  <text x="1400" y="428" font-size="16">Торкніться, щоб вибрати</text>
+  <text x="1420" y="456" font-size="12">фото до 25 МБ, відео до 500 МБ</text>
+  <text x="1360" y="528" font-size="15" font-weight="700">Що зробити з фото</text>
+  <rect x="1360" y="547" width="16" height="16" rx="3" fill="#fff" stroke="#9ca3af"/>
+  <text x="1388" y="560" font-size="14">Мініатюра · 320 px</text>
+  <rect x="1360" y="577" width="16" height="16" rx="3" fill="#fff" stroke="#9ca3af"/>
+  <text x="1388" y="590" font-size="14">Середній · 960 px</text>
+  <rect x="1360" y="607" width="16" height="16" rx="3" fill="#fff" stroke="#9ca3af"/>
+  <text x="1388" y="620" font-size="14">Великий · 1600 px</text>
+  <text x="1360" y="670" font-size="15" font-weight="700">Що зробити з відео</text>
+  <circle cx="1368" cy="697" r="8" fill="#fff" stroke="#9ca3af"/>
+  <text x="1388" y="702" font-size="14">Кадри</text>
+  <circle cx="1368" cy="727" r="8" fill="#fff" stroke="#9ca3af"/>
+  <text x="1388" y="732" font-size="14">Транскодинг</text>
+  <circle cx="1368" cy="757" r="8" fill="#fff" stroke="#9ca3af" stroke-dasharray="4 3"/>
+  <text x="1388" y="762" font-size="14">Переклад (5d)</text>
+  <text x="1360" y="820" font-size="12">Нижній аркуш на всю ширину</text>
+</svg>

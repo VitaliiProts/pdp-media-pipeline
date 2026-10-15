@@ -18,7 +18,8 @@
     "react": "^19",
     "react-dom": "^19",
     "react-i18next": "^17",
-    "react-redux": "^9"
+    "react-redux": "^9",
+    "react-router": "^8"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",

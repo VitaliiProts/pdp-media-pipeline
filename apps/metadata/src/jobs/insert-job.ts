@@ -15,6 +15,7 @@ export function insertJob(
     type: JobType;
     priority?: number;
     input: Record<string, unknown>;
+    assetId?: string | null;
     actor: string;
   },
 ): Promise<JobRow> {
@@ -26,6 +27,7 @@ export function insertJob(
         type: values.type,
         priority: values.priority ?? DEFAULT_JOB_PRIORITY,
         input: values.input,
+        assetId: values.assetId ?? null,
         traceId: currentTraceId(),
       })
       .returning();

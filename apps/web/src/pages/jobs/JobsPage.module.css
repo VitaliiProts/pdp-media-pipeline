@@ -1,0 +1,13 @@
+.sheetSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sheetHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

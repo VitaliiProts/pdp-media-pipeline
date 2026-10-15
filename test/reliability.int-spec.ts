@@ -72,7 +72,7 @@ describe('retries, dead letters and duplicate deliveries', () => {
 
   const createJob = async (name: string) => {
     const sourceKey = `uploads/${userId}/${name}.png`;
-    await putSource(infra.s3, sourceKey, await pngImage(400, 300));
+    await putSource(infra.s3, pool, sourceKey, await pngImage(400, 300));
     const { job } = await client.createJob({
       userId,
       type: 'image.resize',

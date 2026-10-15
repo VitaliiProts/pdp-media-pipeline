@@ -29,6 +29,7 @@ import {
 import { currentTraceId, jobMetrics, withJobContext } from '@pdp/observability';
 import { and, count, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
+import { AssetsService } from '../assets/assets.service';
 import { type Env } from '../config';
 import { PostgresService, type Tx } from '../database/postgres.service';
 import {
@@ -77,6 +78,7 @@ export class JobsService {
   constructor(
     private readonly pg: PostgresService,
     private readonly webhooks: WebhooksService,
+    private readonly assets: AssetsService,
     config: ConfigService<Env, true>,
   ) {
     this.policy = { maxAttempts: config.get('JOB_MAX_ATTEMPTS', { infer: true }) };
@@ -99,11 +101,13 @@ export class JobsService {
         if (replay) return { job: replay, replayed: true };
       }
 
+      const { sourceKey } = input.data as { sourceKey?: string };
       const job = await insertJob(tx, {
         userId: req.userId,
         type: req.type,
         priority: req.priority,
         input: input.data as Record<string, unknown>,
+        assetId: sourceKey ? await this.assets.attachForJob(tx, req.userId, sourceKey) : null,
         actor: `user:${req.userId}`,
       });
 
@@ -182,12 +186,14 @@ export class JobsService {
     status?: JobRow['status'];
     types?: JobType[];
     webhookEndpointId?: string;
+    assetId?: string;
     limit: number;
     cursor?: string;
   }): Promise<ListJobsResponse> {
     const filters: SQL[] = [eq(jobs.userId, query.userId)];
     if (query.status) filters.push(eq(jobs.status, query.status));
     if (query.types) filters.push(inArray(jobs.type, query.types));
+    if (query.assetId) filters.push(eq(jobs.assetId, query.assetId));
     if (query.webhookEndpointId) {
       filters.push(sql`(${jobs.input}->>'endpointId') = ${query.webhookEndpointId}`);
     }
@@ -268,6 +274,7 @@ export class JobsService {
         fromStatus: decision.from,
         actor: req.actor,
       });
+      if (decision.effect === 'succeed') await this.assets.recordSourceFacts(tx, updated);
       if (req.inbox && (decision.effect === 'succeed' || decision.effect === 'dead')) {
         await tx
           .insert(inbox)
@@ -364,6 +371,9 @@ export class JobsService {
       const decision = decideRedrive(job);
       if (decision.kind === 'reject') {
         throw new ConflictException(error('NOT_REDRIVABLE', decision.message));
+      }
+      if (job.assetId && (await this.assets.isDeleted(tx, job.assetId))) {
+        throw new ConflictException(error('NOT_REDRIVABLE', 'the file of this job was deleted'));
       }
       return withJobContext({ id: job.id, type: job.type, class: job.class }, () =>
         this.requeue(tx, job, req),

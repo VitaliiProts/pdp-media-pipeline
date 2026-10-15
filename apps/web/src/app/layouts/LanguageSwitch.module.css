@@ -1,0 +1,22 @@
+.switch {
+  display: flex;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.option {
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  border: 0;
+  background: transparent;
+  color: var(--graphite);
+  cursor: pointer;
+}
+
+.option[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--mount);
+}

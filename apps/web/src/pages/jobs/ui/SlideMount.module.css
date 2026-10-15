@@ -1,0 +1,183 @@
+/*
+ * A 35mm slide mount: thick card stock around a small window, notes written on
+ * the bottom strip. The tone shows up only as the badge and the window edge.
+ */
+.mount {
+  --tone: var(--graphite);
+
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+  background: var(--mount);
+  border-radius: var(--radius-mount);
+  box-shadow: var(--shadow-mount);
+}
+
+.mount[data-tone='pending'] {
+  --tone: var(--graphite);
+}
+
+.mount[data-tone='active'] {
+  --tone: var(--amber);
+}
+
+.mount[data-tone='done'] {
+  --tone: var(--green);
+}
+
+.mount[data-tone='failed'] {
+  --tone: var(--red);
+}
+
+.window {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  border-radius: var(--radius-window);
+  background: var(--film);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tone) 55%, transparent);
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.blank {
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--film) 0 10px,
+    color-mix(in srgb, var(--film) 85%, var(--mount)) 10px 20px
+  );
+}
+
+.mount[data-tone='active'] .blank {
+  animation: develop 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes develop {
+  to {
+    opacity: 0.55;
+  }
+}
+
+.progress {
+  position: absolute;
+  inset: auto var(--space-2) var(--space-2);
+  width: calc(100% - 2 * var(--space-2));
+  height: 6px;
+}
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-1) 0;
+}
+
+.title {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.attempts {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.problem {
+  margin: 0;
+  color: var(--red);
+  font-size: var(--text-sm);
+}
+
+.detail {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--graphite);
+  overflow-wrap: anywhere;
+}
+
+.results {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.result {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.result:hover span:first-child {
+  text-decoration: underline;
+}
+
+.numbers {
+  color: var(--graphite);
+  font-variant-numeric: tabular-nums;
+}
+
+.dismiss {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mount[data-tone='active'] .blank {
+    animation: none;
+  }
+}
+
+.frames {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.frame {
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-window);
+  background: var(--film);
+}
+
+.frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.frame:focus-visible {
+  outline: 2px solid var(--tone);
+  outline-offset: 2px;
+}

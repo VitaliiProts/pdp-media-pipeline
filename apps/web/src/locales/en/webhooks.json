@@ -20,12 +20,14 @@
   "list": {
     "title": "Endpoints",
     "loading": "Loading endpoints…",
-    "empty": "No endpoints yet. Add one to be notified when a job finishes.",
+    "empty": "No endpoints yet",
+    "emptyBody": "Add one to be notified when a job finishes.",
     "retry": "Try again",
     "delete": "Delete",
     "deleteLabel": "Delete {{url}}",
     "confirmDelete": "Delete for good",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "errorTitle": "Could not load endpoints"
   },
   "deliveries": {
     "title": "Deliveries",
@@ -39,7 +41,8 @@
     "attempts": "Attempts",
     "response": "Response",
     "updated": "Updated",
-    "actions": "Actions"
+    "actions": "Actions",
+    "errorTitle": "Could not load deliveries"
   },
   "status": {
     "queued": "Waiting",

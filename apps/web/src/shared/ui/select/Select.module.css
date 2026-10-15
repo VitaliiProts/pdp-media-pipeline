@@ -1,0 +1,19 @@
+.select {
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-7) var(--space-2) var(--space-3);
+  border: 1px solid var(--rule-control);
+  border-radius: var(--radius-control);
+  background:
+    linear-gradient(45deg, transparent 50%, currentColor 50%) right 1.1rem center / 5px 5px
+      no-repeat,
+    linear-gradient(135deg, currentColor 50%, transparent 50%) right 0.8rem center / 5px 5px
+      no-repeat,
+    var(--mount);
+  color: var(--ink);
+  font: inherit;
+  appearance: none;
+}
+
+.select[aria-invalid='true'] {
+  border-color: var(--red);
+}

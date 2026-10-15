@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1720 900" font-family="system-ui, sans-serif" fill="#374151">
+  <title>Переклад відео — вайрфрейм</title>
+  <rect width="1720" height="900" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16">Десктоп 1280</text>
+  <text x="1340" y="28" font-size="16">Мобільний 375</text>
+  <g stroke="#9ca3af" fill="none"><rect x="20" y="40" width="1280" height="840" rx="8"/><rect x="1340" y="40" width="360" height="840" rx="24"/></g>
+  <!-- desktop header -->
+  <rect x="60" y="70" width="220" height="28" rx="0" fill="#d1d5db"/>
+  <text x="340" y="90" font-size="15" font-weight="700">Медіатека</text>
+  <rect x="340" y="100" width="81" height="3" rx="0" fill="#374151"/>
+  <text x="461" y="90" font-size="15">Задачі</text>
+  <text x="555" y="90" font-size="15">Вебхуки</text>
+  <rect x="1060" y="66" width="140" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="1074" y="89.0" font-size="14" fill="#fff">Завантажити</text>
+  <circle cx="1250" cy="84" r="18" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="60" y="170" font-size="32" font-weight="700">Переклад: cliffs.mp4</text>
+  <rect x="60" y="200" width="800" height="450" rx="3" fill="#d1d5db"/>
+  <path d="M440 390 l50 35 l-50 35 z" fill="#9ca3af"/>
+  <rect x="80" y="220" width="260" height="36" rx="6" fill="#fff" stroke="#9ca3af"/>
+  <text x="96" y="244" font-size="14">Оригінал</text>
+  <text x="210" y="244" font-size="14" font-weight="700">Переклад</text>
+  <rect x="80" y="600" width="760" height="32" rx="4" fill="#f3f4f6"/>
+  <text x="96" y="621" font-size="13">▶  00:08 / 01:42</text>
+  <rect x="60" y="680" width="220" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="74" y="703.0" font-size="14">Розпізнавання ✓</text>
+  <text x="296" y="704" font-size="18">→</text>
+  <rect x="330" y="680" width="220" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="344" y="703.0" font-size="14" fill="#fff">Переклад…</text>
+  <text x="566" y="704" font-size="18">→</text>
+  <rect x="600" y="680" width="220" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="614" y="703.0" font-size="14">Озвучка</text>
+  <rect x="900" y="200" width="360" height="450" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="924" y="236" font-size="16" font-weight="700">Субтитри</text>
+  <text x="924" y="276" font-size="13">00:01</text>
+  <text x="984" y="276" font-size="14">Добрий вечір, порт засинає.</text>
+  <text x="924" y="332" font-size="13">00:04</text>
+  <text x="984" y="332" font-size="14">Кораблі повертаються додому.</text>
+  <text x="924" y="388" font-size="13" font-weight="700">00:08</text>
+  <text x="984" y="388" font-size="14" font-weight="700">Чайки кружляють над пірсом.</text>
+  <text x="924" y="444" font-size="13">00:12</text>
+  <text x="984" y="444" font-size="14">Вітер стихає до ранку.</text>
+  <text x="924" y="500" font-size="13">00:16</text>
+  <text x="984" y="500" font-size="14">Ліхтарі вмикаються один за одним.</text>
+  <text x="924" y="556" font-size="13">00:21</text>
+  <text x="984" y="556" font-size="14">Ніч буде тихою.</text>
+  <rect x="60" y="760" width="200" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="74" y="783.0" font-size="14">Завантажити MP4</text>
+  <rect x="276" y="760" width="200" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="290" y="783.0" font-size="14">Завантажити SRT</text>
+  <text x="60" y="830" font-size="13">Етапи оголошуються в aria-live; помилка — ErrorState з причиною і повтором</text>
+  <!-- mobile -->
+  <!-- mobile header -->
+  <rect x="1360" y="70" width="120" height="24" rx="0" fill="#d1d5db"/>
+  <rect x="1574" y="64" width="44" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="1588" y="89.0" font-size="18" fill="#fff">+</text>
+  <circle cx="1662" cy="82" r="16" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1360" y="132" font-size="14" font-weight="700">Медіатека</text>
+  <text x="1456" y="132" font-size="14">Задачі</text>
+  <text x="1528" y="132" font-size="14">Вебхуки</text>
+  <text x="1360" y="176" font-size="22" font-weight="700">Переклад: cliffs.mp4</text>
+  <rect x="1360" y="192" width="320" height="180" rx="3" fill="#d1d5db"/>
+  <path d="M1505 262 l30 20 l-30 20 z" fill="#9ca3af"/>
+  <rect x="1360" y="384" width="320" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1380" y="408" font-size="14">Оригінал</text>
+  <text x="1530" y="408" font-size="14" font-weight="700">Переклад</text>
+  <rect x="1360" y="436" width="320" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1374" y="458.5" font-size="13">Розпізнавання ✓</text>
+  <rect x="1360" y="484" width="320" height="36" rx="6" fill="#9ca3af" stroke="#9ca3af"/>
+  <text x="1374" y="506.5" font-size="13" fill="#fff">Переклад…</text>
+  <rect x="1360" y="532" width="320" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1374" y="554.5" font-size="13">Озвучка</text>
+  <text x="1360" y="600" font-size="12">00:01</text>
+  <text x="1404" y="600" font-size="13">Добрий вечір, порт засинає.</text>
+  <text x="1360" y="640" font-size="12">00:04</text>
+  <text x="1404" y="640" font-size="13">Кораблі повертаються додому.</text>
+  <text x="1360" y="680" font-size="12">00:08</text>
+  <text x="1404" y="680" font-size="13">Чайки кружляють над пірсом.</text>
+  <text x="1360" y="720" font-size="12">00:12</text>
+  <text x="1404" y="720" font-size="13">Вітер стихає до ранку.</text>
+  <rect x="1360" y="820" width="152" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1374" y="843.0" font-size="14">MP4</text>
+  <rect x="1528" y="820" width="152" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="1542" y="843.0" font-size="14">SRT</text>
+</svg>

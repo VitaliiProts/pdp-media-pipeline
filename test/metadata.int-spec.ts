@@ -2,7 +2,7 @@ import { JobCreatedV1 } from '@pdp/contracts';
 import { MetadataClient } from '@pdp/metadata-client';
 import { type Pool } from 'pg';
 import { createApps, type RunningApps } from './support/apps';
-import { prepareDatabase, readStream, waitFor } from './support/helpers';
+import { prepareDatabase, readStream, registerUpload, waitFor } from './support/helpers';
 import { type Infra, startInfra } from './support/infra';
 
 describe('metadata (Postgres + NATS)', () => {
@@ -17,6 +17,7 @@ describe('metadata (Postgres + NATS)', () => {
     const db = await prepareDatabase(infra);
     pool = db.pool;
     userId = db.user.userId;
+    await registerUpload(pool, `uploads/${userId}/a.png`);
     apps = createApps(infra);
     client = new MetadataClient({ baseUrl: await apps.start('metadata'), timeoutMs: 5000 });
   });

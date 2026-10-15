@@ -74,7 +74,7 @@ describe('one trace per job, and its metrics', () => {
     tracing.reset();
 
     const sourceKey = `uploads/${user.userId}/traced.png`;
-    await putSource(infra.s3, sourceKey, await pngImage(300, 200));
+    await putSource(infra.s3, pool, sourceKey, await pngImage(300, 200));
     const created = await api<{ jobId: string }>('/v1/jobs', {
       method: 'POST',
       body: JSON.stringify({ type: 'image.resize', sourceKey, presets: ['thumb'] }),

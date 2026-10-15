@@ -1,0 +1,22 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.narrow {
+  max-width: 40rem;
+}
+
+.lead {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--graphite);
+  font-size: var(--text-lg);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

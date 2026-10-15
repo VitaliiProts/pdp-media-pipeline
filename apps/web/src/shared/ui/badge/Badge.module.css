@@ -1,0 +1,34 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.badge[data-tone='neutral'] {
+  background: var(--tone-neutral-wash);
+  color: var(--tone-neutral);
+}
+
+.badge[data-tone='progress'] {
+  background: var(--tone-progress-wash);
+  color: var(--tone-progress);
+}
+
+.badge[data-tone='success'] {
+  background: var(--tone-success-wash);
+  color: var(--tone-success);
+}
+
+.badge[data-tone='warning'] {
+  background: var(--tone-warning-wash);
+  color: var(--tone-warning);
+}
+
+.badge[data-tone='danger'] {
+  background: var(--tone-danger-wash);
+  color: var(--tone-danger);
+}
