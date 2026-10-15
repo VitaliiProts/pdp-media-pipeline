@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { type AssetDetails, DeleteAssetButton, useLiveAsset } from '../../features/assets';
@@ -84,9 +84,17 @@ function AssetView({ asset }: { asset: AssetDetails }) {
     [i18n.language, asset.createdAt],
   );
   const { renditions, poster } = playableOf(asset.jobs);
+  const isMounted = useRef(false);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
   const handleDeleted = () => {
     toast({ tone: 'success', message: t('delete.done') });
-    void navigate(`/library${librarySearch}`, { replace: true });
+    // A late answer must not replace wherever the user has gone since.
+    if (isMounted.current) void navigate(`/library${librarySearch}`, { replace: true });
   };
 
   return (

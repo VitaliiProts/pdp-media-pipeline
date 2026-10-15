@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
+import { type InitialEntry } from 'react-router';
 import { type AssetDetails, type AssetJob, assetsApi, LIVE_POLL_MS } from '../../features/assets';
 import { TEST_ASSET, testAsset } from '../../test/fixtures';
 import { renderApp } from '../../test/render-app';
@@ -281,17 +282,25 @@ describe('file page', () => {
 });
 
 describe('deleting a file', () => {
-  async function openDelete(status: number, body?: object) {
+  async function openDelete(
+    status: number,
+    body?: object,
+    {
+      route = `/library/${ID}`,
+      gate = Promise.resolve(),
+    }: { route?: InitialEntry; gate?: Promise<void> } = {},
+  ) {
     let deletes = 0;
     serve(details());
     server.use(
-      http.delete(`/v1/assets/${ID}`, () => {
+      http.delete(`/v1/assets/${ID}`, async () => {
         deletes += 1;
+        await gate;
         return body ? HttpResponse.json(body, { status }) : new HttpResponse(null, { status });
       }),
       http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null })),
     );
-    const view = renderApp({ signedIn: true, route: `/library/${ID}` });
+    const view = renderApp({ signedIn: true, route });
     await view.user.click(await screen.findByRole('button', { name: 'Delete harbour.jpg' }));
     const dialog = screen.getByRole('dialog', { name: 'Delete harbour.jpg?' });
     return { ...view, dialog, deletes: () => deletes };
@@ -334,6 +343,81 @@ describe('deleting a file', () => {
     expect(dialog).not.toHaveAttribute('open');
     expect(screen.getByRole('button', { name: 'Delete harbour.jpg' })).toHaveFocus();
     expect(deletes()).toBe(0);
+  });
+
+  it('goes back to the library with the filters it came from', async () => {
+    const { user, router, dialog } = await openDelete(204, undefined, {
+      route: { pathname: `/library/${ID}`, state: { librarySearch: '?kind=image' } },
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/library'));
+    expect(router.state.location.search).toBe('?kind=image');
+  });
+
+  it('stays open until the gateway answers, whatever the user presses', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { user, router, dialog } = await openDelete(204, undefined, { gate });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'Delete' })).toHaveAttribute(
+        'aria-busy',
+        'true',
+      ),
+    );
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(dialog).toHaveAttribute('open');
+
+    release();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/library'));
+    expect(await screen.findByText('File deleted.')).toBeInTheDocument();
+  });
+
+  it('does not pull the user back once they have left the page', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { user, router, dialog, deletes } = await openDelete(204, undefined, { gate });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deletes()).toBe(1));
+
+    await act(() => router.navigate('/jobs'));
+    release();
+
+    expect(await screen.findByText('File deleted.')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/jobs');
+  });
+
+  it('drops the cached library but leaves the deleted file alone', async () => {
+    let listFetches = 0;
+    let fileFetches = 0;
+    server.use(
+      http.get('/v1/assets', () => {
+        listFetches += 1;
+        return HttpResponse.json({ items: [testAsset()], nextCursor: null });
+      }),
+      http.get(`/v1/assets/${ID}`, () => {
+        fileFetches += 1;
+        return HttpResponse.json(details());
+      }),
+      http.delete(`/v1/assets/${ID}`, () => new HttpResponse(null, { status: 204 })),
+    );
+    const { user, router } = renderApp({ signedIn: true, route: '/library' });
+    await user.click(await screen.findByRole('link', { name: /harbour\.jpg/ }));
+    await user.click(await screen.findByRole('button', { name: 'Delete harbour.jpg' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete harbour.jpg?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/library'));
+    await waitFor(() => expect(listFetches).toBe(2));
+    expect(fileFetches).toBe(1);
   });
 });
 

@@ -15,7 +15,14 @@ export function DeleteAssetButton({ assetId, name, onDeleted }: DeleteAssetButto
   const [isOpen, setOpen] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
+  const open = () => {
+    setProblem(null);
+    setOpen(true);
+  };
+
+  // The answer is applied whatever the user does meanwhile, so the dialog waits for it.
   const close = () => {
+    if (isLoading) return;
     setOpen(false);
     setProblem(null);
   };
@@ -44,11 +51,7 @@ export function DeleteAssetButton({ assetId, name, onDeleted }: DeleteAssetButto
 
   return (
     <>
-      <Button
-        variant="danger"
-        aria-label={t('delete.openLabel', { name })}
-        onClick={() => setOpen(true)}
-      >
+      <Button variant="danger" aria-label={t('delete.openLabel', { name })} onClick={open}>
         {t('delete.open')}
       </Button>
       <Dialog
@@ -67,7 +70,9 @@ export function DeleteAssetButton({ assetId, name, onDeleted }: DeleteAssetButto
           <Button variant="danger" isBusy={isLoading} onClick={() => void confirm()}>
             {t('delete.confirm')}
           </Button>
-          <Button onClick={close}>{t('delete.cancel')}</Button>
+          <Button isBusy={isLoading} onClick={close}>
+            {t('delete.cancel')}
+          </Button>
         </div>
       </Dialog>
     </>
