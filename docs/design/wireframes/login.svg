@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1720 900" font-family="system-ui, sans-serif" fill="#374151">
+  <title>Вхід — вайрфрейм</title>
+  <rect width="1720" height="900" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16">Десктоп 1280</text>
+  <text x="1340" y="28" font-size="16">Мобільний 375</text>
+  <g stroke="#9ca3af" fill="none"><rect x="20" y="40" width="1280" height="840" rx="8"/><rect x="1340" y="40" width="360" height="840" rx="24"/></g>
+  <!-- desktop header -->
+  <rect x="60" y="70" width="220" height="28" fill="#d1d5db"/>
+  <rect x="980" y="66" width="70" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/><text x="996" y="90" font-size="14">UA EN</text>
+  <rect x="1060" y="66" width="80" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/><text x="1078" y="90" font-size="14">Увійти</text>
+  <rect x="1150" y="66" width="120" height="36" rx="6" fill="#9ca3af"/><text x="1162" y="90" font-size="14" fill="#fff">Реєстрація</text>
+  <!-- desktop form -->
+  <text x="440" y="220" font-size="40" font-weight="700">Вхід</text>
+  <rect x="440" y="250" width="520" height="330" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="470" y="290" font-size="15">Email</text><rect x="470" y="300" width="460" height="44" rx="6" fill="#fff" stroke="#9ca3af"/>
+  <text x="470" y="374" font-size="15">Пароль</text><rect x="470" y="384" width="460" height="44" rx="6" fill="#fff" stroke="#9ca3af"/>
+  <rect x="470" y="452" width="460" height="44" rx="6" fill="#9ca3af"/><text x="668" y="480" font-size="15" fill="#fff">Увійти</text>
+  <text x="470" y="540" font-size="13">Немає облікового запису? Зареєструватися · Увійти з API-ключем</text>
+  <text x="440" y="620" font-size="13">Помилка під полем, aria-describedby; однакова відповідь для невідомого email і пароля</text>
+  <!-- mobile -->
+  <rect x="1360" y="70" width="150" height="24" fill="#d1d5db"/><rect x="1620" y="64" width="60" height="36" rx="6" fill="#e5e7eb" stroke="#9ca3af"/><text x="1634" y="88" font-size="13">Меню</text>
+  <text x="1360" y="170" font-size="32" font-weight="700">Вхід</text>
+  <text x="1360" y="220" font-size="14">Email</text><rect x="1360" y="230" width="320" height="44" rx="6" fill="#fff" stroke="#9ca3af"/>
+  <text x="1360" y="300" font-size="14">Пароль</text><rect x="1360" y="310" width="320" height="44" rx="6" fill="#fff" stroke="#9ca3af"/>
+  <rect x="1360" y="376" width="320" height="44" rx="6" fill="#9ca3af"/><text x="1490" y="404" font-size="14" fill="#fff">Увійти</text>
+  <text x="1360" y="450" font-size="13">Зареєструватися · API-ключ</text>
+</svg>

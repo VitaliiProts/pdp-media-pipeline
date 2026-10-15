@@ -20,7 +20,7 @@ layout routes і охороною, перенесення наявних вид�
 
 | Питання              | Рішення                                                                                                                                                                |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Роутер               | react-router v7 у data mode: `createBrowserRouter`, route objects, `lazy`. Для SSG у 5c.5 є `createStaticHandler` і `StaticRouterProvider`                             |
+| Роутер               | react-router 8 у data mode: `createBrowserRouter`, route objects, `lazy`. Для SSG у 5c.5 є `createStaticHandler` і `StaticRouterProvider`                              |
 | Примітиви            | Власні, поверх нативних елементів (`<dialog>`, `<select>`, `<progress>`, checkbox / radio); Tabs і Toast — за WAI-ARIA APG; без нових залежностей, крім `react-router` |
 | «Користувач увійшов» | Успішний `GET /v1/me` (cookie-сесія або `X-API-Key`). `/login` у 5c.3 показує наявну форму API-ключа                                                                   |
 | Вайрфрейми           | SVG у репозиторії, user flows — Mermaid; без Figma                                                                                                                     |
@@ -103,24 +103,27 @@ Radix — зайві залежності для десятка примітив
 без barrel-файлу. Обгортки приймають пропси нативного елемента (`ComponentProps<'button'>` тощо)
 і передають їх далі. Без мережі й доменних знань.
 
-| Примітив                          | Основа                                   | Поведінка                                                                                                                                                                                       |
-| --------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`                          | `<button>`                               | `variant`: `primary` / `secondary` / `quiet` / `danger`; `size`: `md` / `sm`; `isBusy` → `aria-busy`, блок кліку; `type="button"` за замовчуванням; `buttonClass({ variant, size })` для `Link` |
-| `Field`, `Input`                  | `<label>`, `<input>`                     | `Field` приймає `label`, `hint`, `error` і render-функцію з `{ id, 'aria-describedby', 'aria-invalid' }`                                                                                        |
-| `Select`                          | `<select>`                               | лише стилі                                                                                                                                                                                      |
-| `Checkbox`, `Radio`, `RadioGroup` | input, `fieldset` / `legend`             | `accent-color` з токена; мітка — частина компонента                                                                                                                                             |
-| `Card`                            | `<div>`                                  | «слайд»: `--mount`, `--shadow-mount`, `--radius-mount`                                                                                                                                          |
-| `Badge`                           | `<span>`                                 | `tone` + текст; колір не єдиний носій сенсу                                                                                                                                                     |
-| `Progress`                        | `<progress>`                             | обов'язковий підпис; без `value` — невизначений                                                                                                                                                 |
-| `Dialog`                          | `<dialog>`, `showModal()`                | `open` / `onClose`; Esc (подія `cancel`) і клік по фону закривають; заголовок через `aria-labelledby`; фокус повертається на елемент, що відкрив                                                |
-| `ToastProvider`, `useToast`       | регіони `role="status"` / `role="alert"` | `toast({ tone, message, action? })`; зникає через 5 с, пауза під курсором або фокусом; кнопка «Закрити»; до 3 одночасно                                                                         |
-| `Tabs`                            | APG tabs                                 | автоматична активація, roving tabindex, ←/→, Home, End                                                                                                                                          |
-| `Skeleton`                        | `<div aria-hidden>`                      | розміри пропсами; контейнер ставить `aria-busy`; без мерехтіння при reduced motion                                                                                                              |
-| `EmptyState`                      | —                                        | заголовок, текст, слот дії                                                                                                                                                                      |
-| `ErrorState`                      | —                                        | `role="alert"`, заголовок, текст, `onRetry`                                                                                                                                                     |
+| Примітив                           | Основа                                   | Поведінка                                                                                                                                                                                       |
+| ---------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`                           | `<button>`                               | `variant`: `primary` / `secondary` / `quiet` / `danger`; `size`: `md` / `sm`; `isBusy` → `aria-busy`, блок кліку; `type="button"` за замовчуванням; `buttonClass({ variant, size })` для `Link` |
+| `Field`, `Input`                   | `<label>`, `<input>`                     | `Field` приймає `label`, `hint`, `error` і render-функцію з `{ id, 'aria-describedby', 'aria-invalid' }`                                                                                        |
+| `Select`                           | `<select>`                               | лише стилі                                                                                                                                                                                      |
+| `Checkbox`, `Radio`, `ChoiceGroup` | input, `fieldset` / `legend`             | `accent-color` з токена; мітка — частина компонента                                                                                                                                             |
+| `Card`                             | `<div>`                                  | «слайд»: `--mount`, `--shadow-mount`, `--radius-mount`                                                                                                                                          |
+| `Badge`                            | `<span>`                                 | `tone` + текст; колір не єдиний носій сенсу                                                                                                                                                     |
+| `Progress`                         | `<progress>`                             | обов'язковий підпис; без `value` — невизначений                                                                                                                                                 |
+| `Dialog`                           | `<dialog>`, `showModal()`                | `open` / `onClose`; Esc (подія `cancel`) і клік по фону закривають; заголовок через `aria-labelledby`; фокус повертається на елемент, що відкрив                                                |
+| `ToastProvider`, `useToast`        | регіони `role="status"` / `role="alert"` | `toast({ tone, message, action? })`; зникає через 5 с, пауза під курсором або фокусом; кнопка «Закрити»; до 3 одночасно                                                                         |
+| `Tabs`                             | APG tabs                                 | автоматична активація, roving tabindex, ←/→, Home, End                                                                                                                                          |
+| `Skeleton`                         | `<div aria-hidden>`                      | розміри пропсами; контейнер ставить `aria-busy`; без мерехтіння при reduced motion                                                                                                              |
+| `EmptyState`                       | —                                        | заголовок, текст, слот дії                                                                                                                                                                      |
+| `ErrorState`                       | —                                        | `role="alert"`, заголовок, текст, `onRetry`                                                                                                                                                     |
+| `PageHeading`                      | `<h1>`                                   | назва вкладки з тексту, фокус після зміни шляху (не search-параметрів)                                                                                                                          |
+| `VisuallyHidden`                   | `<span>`                                 | текст лише для скрінрідерів                                                                                                                                                                     |
 
-Текст для людини з `AppError` готує `describeError(error, t)` у `shared/lib`; `ErrorState`
-отримує готові рядки. `Toast` — єдиний примітив із контекстом; провайдер ставиться в `Providers`.
+`retryAfterOf` і `isUnauthorized` переїжджають у `shared/api/http.ts`; `ErrorState` отримує готові
+рядки. `Toast` — єдиний примітив із контекстом; провайдер ставиться в корінь маршрутів (`AppRoot`),
+щоб дії тостів могли бути посиланнями роутера.
 
 У `test/setup.ts` — мінімальний поліфіл `HTMLDialogElement.prototype.showModal` / `close` для
 jsdom (ставить і знімає `open`, шле `close`).
@@ -132,8 +135,8 @@ jsdom (ставить і знімає `open`, шле `close`).
 ```
 app/
   router.tsx              # дерево маршрутів, lazy-сторінки
-  layouts/                # PublicLayout, AppLayout, RequireAuth, UserMenu, LanguageSwitch
-  Providers.tsx           # + RouterProvider, ToastProvider
+  layouts/                # AppRoot (ToastProvider), PublicLayout, AppLayout, RequireAuth, UserMenu, LanguageSwitch
+  Providers.tsx           # store, i18n; RouterProvider — у main.tsx
 features/
   session/                # getMe, logout, тег Me
   upload/ui/UploadDialog  # Dialog + наявна UploadPanel
