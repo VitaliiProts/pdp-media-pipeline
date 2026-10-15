@@ -37,6 +37,7 @@ export function LoginForm() {
       password: passwordProblem(password, { isNew: false }),
     };
     setProblems(found);
+    setFailure(null);
     if (found.email) {
       emailRef.current?.focus();
       return;
@@ -46,7 +47,6 @@ export function LoginForm() {
       return;
     }
 
-    setFailure(null);
     try {
       await login({ email: email.trim(), password }).unwrap();
     } catch (error) {

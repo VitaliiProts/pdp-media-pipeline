@@ -75,6 +75,21 @@ describe('creating an account', () => {
     );
   });
 
+  it('drops the taken-email message when a later attempt fails its own checks', async () => {
+    registerHandler();
+    const { user } = renderApp({ route: '/register' });
+    await fill(user, 'taken@example.com', 'long enough');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(await screen.findByText('This email is already registered.')).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText('Email'));
+    await user.type(screen.getByLabelText('Email'), 'not an email');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(screen.getByText('Enter an email like name@example.com.')).toBeInTheDocument();
+    expect(screen.queryByText('This email is already registered.')).not.toBeInTheDocument();
+  });
+
   it('wants a password of at least 8 characters', async () => {
     registerHandler();
     const { user } = renderApp({ route: '/register' });

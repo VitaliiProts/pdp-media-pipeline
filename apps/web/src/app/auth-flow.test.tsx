@@ -68,6 +68,19 @@ describe('signing in', () => {
     expect(password).toHaveFocus();
   });
 
+  it('drops the wrong-password message when a later attempt fails its own checks', async () => {
+    const { user } = renderApp({ route: '/login' });
+    await signIn(user, 'not the password');
+    expect(await screen.findByText('Wrong email or password.')).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText('Email'));
+    await user.type(screen.getByLabelText('Email'), 'not an email');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(screen.getByText('Enter an email like name@example.com.')).toBeInTheDocument();
+    expect(screen.queryByText('Wrong email or password.')).not.toBeInTheDocument();
+  });
+
   it('checks the fields before asking the server', async () => {
     let attempts = 0;
     server.use(

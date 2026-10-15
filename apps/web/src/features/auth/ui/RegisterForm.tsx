@@ -48,6 +48,7 @@ export function RegisterForm({ loginHref }: { loginHref: string }) {
       password: passwordProblem(password, { isNew: true }),
     };
     setProblems(found);
+    setFailure(null);
     if (found.name) {
       nameRef.current?.focus();
       return;
@@ -61,7 +62,6 @@ export function RegisterForm({ loginHref }: { loginHref: string }) {
       return;
     }
 
-    setFailure(null);
     const trimmedName = name.trim();
     try {
       await register({
