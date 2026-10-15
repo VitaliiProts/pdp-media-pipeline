@@ -25,6 +25,8 @@ type DialogProps = Omit<
    * and a close the browser forces anyway (Chrome, on a repeated Escape) opens it again.
    */
   dismissible?: boolean;
+  /** `false` where a stray click must not lose what it shows; Escape and × still close it. */
+  closeOnBackdrop?: boolean;
   ref?: never;
   onCancel?: never;
   onClick?: never;
@@ -44,6 +46,7 @@ export function Dialog({
   closeLabel,
   children,
   dismissible = true,
+  closeOnBackdrop = true,
   className,
   ...rest
 }: DialogProps) {
@@ -87,7 +90,7 @@ export function Dialog({
         // A press that starts inside and is released over the backdrop also targets the dialog.
         const onBackdrop = pressedBackdrop.current && event.target === event.currentTarget;
         pressedBackdrop.current = false;
-        if (onBackdrop && dismissible) onClose();
+        if (onBackdrop && dismissible && closeOnBackdrop) onClose();
       }}
     >
       {open && (

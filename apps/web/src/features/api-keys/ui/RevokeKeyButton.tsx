@@ -52,7 +52,8 @@ export function RevokeKeyButton({ apiKey, onRevoked }: RevokeKeyButtonProps) {
       </Button>
       <Dialog
         open={isOpen}
-        // Scripts stop working the moment the gateway answers, so the dialog waits for it.
+        // Only the gateway's answer says the key is revoked (scripts stop within a minute, as its
+        // key cache expires), so the dialog waits for it.
         dismissible={!isLoading}
         onClose={close}
         title={t('revoke.title', { name: apiKey.name })}

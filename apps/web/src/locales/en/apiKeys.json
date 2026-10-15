@@ -31,7 +31,7 @@
   },
   "revoke": {
     "title": "Revoke {{name}}?",
-    "body": "Scripts that use this key will stop working at once.",
+    "body": "Scripts that use this key will stop working within a minute.",
     "confirm": "Revoke",
     "cancel": "Cancel",
     "close": "Close",

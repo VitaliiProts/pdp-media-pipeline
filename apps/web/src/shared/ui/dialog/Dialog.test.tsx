@@ -101,6 +101,44 @@ describe('Dialog', () => {
     expect(element.classList.length).toBeGreaterThan(1);
   });
 
+  describe('with closeOnBackdrop={false}', () => {
+    function renderSticky() {
+      const onClose = vi.fn();
+      render(
+        <Dialog
+          open
+          closeOnBackdrop={false}
+          onClose={onClose}
+          title="Upload files"
+          closeLabel="Close"
+        >
+          <p>Body</p>
+        </Dialog>,
+      );
+      return onClose;
+    }
+
+    it('ignores a click on the backdrop', () => {
+      const onClose = renderSticky();
+      fireEvent.pointerDown(dialog());
+      fireEvent.click(dialog());
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(dialog()).toHaveAttribute('open');
+    });
+
+    it('still closes on Escape and with its close button', async () => {
+      const onClose = renderSticky();
+      fireEvent(dialog(), new Event('cancel', { cancelable: true }));
+      expect(onClose).toHaveBeenCalledOnce();
+
+      const close = screen.getByRole('button', { name: 'Close' });
+      expect(close).not.toHaveAttribute('aria-busy', 'true');
+      await userEvent.click(close);
+      expect(onClose).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('while not dismissible', () => {
     function renderHeld() {
       const onClose = vi.fn();

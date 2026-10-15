@@ -93,6 +93,22 @@ describe('settings', () => {
     expect(JSON.stringify(store.getState())).not.toContain(SECRET);
   });
 
+  it('keeps the new key on a stray click on the backdrop', async () => {
+    keysApi();
+    const { user } = renderApp({ signedIn: true, route: '/settings' });
+    await user.type(await screen.findByLabelText('Key name'), 'deploy');
+    await user.click(screen.getByRole('button', { name: 'Create key' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Your new API key' });
+
+    fireEvent.pointerDown(dialog);
+    fireEvent.click(dialog);
+
+    expect(dialog).toHaveAttribute('open');
+    expect(within(dialog).getByLabelText('API key')).toHaveValue(SECRET);
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    expect(dialog).not.toHaveAttribute('open');
+  });
+
   it('selects the key for a manual copy when the clipboard refuses', async () => {
     keysApi();
     const { user } = renderApp({ signedIn: true, route: '/settings' });
@@ -175,6 +191,10 @@ describe('settings', () => {
     const { user } = renderApp({ signedIn: true, route: '/settings' });
     await user.click(await screen.findByRole('button', { name: 'Revoke ci' }));
     const dialog = screen.getByRole('dialog', { name: 'Revoke ci?' });
+    // The gateway caches keys for a minute; the copy must not promise more.
+    expect(
+      within(dialog).getByText('Scripts that use this key will stop working within a minute.'),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Revoke' }));
 
     await waitFor(() => expect(revoked).toEqual([CI_KEY.id]));

@@ -38,6 +38,8 @@ export function NewKeyDialog({ apiKey, onClose }: NewKeyDialogProps) {
   return (
     <Dialog
       open={apiKey !== null}
+      // A mis-click, or a text selection released outside the frame, would lose the key for good.
+      closeOnBackdrop={false}
       onClose={close}
       title={t('created.title')}
       closeLabel={t('created.close')}
