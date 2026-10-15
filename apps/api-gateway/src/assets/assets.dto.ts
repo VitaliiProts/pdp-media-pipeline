@@ -54,7 +54,7 @@ export class ListAssetsQueryDto {
 }
 
 export class AssetPreviewDto {
-  @ApiProperty({ description: 'Presigned GET URL, valid for one hour.' })
+  @ApiProperty({ description: 'Presigned GET URL, valid for at least one hour.' })
   url!: string;
 
   @ApiProperty()
@@ -132,12 +132,12 @@ export class ListAssetsResponseDto {
 }
 
 export class AssetDetailsDto extends AssetDto {
-  @ApiProperty({ description: 'Presigned GET URL of the original, valid for one hour.' })
+  @ApiProperty({ description: 'Presigned GET URL of the original, valid for at least one hour.' })
   originalUrl!: string;
 
   @ApiProperty({
     description:
-      'Presigned GET URL that saves the original under its uploaded name, valid for one hour.',
+      'Presigned GET URL that saves the original under its uploaded name, valid for at least one hour.',
   })
   originalDownloadUrl!: string;
 

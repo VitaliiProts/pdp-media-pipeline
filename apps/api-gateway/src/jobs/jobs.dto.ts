@@ -146,7 +146,7 @@ export class JobResultDto {
   @ApiProperty()
   bytes!: number;
 
-  @ApiProperty({ description: 'Presigned GET URL, valid for one hour.' })
+  @ApiProperty({ description: 'Presigned GET URL, valid for at least one hour.' })
   url!: string;
 
   @ApiPropertyOptional({
@@ -168,7 +168,7 @@ export class VideoFrameDto {
   @ApiProperty()
   bytes!: number;
 
-  @ApiProperty({ description: 'Presigned GET URL, valid for one hour.' })
+  @ApiProperty({ description: 'Presigned GET URL, valid for at least one hour.' })
   url!: string;
 
   @ApiPropertyOptional({
@@ -216,7 +216,7 @@ export class RenditionDto {
   @ApiProperty({ description: 'Of the whole file, in bits per second.' })
   bitrate!: number;
 
-  @ApiProperty({ description: 'Presigned GET URL of the MP4, valid for one hour.' })
+  @ApiProperty({ description: 'Presigned GET URL of the MP4, valid for at least one hour.' })
   url!: string;
 
   @ApiPropertyOptional({
