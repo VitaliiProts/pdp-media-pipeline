@@ -14,6 +14,13 @@ export const ASSET_KINDS = ['image', 'video'] as const;
 export const AssetKindSchema = z.enum(ASSET_KINDS);
 export type AssetKind = z.infer<typeof AssetKindSchema>;
 
+/** What the latest job on a file says about it; see the Metadata list query. */
+export const ASSET_STATUSES = ['processing', 'ready', 'failed'] as const;
+export const AssetStatusSchema = z.enum(ASSET_STATUSES);
+export type AssetStatus = z.infer<typeof AssetStatusSchema>;
+
+export const ASSET_SEARCH_MAX_LENGTH = 100;
+
 export const assetKindOf = (contentType: UploadContentType): AssetKind =>
   (VIDEO_CONTENT_TYPES as readonly string[]).includes(contentType) ? 'video' : 'image';
 
@@ -69,6 +76,13 @@ export type CreateAssetRequest = z.infer<typeof CreateAssetRequest>;
 export const ListAssetsQuery = z.object({
   userId: z.uuid(),
   kind: AssetKindSchema.optional(),
+  status: AssetStatusSchema.optional(),
+  q: z
+    .string()
+    .trim()
+    .max(ASSET_SEARCH_MAX_LENGTH)
+    .transform((value) => value || undefined)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
 });

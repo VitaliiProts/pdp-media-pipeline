@@ -215,6 +215,57 @@ describe('media library', () => {
     expect(seen).toEqual([video.assetId, ...images.reverse()]);
   });
 
+  /** A job attaches the upload to the library; these tests do not wait for it to finish. */
+  async function attached(key: string, name: string) {
+    const asset = await upload(key, await pngImage(40, 30), { name });
+    await resize(key, asset.sourceKey);
+    return asset;
+  }
+
+  it('narrows the library by what the latest job says', async () => {
+    const key = await newUser();
+    const ready = await processedImage(key, 'ready.png');
+    const failed = await processedImage(key, 'failed.png');
+    await pool.query(`UPDATE jobs SET status = 'dead', dead_reason = 'permanent' WHERE id = $1`, [
+      failed.jobId,
+    ]);
+    // No video worker runs here: the job stays queued.
+    const video = await upload(key, Buffer.from('waits for a video worker'), {
+      contentType: 'video/mp4',
+      name: 'clip.mp4',
+    });
+    await createJob(key, { type: 'video.frames', sourceKey: video.sourceKey });
+
+    const idsWith = async (status: string) =>
+      (await api<{ items: Summary[] }>(key, `/v1/assets?status=${status}`)).body.items.map(
+        (a) => a.id,
+      );
+    expect(await idsWith('ready')).toEqual([ready.assetId]);
+    expect(await idsWith('failed')).toEqual([failed.assetId]);
+    expect(await idsWith('processing')).toEqual([video.assetId]);
+  });
+
+  it('finds files by part of the name, taking % and _ literally', async () => {
+    const key = await newUser();
+    await attached(key, 'Harbour at dawn.png');
+    await attached(key, 'cliffs_100%.png');
+    await attached(key, 'cliffsX100Y.png');
+
+    const namesFor = async (q: string) =>
+      (
+        await api<{ items: Summary[] }>(key, `/v1/assets?q=${encodeURIComponent(q)}`)
+      ).body.items.map((a) => a.name);
+    expect(await namesFor('HARBOUR')).toEqual(['Harbour at dawn.png']);
+    expect(await namesFor('_100%')).toEqual(['cliffs_100%.png']);
+    expect(await namesFor('nothing like it')).toEqual([]);
+  });
+
+  it('rejects an unknown status and an overlong search', async () => {
+    const key = await newUser();
+    expect((await api(key, '/v1/assets?status=done')).status).toBe(400);
+    expect((await api(key, `/v1/assets?q=${'x'.repeat(101)}`)).status).toBe(400);
+  });
+
   it("keeps another user's files and jobs out of reach", async () => {
     const owner = await newUser();
     const stranger = await newUser();

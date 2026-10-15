@@ -1,7 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ASSET_KINDS,
+  ASSET_SEARCH_MAX_LENGTH,
+  ASSET_STATUSES,
   type AssetKind,
+  type AssetStatus,
   JOB_STATUSES,
   type JobStatus,
   UPLOAD_CONTENT_TYPES,
@@ -16,6 +19,23 @@ export class ListAssetsQueryDto {
   @IsOptional()
   @IsIn(ASSET_KINDS)
   kind?: AssetKind;
+
+  @ApiPropertyOptional({
+    enum: ASSET_STATUSES,
+    description: 'What the latest job says: processing, ready or failed.',
+  })
+  @IsOptional()
+  @IsIn(ASSET_STATUSES)
+  status?: AssetStatus;
+
+  @ApiPropertyOptional({
+    maxLength: ASSET_SEARCH_MAX_LENGTH,
+    description: 'Part of the file name, case-insensitive.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(ASSET_SEARCH_MAX_LENGTH)
+  q?: string;
 
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
   @IsOptional()
