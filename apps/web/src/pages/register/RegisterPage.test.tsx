@@ -26,9 +26,11 @@ function registerHandler(onBody: (body: unknown) => void = () => undefined) {
       testSession.signIn();
       return HttpResponse.json({ ...TEST_ME, email: NEW_EMAIL }, { status: 201 });
     }),
-    http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null })),
   );
 }
+
+const noAssets = () =>
+  http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null }));
 
 async function fill(user: ReturnType<typeof renderApp>['user'], email: string, password: string) {
   await user.type(await screen.findByLabelText('Email'), email);
@@ -41,6 +43,7 @@ describe('creating an account', () => {
     registerHandler((body) => {
       sent = body;
     });
+    server.use(noAssets());
     const { user, router } = renderApp({ route: '/register' });
     await user.type(await screen.findByLabelText('Name'), '  Ann  ');
     await fill(user, NEW_EMAIL, 'long enough');
@@ -55,10 +58,22 @@ describe('creating an account', () => {
     registerHandler((body) => {
       sent = body;
     });
+    server.use(noAssets());
     const { user } = renderApp({ route: '/register' });
     await fill(user, NEW_EMAIL, 'long enough');
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(sent).toEqual({ email: NEW_EMAIL, password: 'long enough' }));
+  });
+
+  it('returns to the page asked for after creating the account', async () => {
+    registerHandler();
+    server.use(http.get('/v1/webhooks', () => HttpResponse.json({ items: [] })));
+    const { user, router } = renderApp({ route: '/register?next=%2Fwebhooks' });
+    await fill(user, NEW_EMAIL, 'long enough');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/webhooks'));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Webhooks' })).toBeInTheDocument();
   });
 
   it('points to sign-in when the email is taken, keeping the return address', async () => {
@@ -69,6 +84,7 @@ describe('creating an account', () => {
 
     expect(await screen.findByText('This email is already registered.')).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Email')).toHaveFocus();
     expect(screen.getByRole('link', { name: 'Sign in instead' })).toHaveAttribute(
       'href',
       '/login?next=%2Fjobs',
