@@ -5,6 +5,9 @@ import styles from './PageHeading.module.css';
 
 const APP_NAME = 'PDP Media Pipeline';
 
+/** The browser tab's name for a page headed `heading`; prerendered pages carry it in `<title>`. */
+export const pageTitle = (heading: string) => `${heading} — ${APP_NAME}`;
+
 type PageHeadingProps = Omit<ComponentProps<'h1'>, 'children' | 'ref' | 'tabIndex'> & {
   children: string;
   ref?: never;
@@ -22,7 +25,7 @@ export function PageHeading({ children, className, ...rest }: PageHeadingProps) 
   const { key, pathname } = useLocation();
 
   useEffect(() => {
-    document.title = `${children} — ${APP_NAME}`;
+    document.title = pageTitle(children);
   }, [children]);
 
   useEffect(() => {

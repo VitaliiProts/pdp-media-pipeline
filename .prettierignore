@@ -1,5 +1,6 @@
 pnpm-lock.yaml
 dist
+dist-ssr
 coverage
 deploy/helm/**/templates
 apps/*/drizzle

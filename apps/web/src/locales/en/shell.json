@@ -32,7 +32,25 @@
   "landing": {
     "title": "Media pipeline",
     "lead": "Every image becomes a resize job and every video a frames or transcoding job: the scheduler queues it, a worker processes it, results land in storage.",
-    "openLibrary": "Open the library"
+    "openLibrary": "Open the library",
+    "features": {
+      "images": {
+        "title": "Images",
+        "body": "Upload a photo and get WebP sizes for thumbnails, pages and full screen."
+      },
+      "video": {
+        "title": "Video",
+        "body": "Pull a preview frame and frames at an interval, or transcode to H.264 at 480p and 720p."
+      },
+      "library": {
+        "title": "Library",
+        "body": "Every original sits next to all of its versions: watch, download or delete them in one place."
+      },
+      "api": {
+        "title": "API and webhooks",
+        "body": "Scripts work with API keys from the settings; a signed webhook says when a job is done."
+      }
+    }
   },
   "login": {
     "title": "Sign in"

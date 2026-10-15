@@ -37,8 +37,10 @@ server {
         try_files $uri =404;
     }
 
+    # /, /login and /register are prerendered (ADR-015): /index.html is the landing page, so
+    # every other route falls back to the empty SPA shell, /app.html.
     location / {
         add_header Cache-Control "no-cache";
-        try_files $uri /index.html;
+        try_files $uri $uri/index.html /app.html;
     }
 }
