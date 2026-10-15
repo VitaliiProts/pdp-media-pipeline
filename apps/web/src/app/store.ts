@@ -32,6 +32,8 @@ export function createStore() {
 
   const store = configureStore({
     reducer: rootReducer,
+    // The action log would keep a created API key, which arrives in a fulfilled payload.
+    devTools: import.meta.env.DEV,
     middleware: (getDefault) =>
       getDefault({ thunk: { extraArgument: extra } })
         .prepend(listener.middleware)

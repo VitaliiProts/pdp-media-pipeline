@@ -181,6 +181,16 @@ describe('signing in', () => {
     await waitFor(() => expect(window.localStorage.getItem('pdp.apiKey')).toBeNull());
   });
 
+  it('still starts when the browser blocks site storage', async () => {
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new DOMException('The operation is insecure.', 'SecurityError');
+    });
+    onTestFinished(() => removeItem.mockRestore());
+    renderApp({ route: '/login' });
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(removeItem).toHaveBeenCalledWith('pdp.apiKey');
+  });
+
   it('explains when the sign-in check itself fails', async () => {
     server.use(http.get('/v1/me', () => HttpResponse.json({ message: 'down' }, { status: 502 })));
     renderApp({ signedIn: true, route: '/jobs' });
