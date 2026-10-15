@@ -1,4 +1,4 @@
-import { initI18n, resources } from './i18n';
+import { initI18n, resources, storedLanguage } from './i18n';
 
 const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
 
@@ -21,7 +21,24 @@ describe('translations', () => {
   });
 });
 
-describe('initI18n', () => {
+describe('language', () => {
+  it('starts in English, without reading site storage, so the server can render it', () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    onTestFinished(() => getItem.mockRestore());
+    expect(initI18n().language).toBe('en');
+    expect(getItem).not.toHaveBeenCalled();
+  });
+
+  it('remembers only a language it has', () => {
+    expect(storedLanguage()).toBeNull();
+    window.localStorage.setItem('pdp.language', 'uk');
+    expect(storedLanguage()).toBe('uk');
+    for (const other of ['de', 'toString', '']) {
+      window.localStorage.setItem('pdp.language', other);
+      expect(storedLanguage()).toBeNull();
+    }
+  });
+
   it('starts and switches language when the browser blocks site storage', async () => {
     const blocked = () => {
       throw new DOMException('The operation is insecure.', 'SecurityError');
@@ -33,8 +50,9 @@ describe('initI18n', () => {
       setItem.mockRestore();
     });
 
-    const i18n = initI18n();
+    expect(storedLanguage()).toBeNull();
     expect(getItem).toHaveBeenCalledWith('pdp.language');
+    const i18n = initI18n(storedLanguage() ?? undefined);
     expect(i18n.language).toBe('en');
 
     await i18n.changeLanguage('uk');

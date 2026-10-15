@@ -45,15 +45,24 @@ export const resources = {
   },
 } as const;
 
+export type Language = keyof typeof resources;
+
+/** Prerendered pages are built in it, and a visitor who never picked a language gets it. */
+export const DEFAULT_LANGUAGE: Language = 'en';
+
 const LANGUAGE_STORAGE_KEY = 'pdp.language';
 
-function initialLanguage(): string {
+const isLanguage = (value: string | null): value is Language =>
+  value !== null && Object.hasOwn(resources, value);
+
+/** The language the visitor picked earlier, if any. Reads site storage: browser only. */
+export function storedLanguage(): Language | null {
   const stored = safeStorage.get(LANGUAGE_STORAGE_KEY);
-  if (stored && stored in resources) return stored;
-  return navigator.language.toLowerCase().startsWith('en') ? 'en' : 'uk';
+  return isLanguage(stored) ? stored : null;
 }
 
-export function initI18n(language = initialLanguage()) {
+/** Touches no browser API until the language changes, so the server renders with it too. */
+export function initI18n(language: Language = DEFAULT_LANGUAGE) {
   const instance = i18next.createInstance();
   void instance.use(initReactI18next).init({
     resources,
@@ -78,6 +87,5 @@ export function initI18n(language = initialLanguage()) {
     safeStorage.set(LANGUAGE_STORAGE_KEY, lng);
     document.documentElement.lang = lng;
   });
-  document.documentElement.lang = language;
   return instance;
 }
