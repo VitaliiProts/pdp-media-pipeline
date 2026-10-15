@@ -54,6 +54,7 @@ Archivo Variable з віссю ширини: заголовки вузькі й 
 | `Progress`                         | `<progress>` з підписом; без значення — невизначений                                                                 |
 | `Dialog`                           | `<dialog>` + `showModal()`: фокус усередині, Esc, клік по фону; фокус назад до кнопки, а якщо її вже немає — на `h1` |
 |                                    | `dismissible={false}` — поки дія діалогу в дорозі, Esc, фон і × його не закривають                                   |
+|                                    | `closeOnBackdrop={false}` — клік по фону не закриває (вміст не можна втратити); Esc і × закривають                   |
 | `ToastProvider`, `useToast`        | `aria-live` polite / assertive, 5 с, пауза під курсором і фокусом, до трьох                                          |
 | `Tabs`                             | WAI-ARIA tabs: ←/→, Home, End, roving tabindex                                                                       |
 | `Skeleton`                         | форма вмісту, `aria-hidden`; контейнер ставить `aria-busy`                                                           |
