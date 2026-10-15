@@ -85,6 +85,12 @@ describe('creating an account', () => {
     expect(screen.getByLabelText('Password')).toHaveFocus();
   });
 
+  it('skips the form for someone already signed in', async () => {
+    server.use(http.get('/v1/jobs', () => HttpResponse.json({ items: [], nextCursor: null })));
+    const { router } = renderApp({ signedIn: true, route: '/register?next=%2Fjobs' });
+    await waitFor(() => expect(router.state.location.pathname).toBe('/jobs'));
+  });
+
   it('explains when the sign-in check fails, and still offers the form', async () => {
     server.use(http.get('/v1/me', () => HttpResponse.json({ message: 'down' }, { status: 502 })));
     renderApp({ route: '/register' });
