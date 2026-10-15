@@ -99,7 +99,7 @@ function AssetView({ asset }: { asset: AssetDetails }) {
           </a>
         </div>
       </div>
-      <dl className={styles.facts} aria-label={t('asset.facts')}>
+      <dl className={styles.facts}>
         {asset.width !== null && asset.height !== null && (
           <div>
             <dt>{t('asset.dimensions')}</dt>

@@ -67,7 +67,7 @@ export function VersionList({ jobs }: { jobs: readonly AssetJob[] }) {
           </h2>
           <ul className={styles.frames}>
             {frames.map((frame) => (
-              <li key={frame.url}>
+              <li key={frame.atSeconds}>
                 <a
                   href={frame.downloadUrl}
                   download

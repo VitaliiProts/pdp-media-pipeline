@@ -45,7 +45,6 @@
     "toLibrary": "Back to the library",
     "errorTitle": "Could not load the file",
     "error": "The gateway did not answer. Try again in a moment.",
-    "facts": "About the file",
     "dimensions": "Size in pixels",
     "dimensionsValue": "{{width}} × {{height}}",
     "duration": "Duration",

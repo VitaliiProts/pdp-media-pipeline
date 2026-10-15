@@ -86,6 +86,9 @@ const FORMAT_NAME: Record<string, string> = {
 
 export function formatOf(url: string): string {
   const { pathname } = new URL(url);
-  const extension = pathname.slice(pathname.lastIndexOf('.') + 1).toLowerCase();
+  const file = pathname.slice(pathname.lastIndexOf('/') + 1);
+  const dot = file.lastIndexOf('.');
+  if (dot <= 0) return '';
+  const extension = file.slice(dot + 1).toLowerCase();
   return FORMAT_NAME[extension] ?? extension.toUpperCase();
 }

@@ -1,6 +1,6 @@
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { type AssetDetails, type AssetJob, LIVE_POLL_MS } from '../../features/assets';
+import { type AssetDetails, type AssetJob, assetsApi, LIVE_POLL_MS } from '../../features/assets';
 import { TEST_ASSET, testAsset } from '../../test/fixtures';
 import { renderApp } from '../../test/render-app';
 import { server, STORAGE_ORIGIN } from '../../test/server';
@@ -46,6 +46,38 @@ function details(overrides: Partial<AssetDetails> = {}): AssetDetails {
 const serve = (body: AssetDetails) =>
   server.use(http.get(`/v1/assets/${ID}`, () => HttpResponse.json(body)));
 
+const rendition = (name: string, height: number, signature: string) => ({
+  rendition: name,
+  width: Math.round((height * 16) / 9),
+  height,
+  durationSeconds: 12,
+  bytes: 1,
+  bitrate: 1,
+  url: `${STORAGE_ORIGIN}/${name}.mp4${signature}`,
+  downloadUrl: `${STORAGE_ORIGIN}/${name}.mp4?download`,
+});
+
+/** A finished transcode; `signature` stands for the query string every fetch signs anew. */
+const transcoded = (signature = ''): AssetJob =>
+  job({
+    type: 'video.transcode',
+    transcode: {
+      durationSeconds: 12,
+      width: 1280,
+      height: 720,
+      codec: 'h264',
+      preview: {
+        atSeconds: 0,
+        width: 640,
+        height: 360,
+        bytes: 1,
+        url: `${STORAGE_ORIGIN}/preview.jpg`,
+        downloadUrl: `${STORAGE_ORIGIN}/preview.jpg?download`,
+      },
+      renditions: [rendition('480p', 480, signature), rendition('720p', 720, signature)],
+    },
+  });
+
 const VIDEO_BASE = {
   kind: 'video' as const,
   name: 'cliffs.mp4',
@@ -85,48 +117,26 @@ describe('file page', () => {
   });
 
   it('plays the best transcoded rendition and switches quality', async () => {
-    const rendition = (name: string, height: number) => ({
-      rendition: name,
-      width: Math.round((height * 16) / 9),
-      height,
-      durationSeconds: 12,
-      bytes: 1,
-      bitrate: 1,
-      url: `${STORAGE_ORIGIN}/${name}.mp4`,
-      downloadUrl: `${STORAGE_ORIGIN}/${name}.mp4?download`,
-    });
-    const preview = {
-      atSeconds: 0,
-      width: 640,
-      height: 360,
-      bytes: 1,
-      url: `${STORAGE_ORIGIN}/preview.jpg`,
-      downloadUrl: `${STORAGE_ORIGIN}/preview.jpg?download`,
-    };
-    serve(
-      details({
-        ...VIDEO_BASE,
-        jobs: [
-          job({
-            type: 'video.transcode',
-            transcode: {
-              durationSeconds: 12,
-              width: 1280,
-              height: 720,
-              codec: 'h264',
-              preview,
-              renditions: [rendition('480p', 480), rendition('720p', 720)],
-            },
-          }),
-        ],
-      }),
-    );
+    serve(details({ ...VIDEO_BASE, jobs: [transcoded()] }));
     const { user } = renderApp({ signedIn: true, route: `/library/${ID}` });
 
     const video = await screen.findByLabelText('Play cliffs.mp4');
     expect(video).toHaveAttribute('src', `${STORAGE_ORIGIN}/720p.mp4`);
     expect(video).toHaveAttribute('poster', `${STORAGE_ORIGIN}/preview.jpg`);
     await user.click(screen.getByRole('radio', { name: '480p' }));
+    expect(screen.getByLabelText('Play cliffs.mp4')).toHaveAttribute(
+      'src',
+      `${STORAGE_ORIGIN}/480p.mp4`,
+    );
+  });
+
+  it('says when a transcoded rendition cannot be played, and still offers the other', async () => {
+    serve(details({ ...VIDEO_BASE, jobs: [transcoded()] }));
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    fireEvent.error(await screen.findByLabelText('Play cliffs.mp4'));
+    expect(await screen.findByText('This video could not be played.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: '480p' }));
     expect(screen.getByLabelText('Play cliffs.mp4')).toHaveAttribute(
       'src',
       `${STORAGE_ORIGIN}/480p.mp4`,
@@ -333,5 +343,73 @@ describe('live file page', () => {
     expect(await screen.findByText('3 MB')).toBeInTheDocument();
     expect(screen.getByText(unsupported)).toBeInTheDocument();
     expect(screen.queryByLabelText('Play cliffs.mp4')).not.toBeInTheDocument();
+  });
+
+  it('switches quality to the freshest link after a poll signed them anew', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+    let calls = 0;
+    server.use(
+      http.get(`/v1/assets/${ID}`, () => {
+        calls += 1;
+        return HttpResponse.json(
+          details({
+            ...VIDEO_BASE,
+            size: calls * 1024 * 1024,
+            jobs: [
+              job({ id: 'b0000000-0000-4000-8000-000000000002', status: 'running' }),
+              transcoded(`?signature=${calls}`),
+            ],
+          }),
+        );
+      }),
+    );
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    const video = await screen.findByLabelText('Play cliffs.mp4');
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS));
+    expect(await screen.findByText('2 MB')).toBeInTheDocument();
+    expect(video).toHaveAttribute('src', `${STORAGE_ORIGIN}/720p.mp4?signature=1`);
+
+    fireEvent.click(screen.getByRole('radio', { name: '480p' }));
+    expect(screen.getByLabelText('Play cliffs.mp4')).toHaveAttribute(
+      'src',
+      `${STORAGE_ORIGIN}/480p.mp4?signature=2`,
+    );
+    fireEvent.click(screen.getByRole('radio', { name: '720p' }));
+    expect(screen.getByLabelText('Play cliffs.mp4')).toHaveAttribute(
+      'src',
+      `${STORAGE_ORIGIN}/720p.mp4?signature=2`,
+    );
+  });
+
+  it('waits as long as the gateway asks when a poll is refused', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+    const retryAfterS = 10;
+    let calls = 0;
+    server.use(
+      http.get(`/v1/assets/${ID}`, () => {
+        calls += 1;
+        return calls === 1
+          ? HttpResponse.json(details({ jobs: [job({ status: 'running' })] }))
+          : new HttpResponse(null, {
+              status: 429,
+              headers: { 'Retry-After': String(retryAfterS) },
+            });
+      }),
+    );
+    const { store } = renderApp({ signedIn: true, route: `/library/${ID}` });
+    const refused = () => assetsApi.endpoints.getAsset.select(ID)(store.getState()).isError;
+
+    await screen.findByRole('heading', { level: 1, name: 'harbour.jpg' });
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS));
+    await waitFor(() => expect(refused()).toBe(true));
+    // RTK Query schedules the next poll as one starts, so the poll after the refusal keeps the old pace.
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS));
+    expect(calls).toBe(3);
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS * 3));
+    expect(calls).toBe(3);
+    await act(() => vi.advanceTimersByTimeAsync(retryAfterS * 1000 - LIVE_POLL_MS * 3));
+    await waitFor(() => expect(calls).toBe(4));
+    expect(screen.getByRole('heading', { level: 1, name: 'harbour.jpg' })).toBeInTheDocument();
   });
 });

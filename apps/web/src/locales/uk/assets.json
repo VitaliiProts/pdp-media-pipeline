@@ -49,7 +49,6 @@
     "toLibrary": "Повернутися в медіатеку",
     "errorTitle": "Не вдалося завантажити файл",
     "error": "Gateway не відповів. Спробуйте за хвилину.",
-    "facts": "Про файл",
     "dimensions": "Розмір у пікселях",
     "dimensionsValue": "{{width}} × {{height}}",
     "duration": "Тривалість",

@@ -129,4 +129,9 @@ describe('versions of a file', () => {
     expect(formatOf('http://storage.test/r/frame-0001.jpg')).toBe('JPEG');
     expect(formatOf('http://storage.test/r/x.avif')).toBe('AVIF');
   });
+
+  it('names no format for a file without an extension', () => {
+    expect(formatOf('http://storage.test/r/thumb?X-Amz-Signature=1')).toBe('');
+    expect(formatOf('http://storage.test/r.v2/thumb')).toBe('');
+  });
 });
