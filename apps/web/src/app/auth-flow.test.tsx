@@ -105,11 +105,9 @@ describe('signing in', () => {
     const { user } = renderApp({ route: '/login' });
     await signIn(user);
 
-    expect(
-      await screen.findByText('Too many attempts. Try again in 30 seconds.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Too many attempts. Try again in 30 seconds.',
+    const alert = screen.getByRole('alert');
+    await waitFor(() =>
+      expect(alert).toHaveTextContent('Too many attempts. Try again in 30 seconds.'),
     );
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled();
   });

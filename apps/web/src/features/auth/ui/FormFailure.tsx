@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { VisuallyHidden } from '../../../shared/ui/visually-hidden/VisuallyHidden';
 import { type AuthFailure } from '../model/auth-failure';
 import styles from './AuthForm.module.css';
 
@@ -12,7 +13,15 @@ export function FormFailure({ failure, secondsLeft }: FormFailureProps) {
       case 'credentials':
         return t('failure.credentials');
       case 'retryLater':
-        return secondsLeft > 0 ? t('failure.retryLater', { count: secondsLeft }) : null;
+        // An alert re-announces every change: screen readers hear the wait once, eyes see it tick.
+        return secondsLeft > 0 ? (
+          <>
+            <span aria-hidden="true">{t('failure.retryLater', { count: secondsLeft })}</span>
+            <VisuallyHidden>
+              {t('failure.retryLater', { count: failure.retryAfterS })}
+            </VisuallyHidden>
+          </>
+        ) : null;
       case 'refused':
         return t('failure.refused', { message: failure.message });
       case 'unavailable':
