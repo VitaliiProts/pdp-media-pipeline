@@ -87,7 +87,7 @@ export const ASSET_SEARCH_MAX_LENGTH = 100;
 // ListAssetsQuery: + status?: AssetStatus, + q?: string (обрізаний; порожній → undefined; ≤ 100)
 ```
 
-- [ ] **Step 1: падаючий тест контракту**
+- [x] **Step 1: падаючий тест контракту**
 
 Додати в кінець `libs/contracts/src/assets.spec.ts` (імпорт `ListAssetsQuery` — з `./assets`, якщо його ще немає у файлі):
 
@@ -115,7 +115,7 @@ describe('ListAssetsQuery filters', () => {
 
 Run: `pnpm test -- libs/contracts/src/assets.spec.ts` → FAIL (`status` відкидається як невідомий ключ або ігнорується; `q` не обрізається).
 
-- [ ] **Step 2: контракт**
+- [x] **Step 2: контракт**
 
 У `libs/contracts/src/assets.ts` поруч з `AssetKindSchema`:
 
@@ -150,7 +150,7 @@ export const ListAssetsQuery = z.object({
 
 Run: `pnpm test -- libs/contracts/src/assets.spec.ts` → PASS.
 
-- [ ] **Step 3: падаючі інтеграційні тести**
+- [x] **Step 3: падаючі інтеграційні тести**
 
 У `test/assets.int-spec.ts` всередині `describe('media library', …)`, після тесту `'filters photos from videos and pages with a cursor'`:
 
@@ -209,7 +209,7 @@ it('rejects an unknown status and an overlong search', async () => {
 
 Run: `pnpm test:int -- test/assets.int-spec.ts` → FAIL (шлюз не знає `status`/`q`; фільтри не застосовуються).
 
-- [ ] **Step 4: Metadata — фільтри**
+- [x] **Step 4: Metadata — фільтри**
 
 У `apps/metadata/src/assets/assets.service.ts` додати імпорти `ilike` (з `drizzle-orm`), `type AssetStatus`, `type JobStatus` (з `@pdp/contracts`; якщо `JobStatus` експортується під іншим ім'ям — візьміть те, на якому побудовано `ACTIVE_STATUSES`) і на рівні модуля:
 
@@ -243,7 +243,7 @@ if (query.q) filters.push(ilike(assets.name, containing(query.q)));
 
 Підзапит читає одну задачу з `jobs_asset_created_idx` на кожен файл сторінки.
 
-- [ ] **Step 5: клієнт і DTO шлюзу**
+- [x] **Step 5: клієнт і DTO шлюзу**
 
 `libs/metadata-client/src/metadata-client.ts`, у `listAssets` поруч із `kind`:
 
@@ -278,7 +278,7 @@ if (query.q) params.set('q', query.q);
 Run: `pnpm test:int -- test/assets.int-spec.ts` → PASS.
 Run: `pnpm typecheck && pnpm lint && pnpm test` → PASS.
 
-- [ ] **Step 6: коміт**
+- [x] **Step 6: коміт**
 
 ```bash
 git add libs/contracts/src apps/metadata/src/assets apps/api-gateway/src/assets libs/metadata-client/src test/assets.int-spec.ts
@@ -313,7 +313,7 @@ toResponse(job: JobDto, options?: { downloadBase?: string }): Promise<JobRespons
 
 Правило імен: оригінал — `asset.name` або останній сегмент ключа; версія — `<ім'я оригіналу без розширення>-<суфікс>.<розширення ключа версії>`. Суфікси: `preset` результату зображення (`thumb`, `medium`…), `rendition` (`480p`, `720p`), `preview`, `frame-0001` (номер кадру з 1, чотири цифри — як у файлах video-worker).
 
-- [ ] **Step 1: падаючий юніт-тест імен**
+- [x] **Step 1: падаючий юніт-тест імен**
 
 `apps/api-gateway/src/jobs/job-presenter.spec.ts`:
 
@@ -337,7 +337,7 @@ describe('download names', () => {
 
 Run: `pnpm test -- apps/api-gateway/src/jobs/job-presenter.spec.ts` → FAIL (функцій немає).
 
-- [ ] **Step 2: storage — `Content-Disposition`**
+- [x] **Step 2: storage — `Content-Disposition`**
 
 У `storage.service.ts` замінити `presignGet`:
 
@@ -371,7 +371,7 @@ function rfc5987(value: string): string {
 }
 ```
 
-- [ ] **Step 3: презентер**
+- [x] **Step 3: презентер**
 
 У `job-presenter.ts` додати функції модуля:
 
@@ -470,7 +470,7 @@ export function downloadNameOf(original: string, suffix: string, key: string): s
 
 (`ApiPropertyOptional` — додати до імпорту з `@nestjs/swagger`, якщо його там немає.)
 
-- [ ] **Step 4: контролер файлу**
+- [x] **Step 4: контролер файлу**
 
 `assets.controller.ts`: інжектувати `StorageService` (у модулі шлюзу він уже провайдер — ним користується презентер) і змінити повернення в `get`:
 
@@ -508,7 +508,7 @@ return {
   originalDownloadUrl!: string;
 ```
 
-- [ ] **Step 5: інтеграційний тест**
+- [x] **Step 5: інтеграційний тест**
 
 У `test/assets.int-spec.ts`: в інтерфейс `Details` додати `originalDownloadUrl: string;` і `downloadUrl?: string` до елементів `results`:
 
@@ -562,7 +562,7 @@ it('keeps job listings free of download links', async () => {
 Run: `pnpm test -- apps/api-gateway && pnpm test:int -- test/assets.int-spec.ts` → PASS.
 Run: `pnpm typecheck && pnpm lint` → PASS.
 
-- [ ] **Step 6: коміт**
+- [x] **Step 6: коміт**
 
 ```bash
 git add apps/api-gateway/src test/assets.int-spec.ts
@@ -597,7 +597,7 @@ export async function seedUser(
 ): Promise<{ userId: string; apiKey: string; email: string | null }>;
 ```
 
-- [ ] **Step 1: падаючі тести**
+- [x] **Step 1: падаючі тести**
 
 `apps/metadata/src/seed-user.spec.ts` (перевірка спрацьовує до підключення до БД, тому URL не використовується):
 
@@ -639,7 +639,7 @@ it('signs in a user seeded with an email and a password', async () => {
 
 Run: `pnpm test -- apps/metadata/src/seed-user.spec.ts` → FAIL (третій аргумент — рядок API-ключа).
 
-- [ ] **Step 2: реалізація**
+- [x] **Step 2: реалізація**
 
 `apps/metadata/src/seed-user.ts`:
 
@@ -746,7 +746,7 @@ Run: `pnpm test -- apps/metadata/src/seed-user.spec.ts` → PASS.
 Run: `pnpm test:int -- test/auth.int-spec.ts` → PASS.
 Run: `pnpm typecheck && pnpm lint && pnpm test` → PASS.
 
-- [ ] **Step 3: коміт**
+- [x] **Step 3: коміт**
 
 ```bash
 git add apps/metadata/src/seed-user.ts apps/metadata/src/seed-user.spec.ts test/auth.int-spec.ts scripts/perf.sh scripts/autoscale-demo.sh
@@ -781,7 +781,7 @@ export function errorCodeOf(value: unknown): string | null;
 // retryAfterOf / isUnauthorized тепер приймають `unknown`
 ```
 
-- [ ] **Step 1: падаючі тести**
+- [x] **Step 1: падаючі тести**
 
 Замінити вміст `apps/web/src/shared/api/http.test.ts`:
 
@@ -847,7 +847,7 @@ describe('toAppError', () => {
 
 Run: `cd apps/web && pnpm vitest run src/shared/api/http.test.ts` → FAIL (немає `appErrorOf`, `errorCodeOf`; `code` відсутній).
 
-- [ ] **Step 2: реалізація**
+- [x] **Step 2: реалізація**
 
 У `http.ts`:
 
@@ -917,7 +917,7 @@ export function isUnauthorized(error: unknown): boolean {
 Run: `cd apps/web && pnpm vitest run src/shared/api/http.test.ts` → PASS.
 Run: `pnpm typecheck` — якщо десь будується літерал `{ kind: 'http', … }` без `code` (тести jobs/webhooks), додати `code: null`. Run: `pnpm test:web && pnpm lint` → PASS.
 
-- [ ] **Step 3: коміт**
+- [x] **Step 3: коміт**
 
 ```bash
 git add apps/web/src
@@ -973,7 +973,7 @@ export const testSession: { signIn(): void; signOut(): void; isSignedIn(): boole
 export function renderApp(options?: { signedIn?: boolean; route?: string }): …;
 ```
 
-- [ ] **Step 1: зворотний відлік (TDD)**
+- [x] **Step 1: зворотний відлік (TDD)**
 
 `apps/web/src/shared/lib/use-countdown.test.ts`:
 
@@ -1034,7 +1034,7 @@ export function useCountdown(): [secondsLeft: number, start: (seconds: number) =
 
 Run → PASS.
 
-- [ ] **Step 2: клієнтська валідація (TDD)**
+- [x] **Step 2: клієнтська валідація (TDD)**
 
 `apps/web/src/features/auth/model/validate.test.ts`:
 
@@ -1104,7 +1104,7 @@ export function nameProblem(raw: string): FieldProblem | null {
 
 Межі звірено з `libs/contracts/src/accounts.ts`: `USER_NAME_MAX_LENGTH = 100`, `PASSWORD_MIN_LENGTH = 8`, `PASSWORD_MAX_LENGTH = 128`; email обмежує `EmailSchema` (254). Run → PASS.
 
-- [ ] **Step 3: фіча `auth` — типи, API, дія виходу, розбір помилок**
+- [x] **Step 3: фіча `auth` — типи, API, дія виходу, розбір помилок**
 
 `features/auth/model/types.ts`:
 
@@ -1194,7 +1194,7 @@ export function authFailureOf(error: unknown): AuthFailure {
 }
 ```
 
-- [ ] **Step 4: тексти `auth`**
+- [x] **Step 4: тексти `auth`**
 
 `apps/web/src/locales/en/auth.json`:
 
@@ -1323,7 +1323,7 @@ Run: `cd apps/web && pnpm vitest run src/app/i18n.test.ts` → PASS (якщо п
 
 `shell.json` (en/uk): видалити `registerPage.body`, `registerPage.toLogin`, `upload.openJobs` поки не чіпати (задача 9). `workspace.json`, `problem.unauthorized`: en — `"Your session has ended. Sign in again."`, uk — `"Сесія закінчилася. Увійдіть знову."`.
 
-- [ ] **Step 5: `LoginForm`**
+- [x] **Step 5: `LoginForm`**
 
 `features/auth/ui/AuthForm.module.css`:
 
@@ -1514,7 +1514,7 @@ export { type AuthMethod, type Me } from './model/types';
 export { LoginForm } from './ui/LoginForm';
 ```
 
-- [ ] **Step 6: HTTP без ключа**
+- [x] **Step 6: HTTP без ключа**
 
 `shared/api/http.ts`:
 
@@ -1545,7 +1545,7 @@ export const storageHttp = axios.create({ timeout: 120_000 });
 
 `API_KEY_HEADER` і request-інтерсептор видалити.
 
-- [ ] **Step 7: стор**
+- [x] **Step 7: стор**
 
 `app/store.ts` повністю:
 
@@ -1657,7 +1657,7 @@ describe('session', () => {
 
 (Другий тест перевіряє обидва випадки одним лічильником: якби `401` від входу теж інвалідував `Me`, лічильник дійшов би до 3 — додайте в кінці `expect(meCalls).toBe(2)` після `await new Promise((r) => setTimeout(r, 50))`, щоб це зловити. Таймаут тут не гонка: він лише дає шанс зайвому запиту статися.) Якщо `store.dispatch` не приймає thunk з такою анотацією параметрів — використайте `ThunkAction<AbortSignal, RootState, ThunkExtra, UnknownAction>` з `@reduxjs/toolkit` як тип константи-thunk'а.
 
-- [ ] **Step 8: shell — `AppRoot`, `RequireAuth`, `UserMenu`, `LoginPage`**
+- [x] **Step 8: shell — `AppRoot`, `RequireAuth`, `UserMenu`, `LoginPage`**
 
 `app/layouts/AppRoot.tsx`:
 
@@ -1763,7 +1763,7 @@ export function LoginPage() {
 
 Видалити `features/api-key/` і `features/session/` повністю. `rg -n "features/(api-key|session)|apiKey'|TEST_API_KEY|API_KEY_STORAGE_KEY|x-api-key" apps/web/src` після кроку 9 має бути порожнім (крім прикладу `curl` у задачі 12, якого ще немає).
 
-- [ ] **Step 9: тестова сесія і міграція тестів**
+- [x] **Step 9: тестова сесія і міграція тестів**
 
 `test/fixtures.ts` повністю:
 
@@ -2008,7 +2008,7 @@ describe('signing in', () => {
 
 Тест з `/library` (`ignores a return address…`) торкається заглушки `LibraryPage`, яка поки не робить запитів, — обробник `/v1/assets` знадобиться після задачі 7; лишіть його вже зараз.
 
-- [ ] **Step 10: перевірка й коміт**
+- [x] **Step 10: перевірка й коміт**
 
 Run: `pnpm typecheck && pnpm lint && pnpm depcruise && pnpm test:web` → PASS.
 Run (стабільність): 4 паралельні прогони `src/app/auth-flow.test.tsx src/app/upload-dialog.test.tsx` з `CI=true` (команда — у глобальних обмеженнях) → усі `0`.
@@ -2040,7 +2040,7 @@ export function RegisterForm(props: { loginHref: string }): JSX.Element;
 // loginHref — куди веде посилання «Увійти» при 409 (зберігає next)
 ```
 
-- [ ] **Step 1: падаючі тести**
+- [x] **Step 1: падаючі тести**
 
 `apps/web/src/pages/register/RegisterPage.test.tsx`:
 
@@ -2138,7 +2138,7 @@ describe('creating an account', () => {
 
 Run: `cd apps/web && pnpm vitest run src/pages/register` → FAIL.
 
-- [ ] **Step 2: `RegisterForm`**
+- [x] **Step 2: `RegisterForm`**
 
 `features/auth/ui/RegisterForm.tsx`:
 
@@ -2301,7 +2301,7 @@ export function RegisterForm({ loginHref }: { loginHref: string }) {
 
 Експорт у `features/auth/index.ts`: `export { RegisterForm } from './ui/RegisterForm';`.
 
-- [ ] **Step 3: сторінка**
+- [x] **Step 3: сторінка**
 
 `pages/register/RegisterPage.tsx`:
 
@@ -2344,7 +2344,7 @@ export function RegisterPage() {
 
 Run: `cd apps/web && pnpm vitest run src/pages/register` → PASS. Run: `pnpm typecheck && pnpm lint && pnpm test:web` → PASS.
 
-- [ ] **Step 4: коміт**
+- [x] **Step 4: коміт**
 
 ```bash
 git add -A apps/web/src
@@ -2418,7 +2418,7 @@ export function useLibraryParams(): readonly [
 ];
 ```
 
-- [ ] **Step 1: `formatDuration` (TDD)**
+- [x] **Step 1: `formatDuration` (TDD)**
 
 `shared/lib/format-duration.test.ts`:
 
@@ -2452,7 +2452,7 @@ export function formatDuration(totalSeconds: number): string {
 
 Run → PASS.
 
-- [ ] **Step 2: `STATUS_TONE`, тег `Asset`, фіча `assets`**
+- [x] **Step 2: `STATUS_TONE`, тег `Asset`, фіча `assets`**
 
 `features/jobs/model/status-labels.ts` — додати (імпорт `type Tone` з `../../../shared/ui/tone`, `type JobStatus` з `./types`, якщо ще немає):
 
@@ -2578,7 +2578,7 @@ export {
 } from './model/types';
 ```
 
-- [ ] **Step 3: тексти `assets`**
+- [x] **Step 3: тексти `assets`**
 
 `locales/en/assets.json`:
 
@@ -2656,7 +2656,7 @@ export {
 
 `app/i18n.ts`: додати простір `assets` (імпорти en/uk, `resources`, `ns`). `shell.json` (en/uk): видалити блок `library` — `nav.library` лишається.
 
-- [ ] **Step 4: падаючі тести медіатеки**
+- [x] **Step 4: падаючі тести медіатеки**
 
 `test/fixtures.ts` — додати:
 
@@ -2828,7 +2828,7 @@ describe('library', () => {
 
 Run: `cd apps/web && pnpm vitest run src/pages/library` → FAIL.
 
-- [ ] **Step 5: параметри в URL**
+- [x] **Step 5: параметри в URL**
 
 `pages/library/lib/use-library-params.ts`:
 
@@ -2876,7 +2876,7 @@ export function useLibraryParams(): readonly [AssetFilters, SetFilters] {
 }
 ```
 
-- [ ] **Step 6: фільтри**
+- [x] **Step 6: фільтри**
 
 `pages/library/ui/LibraryFilters.tsx`:
 
@@ -3007,7 +3007,7 @@ export function LibraryFilters({ filters, onChange }: LibraryFiltersProps) {
 
 `ChoiceGroup` — це `<fieldset>` з `display: flex; flex-direction: column` (`Choice.module.css`), `Radio` — `<label>` з `className`; токени `--rule`, `--ink`, `--weight-semibold` звірте з `tokens.css`. Вигляд сегментів перевіряється в браузері в задачі 13.
 
-- [ ] **Step 7: плитка**
+- [x] **Step 7: плитка**
 
 `pages/library/ui/AssetTile.tsx`:
 
@@ -3150,7 +3150,7 @@ export function AssetTile({ asset, linkState }: AssetTileProps) {
 
 Імена токенів (`--focus-ring`, `--paper-deep`, `--ink`, `--paper`, `--text-xl`) звірте з `shared/ui/tokens.css`; де токена немає — візьміть найближчий наявний (наприклад, з `SlideMount` на `/jobs`), нових токенів не вводити. Контраст підпису `.kind` на фоні — щонайменше 4.5:1 (див. `tokens.test.ts`).
 
-- [ ] **Step 8: сторінка**
+- [x] **Step 8: сторінка**
 
 `pages/library/LibraryPage.tsx`:
 
@@ -3294,7 +3294,7 @@ export function LibraryPage() {
 Run: `cd apps/web && pnpm vitest run src/pages/library src/shared/lib/format-duration.test.ts` → PASS.
 Run: `pnpm typecheck && pnpm lint && pnpm depcruise && pnpm test:web` → PASS. Тест `auth-flow` «ignores a return address…» тепер ходить у `/v1/assets` — обробник там уже є з задачі 5.
 
-- [ ] **Step 9: коміт**
+- [x] **Step 9: коміт**
 
 ```bash
 git add -A apps/web/src
@@ -3328,7 +3328,7 @@ export class FakeIntersectionObserver implements IntersectionObserver {
 }
 ```
 
-- [ ] **Step 1: фейковий `IntersectionObserver`**
+- [x] **Step 1: фейковий `IntersectionObserver`**
 
 `test/intersection-observer.ts`:
 
@@ -3394,7 +3394,7 @@ export class FakeIntersectionObserver implements IntersectionObserver {
 
 (Якщо `lib.dom` у вашій версії TypeScript не має `scrollMargin` в `IntersectionObserver` — властивість зайва, але не шкодить. Якщо `findLast` недоступний у `lib` — використайте `[...instances].reverse().find(...)`.)
 
-- [ ] **Step 2: падаючі тести**
+- [x] **Step 2: падаючі тести**
 
 У `LibraryPage.test.tsx` додати імпорти `act` з `@testing-library/react`, `FakeIntersectionObserver` з `../../test/intersection-observer` і блок:
 
@@ -3460,7 +3460,7 @@ describe('library pages', () => {
 
 Run → FAIL.
 
-- [ ] **Step 3: тексти**
+- [x] **Step 3: тексти**
 
 `assets.json` → `library.more`:
 
@@ -3490,7 +3490,7 @@ uk:
 }
 ```
 
-- [ ] **Step 4: `LoadMore`**
+- [x] **Step 4: `LoadMore`**
 
 `pages/library/ui/LoadMore.tsx`:
 
@@ -3563,7 +3563,7 @@ export function LoadMore({ isLoading, failed, onLoad }: LoadMoreProps) {
 }
 ```
 
-- [ ] **Step 5: сторінка — кнопка й оголошення**
+- [x] **Step 5: сторінка — кнопка й оголошення**
 
 У `LibraryPage.tsx`:
 
@@ -3614,7 +3614,7 @@ return (
 
 Run: `cd apps/web && pnpm vitest run src/pages/library` → PASS. Run: `pnpm typecheck && pnpm lint && pnpm test:web` → PASS; прогін під навантаженням для `src/pages/library` → усі `0`.
 
-- [ ] **Step 6: коміт**
+- [x] **Step 6: коміт**
 
 ```bash
 git add -A apps/web/src
@@ -3659,7 +3659,7 @@ export function useLiveAssets(filters: AssetFilters, options: { awaitedJobIds: r
 export function pendingUploads(uploads: readonly Upload[], assets: readonly AssetSummary[]): Upload[];
 ```
 
-- [ ] **Step 1: падаючий юніт-тест «що ще не на сервері»**
+- [x] **Step 1: падаючий юніт-тест «що ще не на сервері»**
 
 `pages/library/model/pending-uploads.test.ts`:
 
@@ -3689,7 +3689,7 @@ describe('pendingUploads', () => {
 
 Run → FAIL (немає модуля; `kind` не в типі `Upload`).
 
-- [ ] **Step 2: завантаження — `kind`, `name`, квота, інвалідація**
+- [x] **Step 2: завантаження — `kind`, `name`, квота, інвалідація**
 
 `uploads-slice.ts`:
 
@@ -3784,7 +3784,7 @@ const UPLOAD_NAME_MAX_LENGTH = 255;
 
 Run: `cd apps/web && pnpm vitest run src/pages/library/model src/features/upload` → PASS (після кроку 3 для `pending-uploads`).
 
-- [ ] **Step 3: живі статуси і локальні плитки**
+- [x] **Step 3: живі статуси і локальні плитки**
 
 `pages/library/model/pending-uploads.ts`:
 
@@ -3980,7 +3980,7 @@ const pending = useMemo(
       </ul>
 ```
 
-- [ ] **Step 4: діалог веде в медіатеку; правило тостів**
+- [x] **Step 4: діалог веде в медіатеку; правило тостів**
 
 `AppLayout.tsx`:
 
@@ -4020,7 +4020,7 @@ export function useUploadFailureToasts(): void {
 
 `shell.json`: видалити `upload.openJobs`; додати en `"quotaExceeded": "{{name}} was not uploaded: storage is full. Delete files you no longer need."`, uk `"quotaExceeded": "{{name}} не завантажено: місце закінчилося. Видаліть непотрібні файли."` (у блоці `upload`).
 
-- [ ] **Step 5: тести діалогу й медіатеки**
+- [x] **Step 5: тести діалогу й медіатеки**
 
 `app/upload-dialog.test.tsx`:
 
@@ -4184,7 +4184,7 @@ describe('live library', () => {
 Run: `cd apps/web && pnpm vitest run src/app/upload-dialog.test.tsx src/pages/library src/pages/jobs` → PASS.
 Run: `pnpm typecheck && pnpm lint && pnpm depcruise && pnpm test:web` → PASS; прогін під навантаженням для `src/app/upload-dialog.test.tsx src/pages/library` → усі `0`.
 
-- [ ] **Step 6: коміт**
+- [x] **Step 6: коміт**
 
 ```bash
 git add -A apps/web/src
@@ -4283,7 +4283,7 @@ export function formatOf(url: string): string; // 'WebP' | 'JPEG' | 'MP4' | 'PNG
 export function librarySearchOf(state: unknown): string; // '?kind=image' або ''
 ```
 
-- [ ] **Step 1: `httpStatusOf` (TDD)**
+- [x] **Step 1: `httpStatusOf` (TDD)**
 
 У `http.test.ts`, в `describe('AppError helpers')`:
 
@@ -4305,7 +4305,7 @@ export function httpStatusOf(value: unknown): number | null {
 
 Run → PASS.
 
-- [ ] **Step 2: фокус вікна для RTK Query**
+- [x] **Step 2: фокус вікна для RTK Query**
 
 `main.tsx`:
 
@@ -4325,7 +4325,7 @@ createRoot(root).render(
 
 (Тести `setupListeners` не викликають: так у jsdom вікно завжди «у фокусі», і опитування передбачуване.)
 
-- [ ] **Step 3: модель версій (TDD)**
+- [x] **Step 3: модель версій (TDD)**
 
 `pages/asset/model/versions.test.ts`:
 
@@ -4568,7 +4568,7 @@ export function formatOf(url: string): string {
 
 Run → PASS.
 
-- [ ] **Step 4: API файлу і живі дані**
+- [x] **Step 4: API файлу і живі дані**
 
 `features/assets/api/assets-api.ts` — у `endpoints` додати:
 
@@ -4606,7 +4606,7 @@ export function useLiveAsset(id: string) {
 
 Експорт з `index.ts`: `useGetAssetQuery`, `useLiveAsset`.
 
-- [ ] **Step 5: тексти**
+- [x] **Step 5: тексти**
 
 `assets.json` — додати блоки (en):
 
@@ -4712,7 +4712,7 @@ uk:
 
 `shell.json` (en/uk): видалити блок `asset`.
 
-- [ ] **Step 6: падаючі тести сторінки**
+- [x] **Step 6: падаючі тести сторінки**
 
 `pages/asset/AssetPage.test.tsx`:
 
@@ -4929,7 +4929,7 @@ describe('file page', () => {
 
 Run: `cd apps/web && pnpm vitest run src/pages/asset` → FAIL.
 
-- [ ] **Step 7: сторінка та її частини**
+- [x] **Step 7: сторінка та її частини**
 
 `pages/asset/lib/library-search.ts`:
 
@@ -5498,7 +5498,7 @@ function AssetView({ asset }: { asset: AssetDetails }) {
 Run: `cd apps/web && pnpm vitest run src/pages/asset src/shared/api` → PASS.
 Run: `pnpm typecheck && pnpm lint && pnpm depcruise && pnpm test:web` → PASS.
 
-- [ ] **Step 8: коміт**
+- [x] **Step 8: коміт**
 
 ```bash
 git add -A apps/web/src
@@ -5530,7 +5530,7 @@ export function DeleteAssetButton(props: {
 // onDeleted викликається і після 204, і після 404 (файл уже видалено)
 ```
 
-- [ ] **Step 1: падаючі тести**
+- [x] **Step 1: падаючі тести**
 
 У `AssetPage.test.tsx`:
 
@@ -5591,7 +5591,7 @@ describe('deleting a file', () => {
 
 Run → FAIL.
 
-- [ ] **Step 2: API і тексти**
+- [x] **Step 2: API і тексти**
 
 `assets-api.ts` — у `endpoints`:
 
@@ -5640,7 +5640,7 @@ uk:
   }
 ```
 
-- [ ] **Step 3: `DeleteAssetButton`**
+- [x] **Step 3: `DeleteAssetButton`**
 
 `features/assets/ui/DeleteAssetButton.tsx`:
 
@@ -5746,7 +5746,7 @@ export function DeleteAssetButton({ assetId, name, onDeleted }: DeleteAssetButto
 
 Експорт з `features/assets/index.ts`: `DeleteAssetButton`, `useDeleteAssetMutation`.
 
-- [ ] **Step 4: на сторінці**
+- [x] **Step 4: на сторінці**
 
 У `AssetView` (`AssetPage.tsx`):
 
@@ -5768,7 +5768,7 @@ const handleDeleted = () => {
 
 Run: `cd apps/web && pnpm vitest run src/pages/asset` → PASS. Run: `pnpm typecheck && pnpm lint && pnpm depcruise && pnpm test:web` → PASS; прогін під навантаженням для `src/pages/asset` → усі `0`.
 
-- [ ] **Step 5: коміт**
+- [x] **Step 5: коміт**
 
 ```bash
 git add -A apps/web/src
@@ -5814,7 +5814,7 @@ export type CreatedApiKey = ApiKey & { key: string };
 export function ApiKeysSection(): JSX.Element;
 ```
 
-- [ ] **Step 1: `LanguageSwitch` у фічу**
+- [x] **Step 1: `LanguageSwitch` у фічу**
 
 ```bash
 mkdir -p apps/web/src/features/language/ui
@@ -5826,7 +5826,7 @@ git mv apps/web/src/app/layouts/LanguageSwitch.module.css apps/web/src/features/
 
 Run: `pnpm typecheck && pnpm depcruise && pnpm test:web` → PASS (поведінка не змінилася).
 
-- [ ] **Step 2: падаючі тести налаштувань**
+- [x] **Step 2: падаючі тести налаштувань**
 
 `pages/settings/SettingsPage.test.tsx`:
 
@@ -5989,7 +5989,7 @@ describe('settings', () => {
 
 Run: `cd apps/web && pnpm vitest run src/pages/settings` → FAIL.
 
-- [ ] **Step 3: тексти**
+- [x] **Step 3: тексти**
 
 `locales/en/settings.json`:
 
@@ -6123,7 +6123,7 @@ Run: `cd apps/web && pnpm vitest run src/pages/settings` → FAIL.
 
 `app/i18n.ts`: додати простори `settings` і `apiKeys`. `shell.json` (en/uk): видалити блок `settings` (`menu.settings` лишається).
 
-- [ ] **Step 4: фіча `api-keys`**
+- [x] **Step 4: фіча `api-keys`**
 
 `shared/api/base-api.ts`: `tagTypes: ['Job', 'Webhook', 'Me', 'Asset', 'ApiKey']`.
 
@@ -6569,7 +6569,7 @@ export {
 export { ApiKeysSection } from './ui/ApiKeysSection';
 ```
 
-- [ ] **Step 5: сторінка**
+- [x] **Step 5: сторінка**
 
 `pages/settings/SettingsPage.tsx`:
 
@@ -6674,7 +6674,7 @@ export function SettingsPage() {
 Run: `cd apps/web && pnpm vitest run src/pages/settings` → PASS.
 Run: `pnpm typecheck && pnpm lint && pnpm depcruise && pnpm test:web` → PASS; прогін під навантаженням для `src/pages/settings` → усі `0`.
 
-- [ ] **Step 6: коміт**
+- [x] **Step 6: коміт**
 
 ```bash
 git add -A apps/web/src
@@ -6696,7 +6696,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
 - Modify: `docs/superpowers/plans/2026-10-15-stage-5c4-screens.md` (галочки)
 - Create (git-ignored): `.superpowers/sdd/pw/screens.mjs`
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 1. Розділ запуску (рядки ~182–197, «Два способи увійти…»): перший спосіб для браузера — реєстрація на `http://localhost:18090/register` або
 
@@ -6709,7 +6709,7 @@ docker compose exec -T metadata node dist/seed-user.js --name me \
 
 2. Новий розділ `### Етап 5c.4. Екрани входу, медіатеки й налаштувань` після 5c.3, за зразком попередніх: що з'явилося (вхід і реєстрація, медіатека з фільтрами `?kind&status&q`, нескінченна прокрутка, живі статуси, сторінка файлу з плеєром і завантаженням версій, видалення, налаштування з API-ключами); API: `GET /v1/assets?status=&q=`, `downloadUrl` і `originalDownloadUrl` у `GET /v1/assets/:id`; ручна перевірка — 6–8 кроків (зареєструватися → завантажити фото й відео → медіатека з живим статусом → фільтр «Відео» і пошук → сторінка файлу, 480p/720p, «Завантажити» → видалити → створити ключ і `curl -H "X-API-Key: …" http://localhost:18090/v1/jobs` → відкликати → той самий `curl` дає 401).
 
-- [ ] **Step 2: план етапів і дизайн-документи**
+- [x] **Step 2: план етапів і дизайн-документи**
 
 - `docs/plan/stages-5c-5d.md`: відмітити пункти 5c.4 з короткими примітками (як для 5c.3): API-ключ прибрано з браузера, `features/auth`, медіатека на `infiniteQuery`, `downloadUrl`.
 - `docs/design/information-architecture.md`: потік завантаження — після старту перехід у `/library`, тост без дії, помилки на плитках, тост лише поза `/library` і `/jobs`; стрілка `413 → quotaExceeded` — суцільна (реалізовано); вхід — email і пароль (без API-ключа); сторінка файлу і налаштування — як реалізовано.
@@ -6717,7 +6717,7 @@ docker compose exec -T metadata node dist/seed-user.js --name me \
 - Специфікація 5c.4: розділ «Відхилення під час реалізації» з трьома пунктами з шапки плану (плитка в `pages/library`, `LanguageSwitch` у `features/language`, `name` у `POST /v1/uploads`) плюс усе, що змінилося під час виконання задач (з `progress.md`).
 - План: відмітити виконані кроки `- [x]`.
 
-- [ ] **Step 3: повна перевірка**
+- [x] **Step 3: повна перевірка**
 
 ```bash
 pnpm format:check && pnpm lint && pnpm typecheck && pnpm depcruise \
@@ -6728,7 +6728,7 @@ pnpm format:check && pnpm lint && pnpm typecheck && pnpm depcruise \
 
 Під навантаженням, як CI: `for i in 1 2 3 4; do (CI=true pnpm test:web >/tmp/web-$i.log 2>&1; echo "run $i: $?") & done; wait` → усі `0`.
 
-- [ ] **Step 4: перевірка в compose через браузер**
+- [x] **Step 4: перевірка в compose через браузер**
 
 ```bash
 pnpm stack:up
@@ -6747,7 +6747,7 @@ pnpm stack:up
 
 Якщо щось не проходить — виправити окремим комітом `fix(stage-5c.4): …` і повторити кроки 3–4.
 
-- [ ] **Step 5: коміт документів**
+- [x] **Step 5: коміт документів**
 
 ```bash
 git add README.md docs
