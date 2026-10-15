@@ -43,22 +43,22 @@ Archivo Variable з віссю ширини: заголовки вузькі й 
 Теки `apps/web/src/shared/ui/<name>/`; імпорт за шляхом. Без мережі й доменних знань; обгортки
 приймають пропси нативного елемента.
 
-| Примітив                           | Призначення і поведінка                                                           |
-| ---------------------------------- | --------------------------------------------------------------------------------- |
-| `Button`, `buttonClass`            | 4 варіанти, 2 розміри; `isBusy` → `aria-busy`, клік ігнорується, фокус лишається  |
-| `Field`, `Input`                   | мітка, підказка, помилка, `aria-describedby`, `aria-invalid`                      |
-| `Select`                           | нативний список                                                                   |
-| `Checkbox`, `Radio`, `ChoiceGroup` | нативні контроли в `fieldset` / `legend`                                          |
-| `Card`                             | «слайд»                                                                           |
-| `Badge`                            | тон + текст                                                                       |
-| `Progress`                         | `<progress>` з підписом; без значення — невизначений                              |
-| `Dialog`                           | `<dialog>` + `showModal()`: фокус усередині, Esc, клік по фону, повернення фокуса |
-| `ToastProvider`, `useToast`        | `aria-live` polite / assertive, 5 с, пауза під курсором і фокусом, до трьох       |
-| `Tabs`                             | WAI-ARIA tabs: ←/→, Home, End, roving tabindex                                    |
-| `Skeleton`                         | форма вмісту, `aria-hidden`; контейнер ставить `aria-busy`                        |
-| `EmptyState`, `ErrorState`         | заголовок, текст, дія; `status` / `alert`                                         |
-| `PageHeading`                      | `h1` сторінки: назва вкладки, фокус після навігації                               |
-| `VisuallyHidden`                   | текст лише для скрінрідерів                                                       |
+| Примітив                           | Призначення і поведінка                                                                                              |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `Button`, `buttonClass`            | 4 варіанти, 2 розміри; `isBusy` → `aria-busy`, клік ігнорується, фокус лишається                                     |
+| `Field`, `Input`                   | мітка, підказка, помилка, `aria-describedby`, `aria-invalid`                                                         |
+| `Select`                           | нативний список                                                                                                      |
+| `Checkbox`, `Radio`, `ChoiceGroup` | нативні контроли в `fieldset` / `legend`                                                                             |
+| `Card`                             | «слайд»                                                                                                              |
+| `Badge`                            | тон + текст                                                                                                          |
+| `Progress`                         | `<progress>` з підписом; без значення — невизначений                                                                 |
+| `Dialog`                           | `<dialog>` + `showModal()`: фокус усередині, Esc, клік по фону; фокус назад до кнопки, а якщо її вже немає — на `h1` |
+| `ToastProvider`, `useToast`        | `aria-live` polite / assertive, 5 с, пауза під курсором і фокусом, до трьох                                          |
+| `Tabs`                             | WAI-ARIA tabs: ←/→, Home, End, roving tabindex                                                                       |
+| `Skeleton`                         | форма вмісту, `aria-hidden`; контейнер ставить `aria-busy`                                                           |
+| `EmptyState`, `ErrorState`         | заголовок, текст, дія; `status` / `alert`                                                                            |
+| `PageHeading`                      | `h1` сторінки: назва вкладки, фокус після навігації                                                                  |
+| `VisuallyHidden`                   | текст лише для скрінрідерів                                                                                          |
 
 ## Правила доступності для екранів
 

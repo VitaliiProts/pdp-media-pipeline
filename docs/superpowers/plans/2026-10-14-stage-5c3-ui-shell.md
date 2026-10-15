@@ -1,6 +1,6 @@
 # Етап 5c.3. Каркас UI і дизайн-система — план реалізації
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** перетворити односторінковий `WorkspacePage` на застосунок із маршрутами, каркасом,
 охороною входу й дизайн-системою, не втративши жодного наявного сценарію.
@@ -101,7 +101,7 @@ docs/design/                                C  information-architecture.md, desi
   `--text-lg`, `--weight-{regular,medium,semibold,bold,display}`, `--radius-pill`, `--shadow-overlay`,
   `--z-{header,overlay,toast}`, `--motion-{fast,slow}`; `contrastRatio(a, b): number` (лише тести).
 
-- [ ] **Step 1: Тест контрасту (падає, бо `tokens.css` ще немає)**
+- [x] **Step 1: Тест контрасту (падає, бо `tokens.css` ще немає)**
 
 `apps/web/src/test/contrast.ts`:
 
@@ -195,12 +195,12 @@ describe('design tokens', () => {
 });
 ```
 
-- [ ] **Step 2: Запустити, переконатися що падає**
+- [x] **Step 2: Запустити, переконатися що падає**
 
 Run: `pnpm test src/shared/ui/tokens.test.ts`
 Expected: FAIL — `Failed to resolve import "./tokens.css?raw"`.
 
-- [ ] **Step 3: `tokens.css`, `global.css`, `main.tsx`**
+- [x] **Step 3: `tokens.css`, `global.css`, `main.tsx`**
 
 `apps/web/src/shared/ui/tokens.css`:
 
@@ -296,13 +296,13 @@ Expected: FAIL — `Failed to resolve import "./tokens.css?raw"`.
 import './shared/ui/tokens.css';
 ```
 
-- [ ] **Step 4: Тест проходить**
+- [x] **Step 4: Тест проходить**
 
 Run: `pnpm test src/shared/ui/tokens.test.ts`
 Expected: PASS (усі пари). Якщо `?raw` не резолвиться через `css: false` у `vite.config.ts`,
 замінити імпорт на `import css from './tokens.css?inline';` — і перезапустити.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/shared/ui/tokens.css apps/web/src/shared/ui/tokens.test.ts apps/web/src/test/contrast.ts apps/web/src/app/global.css apps/web/src/main.tsx
@@ -329,7 +329,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
   `buttonClass(look?: { variant?: ButtonVariant; size?: ButtonSize }, extra?: string): string`;
   `VisuallyHidden({ children }: { children: ReactNode })`.
 
-- [ ] **Step 1: Тести**
+- [x] **Step 1: Тести**
 
 `apps/web/src/shared/lib/cx.test.ts`:
 
@@ -391,12 +391,12 @@ describe('Button', () => {
 });
 ```
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/shared/lib/cx.test.ts src/shared/ui/button`
 Expected: FAIL — модулі `./cx` і `./Button` не знайдені.
 
-- [ ] **Step 3: Реалізація**
+- [x] **Step 3: Реалізація**
 
 `apps/web/src/shared/lib/cx.ts`:
 
@@ -595,12 +595,12 @@ export function VisuallyHidden({ children }: { children: ReactNode }) {
 }
 ```
 
-- [ ] **Step 4: Тести проходять**
+- [x] **Step 4: Тести проходять**
 
 Run: `pnpm test src/shared/lib/cx.test.ts src/shared/ui/button`
 Expected: PASS (4 тести).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/shared/lib/cx.ts apps/web/src/shared/lib/cx.test.ts apps/web/src/shared/ui/button apps/web/src/shared/ui/visually-hidden
@@ -631,7 +631,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
   - `Radio(` ті самі пропси `)`;
   - `ChoiceGroup({ legend, children, className? }: { legend: ReactNode; children: ReactNode; className?: string })`.
 
-- [ ] **Step 1: Тести**
+- [x] **Step 1: Тести**
 
 `apps/web/src/shared/ui/field/Field.test.tsx`:
 
@@ -701,12 +701,12 @@ describe('choices', () => {
 });
 ```
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/shared/ui/field src/shared/ui/choice`
 Expected: FAIL — модулі не знайдені.
 
-- [ ] **Step 3: Реалізація**
+- [x] **Step 3: Реалізація**
 
 `apps/web/src/shared/ui/field/Field.tsx`:
 
@@ -953,12 +953,12 @@ export function ChoiceGroup({ legend, children, className }: ChoiceGroupProps) {
 }
 ```
 
-- [ ] **Step 4: Тести проходять**
+- [x] **Step 4: Тести проходять**
 
 Run: `pnpm test src/shared/ui/field src/shared/ui/choice`
 Expected: PASS (4 тести).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/shared/ui/field apps/web/src/shared/ui/select apps/web/src/shared/ui/choice
@@ -993,7 +993,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
   - `EmptyState({ title, children?, action?, headingLevel? }: { title: string; children?: ReactNode; action?: ReactNode; headingLevel?: 2 | 3 })`;
   - `ErrorState({ title, children?, retry?, headingLevel? }: { title: string; children?: ReactNode; retry?: { label: string; onRetry: () => void }; headingLevel?: 2 | 3 })`.
 
-- [ ] **Step 1: Тести**
+- [x] **Step 1: Тести**
 
 `apps/web/src/shared/ui/display.test.tsx`:
 
@@ -1052,12 +1052,12 @@ describe('display primitives', () => {
 });
 ```
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/shared/ui/display.test.tsx`
 Expected: FAIL — модулі не знайдені.
 
-- [ ] **Step 3: Реалізація**
+- [x] **Step 3: Реалізація**
 
 `apps/web/src/shared/ui/tone.ts`:
 
@@ -1360,12 +1360,12 @@ export function ErrorState({ title, children, retry, headingLevel = 2 }: ErrorSt
 }
 ```
 
-- [ ] **Step 4: Тести проходять**
+- [x] **Step 4: Тести проходять**
 
 Run: `pnpm test src/shared/ui/display.test.tsx`
 Expected: PASS (5 тестів).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/shared/ui/tone.ts apps/web/src/shared/ui/card apps/web/src/shared/ui/badge apps/web/src/shared/ui/progress apps/web/src/shared/ui/skeleton apps/web/src/shared/ui/state apps/web/src/shared/ui/display.test.tsx
@@ -1389,7 +1389,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
 - Produces: `Dialog({ open, onClose, title, closeLabel, children, className? }: { open: boolean; onClose: () => void; title: ReactNode; closeLabel: string; children: ReactNode; className?: string })`.
   Вміст рендериться лише коли `open`; при закритті фокус повертається на елемент, що мав фокус до відкриття.
 
-- [ ] **Step 1: Поліфіл і тест**
+- [x] **Step 1: Поліфіл і тест**
 
 У `apps/web/src/test/setup.ts` після блоку з `URL.revokeObjectURL` додати:
 
@@ -1463,12 +1463,12 @@ describe('Dialog', () => {
 });
 ```
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/shared/ui/dialog`
 Expected: FAIL — `./Dialog` не знайдено.
 
-- [ ] **Step 3: Реалізація**
+- [x] **Step 3: Реалізація**
 
 `apps/web/src/shared/ui/dialog/Dialog.tsx`:
 
@@ -1597,12 +1597,12 @@ export function Dialog({ open, onClose, title, closeLabel, children, className }
 }
 ```
 
-- [ ] **Step 4: Тести проходять**
+- [x] **Step 4: Тести проходять**
 
 Run: `pnpm test src/shared/ui/dialog`
 Expected: PASS (3 тести).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/shared/ui/dialog apps/web/src/test/setup.ts
@@ -1628,7 +1628,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
   - `ToastProvider({ closeLabel, children }: { closeLabel: string; children: ReactNode })`;
   - `TOAST_TIMEOUT_MS = 5000`, `MAX_TOASTS = 3`.
 
-- [ ] **Step 1: Тест**
+- [x] **Step 1: Тест**
 
 `apps/web/src/shared/ui/toast/Toast.test.tsx`:
 
@@ -1700,12 +1700,12 @@ describe('toasts', () => {
 });
 ```
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/shared/ui/toast`
 Expected: FAIL — модулі не знайдені.
 
-- [ ] **Step 3: Реалізація**
+- [x] **Step 3: Реалізація**
 
 `apps/web/src/shared/ui/toast/toast-context.ts`:
 
@@ -1882,12 +1882,12 @@ function ToastCard({ toast, closeLabel, onDismiss }: ToastCardProps) {
 }
 ```
 
-- [ ] **Step 4: Тести проходять**
+- [x] **Step 4: Тести проходять**
 
 Run: `pnpm test src/shared/ui/toast`
 Expected: PASS (4 тести).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/shared/ui/toast
@@ -1910,7 +1910,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
   `TabItem = { id: string; label: ReactNode; panel: ReactNode }`. Без `selectedId` вибір
   зберігається всередині (перша вкладка за замовчуванням).
 
-- [ ] **Step 1: Тест**
+- [x] **Step 1: Тест**
 
 `apps/web/src/shared/ui/tabs/Tabs.test.tsx`:
 
@@ -1971,12 +1971,12 @@ describe('Tabs', () => {
 });
 ```
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/shared/ui/tabs`
 Expected: FAIL — `./Tabs` не знайдено.
 
-- [ ] **Step 3: Реалізація**
+- [x] **Step 3: Реалізація**
 
 `apps/web/src/shared/ui/tabs/Tabs.tsx`:
 
@@ -2114,12 +2114,12 @@ export function Tabs({ label, items, selectedId, onSelect }: TabsProps) {
 }
 ```
 
-- [ ] **Step 4: Тести проходять**
+- [x] **Step 4: Тести проходять**
 
 Run: `pnpm test src/shared/ui/tabs`
 Expected: PASS (3 тести).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/shared/ui/tabs
@@ -2153,7 +2153,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
     після кожної навігації (не на першому рендері: `location.key !== 'default'`). Потребує
     контексту роутера.
 
-- [ ] **Step 1: Тести**
+- [x] **Step 1: Тести**
 
 `apps/web/src/shared/api/http.test.ts`:
 
@@ -2201,12 +2201,12 @@ describe('return address after sign-in', () => {
 });
 ```
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/shared/api/http.test.ts src/shared/lib/return-to.test.ts`
 Expected: FAIL — `isUnauthorized`, `retryAfterOf` не експортовані з `http`; `./return-to` немає.
 
-- [ ] **Step 3: Реалізація**
+- [x] **Step 3: Реалізація**
 
 В кінець `apps/web/src/shared/api/http.ts` додати (і `import { type SerializedError } from '@reduxjs/toolkit';` угорі):
 
@@ -2313,12 +2313,12 @@ export function PageHeading({ children, className }: PageHeadingProps) {
 }
 ```
 
-- [ ] **Step 4: Тести проходять, решта не зламалась**
+- [x] **Step 4: Тести проходять, решта не зламалась**
 
 Run: `pnpm test`
 Expected: PASS — нові тести і всі наявні (`App.test.tsx` теж: `retryAfterOf` поводиться так само).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/shared apps/web/src/features/jobs apps/web/src/pages/workspace/ui/JobsView.tsx
@@ -2370,7 +2370,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
   - `TEST_API_KEY`, `TEST_ME` з `test/fixtures.ts`; сервер за замовчуванням відповідає на
     `GET /v1/me` 200 для `x-api-key: TEST_API_KEY` і 401 інакше.
 
-- [ ] **Step 1: Тести потоку входу (падають)**
+- [x] **Step 1: Тести потоку входу (падають)**
 
 `apps/web/src/test/fixtures.ts`:
 
@@ -2571,12 +2571,12 @@ describe('app shell', () => {
   `expect(window.location.search).toBe('?status=dead')` —
   `expect(router.state.location.search).toBe('?status=dead')`.
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/app`
 Expected: FAIL — `../app/router` не знайдено.
 
-- [ ] **Step 3: Фіча `session`, тег `Me`, 401**
+- [x] **Step 3: Фіча `session`, тег `Me`, 401**
 
 `apps/web/src/features/session/model/types.ts`:
 
@@ -2634,7 +2634,7 @@ export { type AuthMethod, type Me } from './model/types';
     },
 ```
 
-- [ ] **Step 4: Локалі `shell`**
+- [x] **Step 4: Локалі `shell`**
 
 `apps/web/src/locales/en/shell.json`:
 
@@ -2811,7 +2811,7 @@ export { type AuthMethod, type Me } from './model/types';
 
 `apps/web/src/locales/{en,uk}/apiKey.json`: видалити ключ `title` (заголовок дає сторінка).
 
-- [ ] **Step 5: `ApiKeyForm` на примітивах**
+- [x] **Step 5: `ApiKeyForm` на примітивах**
 
 `apps/web/src/features/api-key/ui/ApiKeyForm.tsx`:
 
@@ -2911,7 +2911,7 @@ export function ApiKeyForm() {
 }
 ```
 
-- [ ] **Step 6: Корінь, каркаси, охорона, меню**
+- [x] **Step 6: Корінь, каркаси, охорона, меню**
 
 `apps/web/src/app/layouts/AppRoot.tsx`:
 
@@ -3468,7 +3468,7 @@ export function AppLayout() {
 }
 ```
 
-- [ ] **Step 7: Сторінки**
+- [x] **Step 7: Сторінки**
 
 `apps/web/src/pages/page.module.css`:
 
@@ -3755,7 +3755,7 @@ export function useStatusParam(): [JobStatusFilter | null, (next: JobStatusFilte
 }
 ```
 
-- [ ] **Step 8: Дерево маршрутів і `main.tsx`**
+- [x] **Step 8: Дерево маршрутів і `main.tsx`**
 
 `apps/web/src/app/router.tsx`:
 
@@ -3878,14 +3878,14 @@ createRoot(root).render(
 
 Видалити `apps/web/src/app/App.tsx`.
 
-- [ ] **Step 9: Усі тести проходять**
+- [x] **Step 9: Усі тести проходять**
 
 Run: `pnpm test`
 Expected: PASS — `auth-flow.test.tsx` (10), оновлений `App.test.tsx`, усі примітиви.
 Якщо react-router попереджає в консолі про відсутній `HydrateFallback` — перевірити, що він
 стоїть на корені (так у плані).
 
-- [ ] **Step 10: Typecheck, lint, commit**
+- [x] **Step 10: Typecheck, lint, commit**
 
 Run: `pnpm typecheck` (у `apps/web`) і з кореня `npx eslint apps/web --max-warnings=0`
 Expected: без помилок.
@@ -3919,7 +3919,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
   `VisuallyHidden`, `retryAfterOf`.
 - Produces: `JobsPage()`; `SheetItem`, `buildSheetItems`, `describeItem` у `pages/jobs/model/`.
 
-- [ ] **Step 1: Перенести файли без змін**
+- [x] **Step 1: Перенести файли без змін**
 
 ```bash
 cd apps/web/src/pages
@@ -3933,7 +3933,7 @@ git mv workspace/ui/JobsView.module.css jobs/JobsPage.module.css
 
 Шляхи `../../../features/...` у перенесених файлах лишаються правильними (глибина та сама).
 
-- [ ] **Step 2: Локалі `workspace` для станів**
+- [x] **Step 2: Локалі `workspace` для станів**
 
 У `apps/web/src/locales/en/workspace.json` у блоці `sheet`:
 
@@ -3951,7 +3951,7 @@ git mv workspace/ui/JobsView.module.css jobs/JobsPage.module.css
 `"uploadFirst": "Завантажити файл"`, `"empty": "Задач ще немає"`,
 `"progressLabel": "Прогрес: {{title}}"`, `"announce": { "finished": "{{title}} — {{status}}" }`.
 
-- [ ] **Step 3: `SlideMount` на примітивах**
+- [x] **Step 3: `SlideMount` на примітивах**
 
 У `apps/web/src/pages/jobs/ui/SlideMount.tsx`:
 
@@ -4016,13 +4016,13 @@ const BADGE_TONE: Record<ItemTone, Tone> = {
 `.progress::-webkit-progress-bar`, `::-webkit-progress-value`, `::-moz-progress-bar` видалити
 (їх дає `Progress`), а в `.progress` лишити лише позиціонування (position/inset/width/height).
 
-- [ ] **Step 4: `ContactSheet` без `SheetMessage`**
+- [x] **Step 4: `ContactSheet` без `SheetMessage`**
 
 У `apps/web/src/pages/jobs/ui/ContactSheet.tsx` видалити `SheetMessageProps`, функцію
 `SheetMessage` та імпорт `type ReactNode`. У `ContactSheet.module.css` видалити правила
 `.message` і `.message[data-tone…]`.
 
-- [ ] **Step 5: `JobsPage` з усіма станами**
+- [x] **Step 5: `JobsPage` з усіма станами**
 
 `apps/web/src/pages/jobs/JobsPage.tsx` (повністю):
 
@@ -4131,14 +4131,14 @@ export function JobsPage() {
 `apps/web/src/pages/workspace/WorkspacePage.tsx`, `WorkspacePage.module.css`,
 `lib/use-view-param.ts` уже зараз.
 
-- [ ] **Step 6: Тести**
+- [x] **Step 6: Тести**
 
 Run: `pnpm test`
 Expected: PASS. Тести `App.test.tsx`, що шукали `findByText(/No jobs yet/)`, проходять (заголовок
 `No jobs yet`); `'No jobs with this status.'` — заголовок фільтрованого стану;
 `'Could not load jobs'` і `'Too many requests. Refreshing in 3 seconds.'` — в `role="alert"`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A apps/web/src/pages apps/web/src/locales
@@ -4164,7 +4164,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
 - Produces: `StatusSnapshot = ReadonlyMap<string, JobStatus>`, `snapshotOf(items)`,
   `sameSnapshot(a, b)`, `finishedSince(before, items)`; `JobAnnouncer({ items })`.
 
-- [ ] **Step 1: Тести**
+- [x] **Step 1: Тести**
 
 `apps/web/src/pages/jobs/model/finished-jobs.test.ts`:
 
@@ -4236,12 +4236,12 @@ it('announces jobs that finish while the page is open', async () => {
 });
 ```
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/pages/jobs src/app/App.test.tsx`
 Expected: FAIL — `./finished-jobs` не знайдено; тест оголошення не знаходить текст.
 
-- [ ] **Step 3: Реалізація**
+- [x] **Step 3: Реалізація**
 
 `apps/web/src/pages/jobs/model/finished-jobs.ts`:
 
@@ -4325,14 +4325,14 @@ export function JobAnnouncer({ items }: { items: readonly SheetItem[] }) {
 У `JobsPage.tsx`: імпорт `import { JobAnnouncer } from './ui/JobAnnouncer';` і рядок
 `<JobAnnouncer items={items} />` першим дочірнім елементом `<section>`.
 
-- [ ] **Step 4: Тести проходять, lint чистий**
+- [x] **Step 4: Тести проходять, lint чистий**
 
 Run: `pnpm test src/pages/jobs src/app/App.test.tsx` і з кореня `npx eslint apps/web/src/pages/jobs --max-warnings=0`
 Expected: PASS; ESLint без `react-hooks/set-state-in-render` (setState умовний, патерн
 «adjusting state when props change»). Якщо правило все ж спрацьовує — перенести логіку в
 `useReducer`-форму з тією самою умовою й повторити.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/pages/jobs apps/web/src/app/App.test.tsx
@@ -4359,7 +4359,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
 - Consumes: `PageHeading`, `Button`, `Skeleton`, `EmptyState`, `ErrorState`, `VisuallyHidden`.
 - Produces: `WebhooksPage()`.
 
-- [ ] **Step 1: Локалі**
+- [x] **Step 1: Локалі**
 
 `webhooks.json` (en): у `list` додати `"errorTitle": "Could not load endpoints"`, змінити
 `"empty"` на `"No endpoints yet"` і додати `"emptyBody": "Add one to be notified when a job finishes."`;
@@ -4368,7 +4368,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
 `"emptyBody": "Додайте адресу, щоб отримувати сповіщення про завершені задачі."`,
 `deliveries.errorTitle`: `"Не вдалося завантажити доставки"`.
 
-- [ ] **Step 2: `WebhooksPage`**
+- [x] **Step 2: `WebhooksPage`**
 
 ```bash
 cd apps/web/src/pages
@@ -4503,7 +4503,7 @@ export function ProblemText({ problem, isAlert = true }: ProblemTextProps) {
 }
 ```
 
-- [ ] **Step 3: Кнопки фіч на `Button`**
+- [x] **Step 3: Кнопки фіч на `Button`**
 
 `features/webhooks/ui/WebhookForm.tsx`: `<button type="submit" className={styles.submit} disabled={!canSubmit}>`
 → `<Button variant="primary" type="submit" disabled={!canSubmit}>`; `<button type="button" className={styles.quiet} onClick={reset}>`
@@ -4544,14 +4544,14 @@ if (!deliveries.data) {
 `useRedriveJobMutation`, якщо файл зараз використовує `disabled={isLoading}` — замінити на
 `isBusy`). У `RedriveButton.module.css` видалити правило `.action`.
 
-- [ ] **Step 4: Тести**
+- [x] **Step 4: Тести**
 
 Run: `pnpm test`
 Expected: PASS. У `App.test.tsx` блок `webhooks`: `findByText(/No endpoints yet/)` знаходить
 заголовок; `Run again` — `Button` з тим самим іменем; `role="alert"` для відмови шлюзу лишається
 в `WebhookForm` (не змінювався).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A apps/web/src/pages apps/web/src/features apps/web/src/locales
@@ -4583,7 +4583,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
   `useOpenUpload(): () => void`; `UploadPanel({ onSubmitted? }: { onSubmitted?: (count: number) => void })`;
   `useUploadFailureToasts()`.
 
-- [ ] **Step 1: Тести (падають)**
+- [x] **Step 1: Тести (падають)**
 
 `apps/web/src/app/upload-dialog.test.tsx`:
 
@@ -4696,12 +4696,12 @@ async function openUpload(user: ReturnType<typeof renderApp>['user']) {
 `await openUpload(user);`. Тест `rejects unusable files locally…` після `user.upload` чекає
 `'The file is empty.'` на слайді — лишається як є (на `/jobs` тост не показується).
 
-- [ ] **Step 2: Запустити — падає**
+- [x] **Step 2: Запустити — падає**
 
 Run: `pnpm test src/app`
 Expected: FAIL — немає кнопки `Upload`.
 
-- [ ] **Step 3: Фіча `upload`**
+- [x] **Step 3: Фіча `upload`**
 
 `apps/web/src/locales/en/upload.json` — додати `"dialog": { "title": "Upload files", "close": "Close" }`;
 `uk` — `"dialog": { "title": "Завантаження файлів", "close": "Закрити" }`.
@@ -4823,7 +4823,7 @@ export { UploadDialogProvider } from './ui/UploadDialogProvider';
 
 і прибрати `export { UploadPanel } from './ui/UploadPanel';` (зовні більше не потрібен).
 
-- [ ] **Step 4: Каркас, тости, сторінка задач**
+- [x] **Step 4: Каркас, тости, сторінка задач**
 
 `apps/web/src/app/layouts/use-upload-failure-toasts.ts`:
 
@@ -4959,12 +4959,12 @@ function UploadButton({ label }: { label: string }) {
 </EmptyState>
 ```
 
-- [ ] **Step 5: Тести проходять**
+- [x] **Step 5: Тести проходять**
 
 Run: `pnpm test`
 Expected: PASS — `upload-dialog.test.tsx` (3), оновлені сценарії завантаження й відео в `App.test.tsx`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A apps/web/src
@@ -4984,7 +4984,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
 - Move: блоки `App.test.tsx` → `pages/jobs/JobsPage.test.tsx`, `pages/webhooks/WebhooksPage.test.tsx`
 - Delete: `apps/web/src/app/App.test.tsx`
 
-- [ ] **Step 1: Жодних посилань на старі модулі**
+- [x] **Step 1: Жодних посилань на старі модулі**
 
 Run (з кореня репозиторію):
 
@@ -4996,7 +4996,7 @@ Expected: порожньо, крім самого `shared/ui/button.module.css`.
 `git rm apps/web/src/shared/ui/button.module.css`; також `git rm -r apps/web/src/pages/workspace`,
 якщо тека ще існує (у ній лишились `ui/LanguageSwitch.*`).
 
-- [ ] **Step 2: Ключі `workspace`, яких більше ніхто не читає**
+- [x] **Step 2: Ключі `workspace`, яких більше ніхто не читає**
 
 З `locales/en/workspace.json` і `locales/uk/workspace.json` видалити ключі `title`, `subtitle`,
 `apiDocs`, `changeKey`, `language`, `views`. Перевірка, що їх ніде не читають:
@@ -5007,7 +5007,7 @@ rg -n "'(title|subtitle|apiDocs|changeKey|language)'|views\." apps/web/src --glo
 
 Expected: збіги лише з інших namespace (`shell`, `apiKey`), не з `useTranslation('workspace')`.
 
-- [ ] **Step 3: Розподілити `App.test.tsx`**
+- [x] **Step 3: Розподілити `App.test.tsx`**
 
 - `describe('API key gate')` → додати обидва тести в `apps/web/src/app/auth-flow.test.tsx` у
   `describe('signing in')` (імпорти `http`, `HttpResponse`, `server` там уже є).
@@ -5028,12 +5028,12 @@ import { server, STORAGE_ORIGIN } from '../../test/server';
   використовує — скопіювати ці два визначення).
 - `git rm apps/web/src/app/App.test.tsx`.
 
-- [ ] **Step 4: Повна перевірка web**
+- [x] **Step 4: Повна перевірка web**
 
 Run: `pnpm test && pnpm typecheck && pnpm build` (у `apps/web`), з кореня `npx eslint apps/web --max-warnings=0 && npx prettier --check apps/web`
 Expected: усе зелене; у `dist/assets` окремі чанки сторінок (`LandingPage-*.js`, `JobsPage-*.js`…).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A apps/web
@@ -5054,7 +5054,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
 - Modify: `README.md` (розділ «Етап 5c.3»), `docs/plan/stages-5c-5d.md` (пункти 5c.3),
   `docs/superpowers/specs/2026-10-14-stage-5c3-ui-shell-design.md` (уточнення з реалізації)
 
-- [ ] **Step 1: `information-architecture.md`**
+- [x] **Step 1: `information-architecture.md`**
 
 Повний вміст:
 
@@ -5182,7 +5182,7 @@ Low-fi, без кольорів і шрифтів стилю: розташува
 ![Переклад](wireframes/dub.svg)
 ````
 
-- [ ] **Step 2: П'ять SVG**
+- [x] **Step 2: П'ять SVG**
 
 Усі файли мають однакову рамку: `viewBox="0 0 1720 900"`, ліворуч десктоп-рамка
 `x=20 y=40 1280×840`, праворуч мобільна `x=1340 y=40 360×840`, підписи над рамками, сірі
@@ -5243,7 +5243,7 @@ Low-fi, без кольорів і шрифтів стилю: розташува
 Кожен SVG перевірити відкриттям у браузері (`open docs/design/wireframes/library.svg`): текст
 не виходить за рамки, мобільна версія вміщується в 360 px.
 
-- [ ] **Step 3: `design-system.md`**
+- [x] **Step 3: `design-system.md`**
 
 Повний вміст:
 
@@ -5328,7 +5328,7 @@ Archivo Variable з віссю ширини: заголовки вузькі й 
   `createStaticHandler` і `StaticRouterProvider`, тож роутер не доведеться переписувати.
 ```
 
-- [ ] **Step 4: README, план, специфікація**
+- [x] **Step 4: README, план, специфікація**
 
 `README.md`: після розділу «### Етап 5c.2. Медіатека» (перед «## Конфігурація Етапу 2») вставити:
 
@@ -5371,7 +5371,7 @@ Archivo Variable з віссю ширини: заголовки вузькі й 
 до таблиці примітивів; у розділі «Структура» `ToastProvider` — у корені маршрутів (`AppRoot`),
 а не в `Providers`.
 
-- [ ] **Step 5: Форматування і commit**
+- [x] **Step 5: Форматування і commit**
 
 Run (з кореня): `npx prettier --write docs README.md && npx prettier --check docs README.md`
 Expected: «All matched files use Prettier code style!»
@@ -5387,7 +5387,7 @@ Co-authored-by: Cursor <cursoragent@cursor.com>"
 
 ### Task 16: Фінальна перевірка
 
-- [ ] **Step 1: Перевірки репозиторію**
+- [x] **Step 1: Перевірки репозиторію**
 
 Run (з кореня):
 
@@ -5398,14 +5398,14 @@ pnpm lint && pnpm format:check && pnpm typecheck && pnpm depcruise && npx jest &
 Expected: усе зелене. Якщо `depcruise` скаржиться на нові залежності web — переглянути
 `.dependency-cruiser.cjs` (він рахує `apps` і `libs`; web імпортує лише свої модулі й npm).
 
-- [ ] **Step 2: Ручна перевірка в браузері**
+- [x] **Step 2: Ручна перевірка в браузері**
 
 `pnpm --filter @pdp/web dev` при запущеному compose (`docker compose up -d`):
 пройти кроки 2–5 з README 5c.3; вузьке вікно (375 px) — навігація під шапкою, діалог як нижній
 аркуш, меню показує лише ініціал; DevTools → Rendering → `prefers-reduced-motion: reduce` —
 скелети не мерехтять.
 
-- [ ] **Step 3: Нічого не лишилось незакоміченим**
+- [x] **Step 3: Нічого не лишилось незакоміченим**
 
 Run: `git status --short`
 Expected: порожньо.

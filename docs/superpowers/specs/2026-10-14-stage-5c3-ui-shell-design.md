@@ -86,7 +86,7 @@ Radix — зайві залежності для десятка примітив
 
 ### Токени — `shared/ui/tokens.css`
 
-Імпортується з `app/global.css`. Наявні назви лишаються. Додається:
+Імпортується з `main.tsx`. Наявні назви лишаються. Додається:
 
 - статусні тони: `--tone-neutral`, `--tone-progress`, `--tone-success`, `--tone-warning`,
   `--tone-danger` і фонові `--tone-*-wash`;
@@ -103,23 +103,23 @@ Radix — зайві залежності для десятка примітив
 без barrel-файлу. Обгортки приймають пропси нативного елемента (`ComponentProps<'button'>` тощо)
 і передають їх далі. Без мережі й доменних знань.
 
-| Примітив                           | Основа                                   | Поведінка                                                                                                                                                                                       |
-| ---------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`                           | `<button>`                               | `variant`: `primary` / `secondary` / `quiet` / `danger`; `size`: `md` / `sm`; `isBusy` → `aria-busy`, блок кліку; `type="button"` за замовчуванням; `buttonClass({ variant, size })` для `Link` |
-| `Field`, `Input`                   | `<label>`, `<input>`                     | `Field` приймає `label`, `hint`, `error` і render-функцію з `{ id, 'aria-describedby', 'aria-invalid' }`                                                                                        |
-| `Select`                           | `<select>`                               | лише стилі                                                                                                                                                                                      |
-| `Checkbox`, `Radio`, `ChoiceGroup` | input, `fieldset` / `legend`             | `accent-color` з токена; мітка — частина компонента                                                                                                                                             |
-| `Card`                             | `<div>`                                  | «слайд»: `--mount`, `--shadow-mount`, `--radius-mount`                                                                                                                                          |
-| `Badge`                            | `<span>`                                 | `tone` + текст; колір не єдиний носій сенсу                                                                                                                                                     |
-| `Progress`                         | `<progress>`                             | обов'язковий підпис; без `value` — невизначений                                                                                                                                                 |
-| `Dialog`                           | `<dialog>`, `showModal()`                | `open` / `onClose`; Esc (подія `cancel`) і клік по фону закривають; заголовок через `aria-labelledby`; фокус повертається на елемент, що відкрив                                                |
-| `ToastProvider`, `useToast`        | регіони `role="status"` / `role="alert"` | `toast({ tone, message, action? })`; зникає через 5 с, пауза під курсором або фокусом; кнопка «Закрити»; до 3 одночасно                                                                         |
-| `Tabs`                             | APG tabs                                 | автоматична активація, roving tabindex, ←/→, Home, End                                                                                                                                          |
-| `Skeleton`                         | `<div aria-hidden>`                      | розміри пропсами; контейнер ставить `aria-busy`; без мерехтіння при reduced motion                                                                                                              |
-| `EmptyState`                       | —                                        | заголовок, текст, слот дії                                                                                                                                                                      |
-| `ErrorState`                       | —                                        | `role="alert"`, заголовок, текст, `onRetry`                                                                                                                                                     |
-| `PageHeading`                      | `<h1>`                                   | назва вкладки з тексту, фокус після зміни шляху (не search-параметрів)                                                                                                                          |
-| `VisuallyHidden`                   | `<span>`                                 | текст лише для скрінрідерів                                                                                                                                                                     |
+| Примітив                           | Основа                                                          | Поведінка                                                                                                                                                                                       |
+| ---------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`                           | `<button>`                                                      | `variant`: `primary` / `secondary` / `quiet` / `danger`; `size`: `md` / `sm`; `isBusy` → `aria-busy`, блок кліку; `type="button"` за замовчуванням; `buttonClass({ variant, size })` для `Link` |
+| `Field`, `Input`                   | `<label>`, `<input>`                                            | `Field` приймає `label`, `hint`, `error` і render-функцію з `{ id, 'aria-describedby', 'aria-invalid' }`                                                                                        |
+| `Select`                           | `<select>`                                                      | лише стилі                                                                                                                                                                                      |
+| `Checkbox`, `Radio`, `ChoiceGroup` | input, `fieldset` / `legend`                                    | `accent-color` з токена; мітка — частина компонента                                                                                                                                             |
+| `Card`                             | `<div>`                                                         | «слайд»: `--mount`, `--shadow-mount`, `--radius-mount`                                                                                                                                          |
+| `Badge`                            | `<span>`                                                        | `tone` + текст; колір не єдиний носій сенсу                                                                                                                                                     |
+| `Progress`                         | `<progress>`                                                    | обов'язковий підпис; без `value` — невизначений                                                                                                                                                 |
+| `Dialog`                           | `<dialog>`, `showModal()`                                       | `open` / `onClose`; Esc (подія `cancel`) і клік по фону закривають; заголовок через `aria-labelledby`; фокус повертається на елемент, що відкрив                                                |
+| `ToastProvider`, `useToast`        | два завжди присутні регіони `aria-live`: `polite` і `assertive` | `toast({ tone, message, action? })`; зникає через 5 с, пауза під курсором або фокусом; кнопка «Закрити»; до 3 одночасно                                                                         |
+| `Tabs`                             | APG tabs                                                        | автоматична активація, roving tabindex, ←/→, Home, End                                                                                                                                          |
+| `Skeleton`                         | `<div aria-hidden>`                                             | розміри пропсами; контейнер ставить `aria-busy`; без мерехтіння при reduced motion                                                                                                              |
+| `EmptyState`                       | —                                                               | заголовок, текст, слот дії                                                                                                                                                                      |
+| `ErrorState`                       | —                                                               | `role="alert"`, заголовок, текст, `onRetry`                                                                                                                                                     |
+| `PageHeading`                      | `<h1>`                                                          | назва вкладки з тексту, фокус після зміни шляху (не search-параметрів)                                                                                                                          |
+| `VisuallyHidden`                   | `<span>`                                                        | текст лише для скрінрідерів                                                                                                                                                                     |
 
 `retryAfterOf` і `isUnauthorized` переїжджають у `shared/api/http.ts`; `ErrorState` отримує готові
 рядки. `Toast` — єдиний примітив із контекстом; провайдер ставиться в корінь маршрутів (`AppRoot`),
@@ -157,7 +157,7 @@ shared/ui/                # tokens.css і примітиви
 Кнопка «Завантажити» в шапці відкриває `UploadDialog` з `UploadPanel` (пресети і режим відео —
 вибір дії; у 5c.4 додадуться дії медіатеки). Після вибору файлів діалог закривається, з'являється
 тост «Завантажуємо N файлів» з дією «Відкрити задачі» (на `/jobs` без дії). Помилка завантаження —
-тост з `role="alert"`. Стан завантажень лишається в слайсі `uploads`, тож перехід між сторінками
+тост у регіоні `aria-live="assertive"`. Стан завантажень лишається в слайсі `uploads`, тож перехід між сторінками
 його не губить; слайди, як і зараз, з'являються в `ContactSheet`. На `/jobs` порожній стан має дію
 «Завантажити перший файл», що відкриває той самий діалог.
 
