@@ -27,6 +27,10 @@ const CORS = {
 const listJobs = (items: Job[]) =>
   http.get('/v1/jobs', () => HttpResponse.json({ items, nextCursor: null }));
 
+async function openUpload(user: ReturnType<typeof renderApp>['user']) {
+  await user.click(screen.getByRole('button', { name: 'Upload' }));
+}
+
 describe('API key gate', () => {
   it('asks for a key and sends it with every request', async () => {
     const seenKeys: (string | null)[] = [];
@@ -270,6 +274,7 @@ describe('uploading', () => {
     );
     const { user } = renderApp({ apiKey: TEST_API_KEY });
     await screen.findByText(/No jobs yet/);
+    await openUpload(user);
 
     await user.click(screen.getByLabelText(/Large/));
     await user.upload(
@@ -293,6 +298,7 @@ describe('uploading', () => {
     server.use(listJobs([]));
     const { user } = renderApp({ apiKey: TEST_API_KEY });
     await screen.findByText(/No jobs yet/);
+    await openUpload(user);
 
     await user.upload(
       screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
@@ -331,6 +337,7 @@ describe('video', () => {
     );
     const { user } = renderApp({ apiKey: TEST_API_KEY });
     await screen.findByText(/No jobs yet/);
+    await openUpload(user);
 
     await user.upload(
       screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
@@ -405,6 +412,7 @@ describe('video', () => {
     );
     const { user } = renderApp({ apiKey: TEST_API_KEY });
     await screen.findByText(/No jobs yet/);
+    await openUpload(user);
 
     await user.click(screen.getByRole('radio', { name: /Transcode/ }));
     await user.upload(
@@ -610,6 +618,7 @@ describe('when the gateway asks to come back later', () => {
     );
     const { user } = renderApp({ apiKey: TEST_API_KEY });
     await screen.findByText(/No jobs yet/);
+    await openUpload(user);
 
     await user.upload(
       screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),

@@ -17,5 +17,9 @@
     "framesDetail": "every 2 s",
     "transcode": "Transcode",
     "transcodeDetail": "MP4 480p and 720p"
+  },
+  "dialog": {
+    "title": "Upload files",
+    "close": "Close"
   }
 }

@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusFilter, useLiveJobs } from '../../features/jobs';
-import { dismissUpload, selectUploads, UploadPanel } from '../../features/upload';
+import { dismissUpload, selectUploads, useOpenUpload } from '../../features/upload';
 import { retryAfterOf } from '../../shared/api/http';
 import { useAppDispatch, useAppSelector } from '../../shared/lib/redux';
+import { Button } from '../../shared/ui/button/Button';
 import { PageHeading } from '../../shared/ui/page-heading/PageHeading';
 import { Skeleton } from '../../shared/ui/skeleton/Skeleton';
 import { EmptyState } from '../../shared/ui/state/EmptyState';
@@ -21,6 +22,7 @@ const SKELETON_SLIDES = 6;
 export function JobsPage() {
   const { t } = useTranslation('workspace');
   const dispatch = useAppDispatch();
+  const openUpload = useOpenUpload();
   const [status, setStatus] = useStatusParam();
   const uploads = useAppSelector(selectUploads);
   const hasLocalActivity = uploads.some(
@@ -72,7 +74,14 @@ export function JobsPage() {
       return status ? (
         <EmptyState title={t('sheet.emptyFiltered')} />
       ) : (
-        <EmptyState title={t('sheet.empty')}>
+        <EmptyState
+          title={t('sheet.empty')}
+          action={
+            <Button variant="primary" onClick={openUpload}>
+              {t('sheet.uploadFirst')}
+            </Button>
+          }
+        >
           <p>{t('sheet.emptyBody')}</p>
         </EmptyState>
       );
@@ -81,16 +90,13 @@ export function JobsPage() {
   };
 
   return (
-    <>
-      <UploadPanel />
-      <section className={styles.sheetSection} aria-label={t('sheet.title')}>
-        <JobAnnouncer items={items} />
-        <div className={styles.sheetHeader}>
-          <PageHeading>{t('sheet.title')}</PageHeading>
-          <StatusFilter value={status} onChange={setStatus} />
-        </div>
-        {renderSheet()}
-      </section>
-    </>
+    <section className={styles.sheetSection} aria-label={t('sheet.title')}>
+      <JobAnnouncer items={items} />
+      <div className={styles.sheetHeader}>
+        <PageHeading>{t('sheet.title')}</PageHeading>
+        <StatusFilter value={status} onChange={setStatus} />
+      </div>
+      {renderSheet()}
+    </section>
   );
 }

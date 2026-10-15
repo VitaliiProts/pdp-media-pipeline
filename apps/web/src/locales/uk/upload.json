@@ -17,5 +17,9 @@
     "framesDetail": "кожні 2 с",
     "transcode": "Транскодинг",
     "transcodeDetail": "MP4 480p і 720p"
+  },
+  "dialog": {
+    "title": "Завантаження файлів",
+    "close": "Закрити"
   }
 }
