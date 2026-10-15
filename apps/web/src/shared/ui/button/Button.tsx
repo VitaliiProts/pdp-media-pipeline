@@ -15,10 +15,12 @@ export function buttonClass(
   return cx(styles.button, styles[variant], size === 'sm' && styles.sm, extra);
 }
 
-export type ButtonProps = ComponentProps<'button'> &
+export type ButtonProps = Omit<ComponentProps<'button'>, 'aria-busy'> &
   ButtonLook & {
     /** The action is in progress: further clicks are ignored, focus stays. */
     isBusy?: boolean;
+    /** Set from `isBusy`. */
+    'aria-busy'?: never;
   };
 
 export function Button({

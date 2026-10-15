@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { apiKeyCleared } from '../../features/api-key';
 import { useGetMeQuery, useLogoutMutation } from '../../features/session';
 import { useAppDispatch } from '../../shared/lib/redux';
@@ -9,7 +9,10 @@ import { useToast } from '../../shared/ui/toast/toast-context';
 import { LanguageSwitch } from './LanguageSwitch';
 import styles from './UserMenu.module.css';
 
-/** A disclosure: the button toggles a panel; Escape and a click outside close it. */
+/**
+ * A disclosure: the button toggles a panel; Escape, a click outside and a move
+ * to another page close it.
+ */
 export function UserMenu() {
   const { t } = useTranslation('shell');
   const { data: me } = useGetMeQuery();
@@ -17,7 +20,13 @@ export function UserMenu() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const toast = useToast();
+  const { pathname } = useLocation();
   const [isOpen, setOpen] = useState(false);
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (lastPathname !== pathname) {
+    setLastPathname(pathname);
+    setOpen(false);
+  }
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -84,7 +93,13 @@ export function UserMenu() {
             </Link>
           </li>
           <li>
-            <a className={styles.item} href="/docs" target="_blank" rel="noreferrer">
+            <a
+              className={styles.item}
+              href="/docs"
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setOpen(false)}
+            >
               {t('menu.apiDocs')}
             </a>
           </li>

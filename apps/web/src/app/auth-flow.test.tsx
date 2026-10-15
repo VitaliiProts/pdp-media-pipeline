@@ -43,6 +43,14 @@ describe('signing in', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 
+  it('explains on the sign-in page when the check fails, and still offers the form', async () => {
+    server.use(http.get('/v1/me', () => HttpResponse.json({ message: 'down' }, { status: 502 })));
+    renderApp({ route: '/login' });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not check your sign-in');
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(screen.getByLabelText('API key')).toBeInTheDocument();
+  });
+
   it('asks for a key and sends it with every request', async () => {
     const seenKeys: (string | null)[] = [];
     server.use(
@@ -68,6 +76,15 @@ describe('signing in', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('rejected this key');
     expect(screen.getByLabelText('API key')).toHaveValue('');
     expect(window.localStorage.getItem('pdp.apiKey')).toBeNull();
+  });
+
+  it('puts focus back in the field after a wrong key', async () => {
+    const { user } = renderApp({ route: '/login' });
+    await user.type(await screen.findByLabelText('API key'), 'pdp_wrong');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('rejected this key');
+    expect(screen.getByLabelText('API key')).toHaveFocus();
   });
 });
 
@@ -137,5 +154,26 @@ describe('app shell', () => {
     await user.keyboard('{Escape}');
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveFocus();
+  });
+
+  it('closes the user menu when the page changes', async () => {
+    server.use(noJobs(), noWebhooks());
+    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/jobs' });
+    const trigger = await screen.findByRole('button', { name: 'Account: dev' });
+    await user.click(trigger);
+    within(screen.getByRole('navigation', { name: 'Main' }))
+      .getByRole('link', { name: 'Webhooks' })
+      .focus();
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Webhooks' })).toBeInTheDocument();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('keeps the language switch out of the account navigation', async () => {
+    renderApp({ route: '/login' });
+    const nav = await screen.findByRole('navigation', { name: 'Account' });
+    expect(within(nav).queryByRole('group', { name: 'Language' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Language' })).toBeInTheDocument();
   });
 });

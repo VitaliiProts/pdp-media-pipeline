@@ -1,15 +1,18 @@
-import { createAsyncThunk, type Dispatch } from '@reduxjs/toolkit';
+import { type Dispatch } from '@reduxjs/toolkit';
 import { baseApi } from '../../../shared/api/base-api';
 import { type AppError, toAppError } from '../../../shared/api/http';
+import { createAppAsyncThunk } from '../../../shared/lib/redux';
 import { createJob, type JobSpec, putToStorage, requestUpload } from '../api/upload-api';
 import { checkFile, mediaKindOf } from '../lib/validate-file';
 import { type ImagePreset, type VideoMode } from './presets';
 import {
+  selectUploads,
   uploadDismissed,
   uploadFailed,
   type UploadProblem,
   uploadProgressed,
   uploadRestarted,
+  uploadsCleared,
   uploadStarted,
   uploadStored,
   uploadSubmitted,
@@ -76,9 +79,10 @@ async function honouringRetryAfter<T>(
   }
 }
 
-export const uploadFiles = createAsyncThunk(
+export const uploadFiles = createAppAsyncThunk(
   'uploads/uploadFiles',
-  async ({ files, presets, videoMode }: UploadFilesArgs, { dispatch, signal }) => {
+  async ({ files, presets, videoMode }: UploadFilesArgs, { dispatch, signal: own, extra }) => {
+    const signal = AbortSignal.any([own, extra.sessionSignal()]);
     const queue = files.map((file) => ({ file, id: crypto.randomUUID() }));
 
     for (const { file, id } of queue) {
@@ -140,4 +144,11 @@ export const dismissUpload =
   (dispatch: Dispatch) => {
     URL.revokeObjectURL(previewUrl);
     dispatch(uploadDismissed(id));
+  };
+
+/** Frees every local preview and forgets every upload, e.g. when the user signs out. */
+export const clearUploads =
+  () => (dispatch: Dispatch, getState: () => Parameters<typeof selectUploads>[0]) => {
+    for (const { previewUrl } of selectUploads(getState())) URL.revokeObjectURL(previewUrl);
+    dispatch(uploadsCleared());
   };

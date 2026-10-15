@@ -29,7 +29,8 @@ type DialogProps = Omit<
 
 /**
  * A modal `<dialog>`: the browser traps focus, makes the page inert and turns
- * Escape into `cancel`. Focus goes back to whatever had it before opening.
+ * Escape into `cancel`. Focus goes back to whatever had it before opening, or
+ * to the page `h1` if that element is gone.
  */
 export function Dialog({
   open,
@@ -51,7 +52,9 @@ export function Dialog({
     if (!dialog.open) dialog.showModal();
     return () => {
       if (dialog.open) dialog.close();
-      opener?.focus();
+      const heading = document.querySelector('h1');
+      if (opener?.isConnected) opener.focus();
+      else if (heading instanceof HTMLElement) heading.focus();
     };
   }, [open]);
 

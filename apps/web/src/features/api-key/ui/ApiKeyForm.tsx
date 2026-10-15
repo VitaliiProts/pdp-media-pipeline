@@ -42,6 +42,8 @@ export function ApiKeyForm() {
               autoComplete="off"
               spellCheck={false}
               placeholder="pdp_…"
+              // The form remounts after a rejection; without this, focus is left on <body>.
+              autoFocus={wasRejected}
               value={value}
               onChange={(event) => setValue(event.target.value)}
             />

@@ -1,5 +1,5 @@
 export { IMAGE_PRESETS, type ImagePreset, PRESET_LABEL_KEY } from './model/presets';
-export { dismissUpload, uploadFiles } from './model/upload-files';
+export { clearUploads, dismissUpload, uploadFiles } from './model/upload-files';
 export {
   selectUploads,
   type Upload,

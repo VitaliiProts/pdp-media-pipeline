@@ -45,6 +45,12 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open] {
+    animation: none;
+  }
+}
+
 @media (max-width: 40rem) {
   .dialog {
     width: 100vw;

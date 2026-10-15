@@ -15,15 +15,17 @@ export function PublicLayout() {
         <Link to="/" className={styles.brand}>
           {t('brand')}
         </Link>
-        <nav className={styles.nav} aria-label={t('nav.account')}>
+        <div className={styles.actions}>
           <LanguageSwitch />
-          <NavLink to="/login" className={buttonClass({ variant: 'quiet', size: 'sm' })}>
-            {t('signIn')}
-          </NavLink>
-          <NavLink to="/register" className={buttonClass({ variant: 'primary', size: 'sm' })}>
-            {t('register')}
-          </NavLink>
-        </nav>
+          <nav className={styles.actions} aria-label={t('nav.account')}>
+            <NavLink to="/login" className={buttonClass({ variant: 'quiet', size: 'sm' })}>
+              {t('signIn')}
+            </NavLink>
+            <NavLink to="/register" className={buttonClass({ variant: 'primary', size: 'sm' })}>
+              {t('register')}
+            </NavLink>
+          </nav>
+        </div>
       </header>
       <main id="main" tabIndex={-1} className={styles.main}>
         <Outlet />

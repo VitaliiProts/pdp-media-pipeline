@@ -8,15 +8,28 @@ import {
   loadApiKeyState,
   selectApiKey,
 } from '../features/api-key';
-import { uploadsSlice } from '../features/upload';
+import { clearUploads, uploadsSlice } from '../features/upload';
 import { baseApi } from '../shared/api/base-api';
 import { configureHttp } from '../shared/api/http';
+import { type ThunkExtra } from '../shared/lib/redux';
 
 const rootReducer = combineSlices(apiKeySlice, uploadsSlice, baseApi);
 export type RootState = ReturnType<typeof rootReducer>;
 
 export function createStore(storage: Storage = window.localStorage) {
   const listener = createListenerMiddleware<RootState>();
+  let session = new AbortController();
+  const extra: ThunkExtra = { sessionSignal: () => session.signal };
+
+  listener.startListening({
+    actionCreator: apiKeyCleared,
+    effect: (_action, api) => {
+      session.abort();
+      session = new AbortController();
+      // The next user must not see, or be alerted about, the previous user's files.
+      api.dispatch(clearUploads());
+    },
+  });
 
   listener.startListening({
     matcher: isAnyOf(apiKeySaved, apiKeyRejected, apiKeyCleared),
@@ -33,7 +46,9 @@ export function createStore(storage: Storage = window.localStorage) {
     reducer: rootReducer,
     preloadedState: { apiKey: loadApiKeyState(storage) },
     middleware: (getDefault) =>
-      getDefault().prepend(listener.middleware).concat(baseApi.middleware),
+      getDefault({ thunk: { extraArgument: extra } })
+        .prepend(listener.middleware)
+        .concat(baseApi.middleware),
   });
 
   configureHttp({
