@@ -57,8 +57,8 @@ describe('library', () => {
     expect(screen.getByText('Queued')).toBeInTheDocument();
   });
 
-  it('moves the bar on with each status and the reported percent', async () => {
-    const job = (id: string, status: 'queued' | 'scheduled' | 'running', progress: number | null) =>
+  it('shows how far the latest job got while it is unfinished', async () => {
+    const job = (id: string, status: 'queued' | 'running', progress: number | null) =>
       testAsset({
         id: `a0000000-0000-4000-8000-00000000001${id}`,
         name: `clip-${id}.mp4`,
@@ -74,7 +74,6 @@ describe('library', () => {
       job('1', 'queued', null),
       job('2', 'running', null),
       job('3', 'running', 42),
-      job('4', 'scheduled', null),
       testAsset(),
     ]);
     renderApp({ signedIn: true, route: '/library' });
@@ -85,14 +84,11 @@ describe('library', () => {
       return within(tile).queryByRole('progressbar', { name: 'Processing progress' });
     };
     const waiting = await barOf(/^clip-1\.mp4/);
-    expect(waiting).toHaveAttribute('value', '10');
-    expect(waiting).toHaveAttribute('max', '100');
+    expect(waiting).toHaveAttribute('value', '0');
     expect(waiting).toHaveAccessibleDescription('clip-1.mp4');
-    expect(await barOf(/^clip-4\.mp4/)).toHaveAttribute('value', '25');
     // Running, but the worker has not reported a percent yet.
-    expect(await barOf(/^clip-2\.mp4/)).toHaveAttribute('value', '40');
-    // 42% of the remaining 60.
-    expect(await barOf(/^clip-3\.mp4/)).toHaveAttribute('value', '65');
+    expect(await barOf(/^clip-2\.mp4/)).not.toHaveAttribute('value');
+    expect(await barOf(/^clip-3\.mp4/)).toHaveAttribute('value', '0.42');
     expect(await barOf(/harbour\.jpg/)).toBeNull();
   });
 
