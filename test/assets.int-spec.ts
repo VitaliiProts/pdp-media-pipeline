@@ -19,7 +19,7 @@ interface Summary {
   height: number | null;
   sourceKey: string;
   preview: { url: string; width: number; height: number } | null;
-  latestJob: { id: string; status: string } | null;
+  latestJob: { id: string; status: string; progress: number | null } | null;
 }
 interface Details extends Omit<Summary, 'preview' | 'latestJob'> {
   originalUrl: string;
@@ -153,7 +153,7 @@ describe('media library', () => {
       width: 1200,
       height: 800,
       sourceKey: asset.sourceKey,
-      latestJob: { id: jobId, status: 'succeeded' },
+      latestJob: { id: jobId, status: 'succeeded', progress: null },
       preview: { width: 200, height: 133 },
     });
     expect(item?.size).toBeGreaterThan(0);
@@ -278,6 +278,23 @@ describe('media library', () => {
     expect(await idsWith('ready')).toEqual([ready.assetId]);
     expect(await idsWith('failed')).toEqual([failed.assetId]);
     expect(await idsWith('processing')).toEqual([video.assetId]);
+  });
+
+  it('reports the progress of the latest job only while it runs', async () => {
+    const key = await newUser();
+    // No video worker runs here: the job is moved along by hand.
+    const video = await upload(key, Buffer.from('waits for a video worker'), {
+      contentType: 'video/mp4',
+    });
+    const jobId = await createJob(key, { type: 'video.transcode', sourceKey: video.sourceKey });
+    const latestJob = async () =>
+      (await api<{ items: Summary[] }>(key, '/v1/assets')).body.items[0]?.latestJob;
+
+    await pool.query(`UPDATE jobs SET status = 'running', progress = 42 WHERE id = $1`, [jobId]);
+    expect(await latestJob()).toMatchObject({ status: 'running', progress: 42 });
+
+    await pool.query(`UPDATE jobs SET status = 'scheduled' WHERE id = $1`, [jobId]);
+    expect(await latestJob()).toMatchObject({ status: 'scheduled', progress: null });
   });
 
   it('judges a file by its latest job, not an earlier one that succeeded', async () => {

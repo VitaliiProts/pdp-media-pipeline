@@ -35,7 +35,8 @@
   "tile": {
     "untitled": "Файл без назви",
     "video": "Відео",
-    "videoWithDuration": "Відео · {{duration}}"
+    "videoWithDuration": "Відео · {{duration}}",
+    "progress": "Хід обробки"
   },
   "upload": {
     "remove": "Прибрати"

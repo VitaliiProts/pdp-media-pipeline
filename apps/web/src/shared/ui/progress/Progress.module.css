@@ -21,3 +21,33 @@
 .progress::-moz-progress-bar {
   background: var(--tone-progress);
 }
+
+/* A band sweeping across; with reduced motion it stays put, mid-bar. */
+.progress:indeterminate {
+  background: linear-gradient(90deg, var(--film) 40%, var(--tone-progress) 40% 60%, var(--film) 60%)
+    50% 0 / 200% 100%;
+  animation: sweep 1.4s ease-in-out infinite;
+}
+
+.progress:indeterminate::-webkit-progress-bar {
+  background: transparent;
+}
+
+.progress:indeterminate::-moz-progress-bar {
+  background: transparent;
+}
+
+@keyframes sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress:indeterminate {
+    animation: none;
+  }
+}

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ImageResizeOutputV1 } from './image-resize';
 import { type JobType, JobStatusSchema, JobTypeSchema } from './jobs';
+import { JobProgressSchema } from './metadata-api';
 import { VideoFramesOutputV1 } from './video-frames';
 import { VideoTranscodeOutputV1 } from './video-transcode';
 
@@ -60,7 +61,15 @@ export type AssetPreview = z.infer<typeof AssetPreview>;
 export const AssetSummaryDto = AssetDto.extend({
   /** From the newest succeeded job that produced a small image of the file. */
   preview: AssetPreview.nullable(),
-  latestJob: z.object({ id: z.uuid(), type: JobTypeSchema, status: JobStatusSchema }).nullable(),
+  latestJob: z
+    .object({
+      id: z.uuid(),
+      type: JobTypeSchema,
+      status: JobStatusSchema,
+      /** Percent while `running`, for job types that report it; null otherwise. */
+      progress: JobProgressSchema.nullable(),
+    })
+    .nullable(),
 });
 export type AssetSummaryDto = z.infer<typeof AssetSummaryDto>;
 

@@ -57,6 +57,41 @@ describe('library', () => {
     expect(screen.getByText('Queued')).toBeInTheDocument();
   });
 
+  it('shows how far the latest job got while it is unfinished', async () => {
+    const job = (id: string, status: 'queued' | 'running', progress: number | null) =>
+      testAsset({
+        id: `a0000000-0000-4000-8000-00000000001${id}`,
+        name: `clip-${id}.mp4`,
+        kind: 'video',
+        latestJob: {
+          id: `b0000000-0000-4000-8000-00000000001${id}`,
+          type: 'video.transcode',
+          status,
+          progress,
+        },
+      });
+    listAssets([
+      job('1', 'queued', null),
+      job('2', 'running', null),
+      job('3', 'running', 42),
+      testAsset(),
+    ]);
+    renderApp({ signedIn: true, route: '/library' });
+
+    const barOf = async (name: RegExp) => {
+      const tile = (await screen.findByRole('link', { name })).closest('li');
+      if (!tile) throw new Error('tile not found');
+      return within(tile).queryByRole('progressbar', { name: 'Processing progress' });
+    };
+    const waiting = await barOf(/^clip-1\.mp4/);
+    expect(waiting).toHaveAttribute('value', '0');
+    expect(waiting).toHaveAccessibleDescription('clip-1.mp4');
+    // Running, but the worker has not reported a percent yet.
+    expect(await barOf(/^clip-2\.mp4/)).not.toHaveAttribute('value');
+    expect(await barOf(/^clip-3\.mp4/)).toHaveAttribute('value', '0.42');
+    expect(await barOf(/harbour\.jpg/)).toBeNull();
+  });
+
   it('keeps the filters in the address and asks the gateway for them', async () => {
     const requests = listAssets();
     const { user, router } = renderApp({ signedIn: true, route: '/library' });

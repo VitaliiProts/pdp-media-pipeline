@@ -175,6 +175,7 @@ export class AssetsService {
           id: jobs.id,
           type: jobs.type,
           status: jobs.status,
+          progress: jobs.progress,
         })
         .from(jobs)
         .where(inArray(jobs.assetId, ids))
@@ -189,7 +190,13 @@ export class AssetsService {
         .where(and(inArray(jobs.assetId, ids), eq(jobs.status, 'succeeded')))
         .orderBy(jobs.assetId, desc(jobs.createdAt), desc(jobs.id)),
     ]);
-    const latestBy = new Map(latest.map(({ assetId, ...job }) => [assetId, job]));
+    // The last value of an earlier attempt would be stale once the job left `running`.
+    const latestBy = new Map(
+      latest.map(({ assetId, progress, ...job }) => [
+        assetId,
+        { ...job, progress: job.status === 'running' ? progress : null },
+      ]),
+    );
     const previewBy = new Map(succeeded.map((j) => [j.assetId, previewOf(j.type, j.output)]));
     return page.map((row) => ({
       ...toAssetDto(row),

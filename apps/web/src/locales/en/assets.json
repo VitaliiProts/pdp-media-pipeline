@@ -31,7 +31,8 @@
   "tile": {
     "untitled": "Untitled file",
     "video": "Video",
-    "videoWithDuration": "Video · {{duration}}"
+    "videoWithDuration": "Video · {{duration}}",
+    "progress": "Processing progress"
   },
   "upload": {
     "remove": "Remove"

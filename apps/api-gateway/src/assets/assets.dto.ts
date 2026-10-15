@@ -73,6 +73,15 @@ export class AssetLatestJobDto {
 
   @ApiProperty({ enum: JOB_STATUSES })
   status!: JobStatus;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: 100,
+    description: 'Percent done while running, for job types that report it (video.transcode).',
+  })
+  progress!: number | null;
 }
 
 export class AssetDto {

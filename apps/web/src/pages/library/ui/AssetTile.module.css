@@ -69,6 +69,10 @@
   font-size: var(--text-sm);
 }
 
+.bar {
+  flex-basis: 100%;
+}
+
 .problem {
   flex-basis: 100%;
   margin: 0;

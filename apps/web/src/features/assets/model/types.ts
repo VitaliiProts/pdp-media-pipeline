@@ -28,7 +28,13 @@ export type Asset = {
 
 export type AssetSummary = Asset & {
   preview: { url: string; width: number; height: number } | null;
-  latestJob: { id: string; type: string; status: AssetJobStatus } | null;
+  latestJob: {
+    id: string;
+    type: string;
+    status: AssetJobStatus;
+    /** Percent, while running; only long job types report it. */
+    progress?: number | null;
+  } | null;
 };
 
 export type AssetPage = { items: AssetSummary[]; nextCursor: string | null };
