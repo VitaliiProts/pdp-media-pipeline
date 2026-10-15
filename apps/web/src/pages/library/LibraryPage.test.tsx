@@ -162,21 +162,65 @@ describe('library pages', () => {
     const { user } = renderApp({ signedIn: true, route: '/library' });
     await user.click(await screen.findByRole('button', { name: 'Show more' }));
 
-    expect(await screen.findByRole('link', { name: /dunes\.jpg/ })).toBeInTheDocument();
+    const dunes = await screen.findByRole('link', { name: /dunes\.jpg/ });
     expect(screen.getByText('Added 1 more file.').closest('[aria-live]')).toHaveAttribute(
       'aria-live',
       'polite',
     );
     expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
+    // The button is gone; focus goes on to the first file it brought.
+    await waitFor(() => expect(dunes).toHaveFocus());
   });
 
   it('loads the next page when the end of the grid scrolls into view', async () => {
     twoPages();
-    renderApp({ signedIn: true, route: '/library' });
+    const { user } = renderApp({ signedIn: true, route: '/library' });
     await screen.findByRole('button', { name: 'Show more' });
+    const searchBox = screen.getByRole('searchbox', { name: 'Search by name' });
+    await user.click(searchBox);
 
     act(() => FakeIntersectionObserver.latest()?.reveal());
     expect(await screen.findByRole('link', { name: /dunes\.jpg/ })).toBeInTheDocument();
+    await act(() => Promise.resolve());
+    expect(searchBox).toHaveFocus();
+  });
+
+  it('reads out every page, even one as long as the last', async () => {
+    const THIRD = testAsset({ id: 'a0000000-0000-4000-8000-000000000004', name: 'reef.jpg' });
+    server.use(
+      http.get('/v1/assets', ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        if (cursor === 'c1') return HttpResponse.json({ items: [SECOND], nextCursor: 'c2' });
+        if (cursor === 'c2') return HttpResponse.json({ items: [THIRD], nextCursor: null });
+        return HttpResponse.json({ items: [testAsset()], nextCursor: 'c1' });
+      }),
+    );
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+    await screen.findByRole('link', { name: /dunes\.jpg/ });
+    const second = screen.getByText('Added 1 more file.');
+
+    await user.click(screen.getByRole('button', { name: 'Show more' }));
+    await screen.findByRole('link', { name: /reef\.jpg/ });
+    // A live region reads additions; the same text left in the same node is not read again.
+    expect(screen.getByText('Added 1 more file.')).not.toBe(second);
+  });
+
+  it('does not read out pages it already had when the filters come back', async () => {
+    twoPages();
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+    await screen.findByText('Added 1 more file.');
+
+    await user.click(screen.getByRole('radio', { name: 'Videos' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('link', { name: /dunes\.jpg/ })).not.toBeInTheDocument(),
+    );
+    await screen.findByRole('button', { name: 'Show more' });
+    await user.click(screen.getByRole('radio', { name: 'All' }));
+
+    expect(await screen.findByRole('link', { name: /dunes\.jpg/ })).toBeInTheDocument();
+    expect(screen.queryByText(/^Added/)).not.toBeInTheDocument();
   });
 
   it('keeps what it has when the next page fails, and tries again', async () => {
@@ -191,6 +235,8 @@ describe('library pages', () => {
 
     expect(await screen.findByText('Could not load more files.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /harbour\.jpg/ })).toBeInTheDocument();
+    // Scrolling does not retry on its own: nothing is watched until the button is pressed.
+    expect(FakeIntersectionObserver.latest()).toBeUndefined();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('link', { name: /dunes\.jpg/ })).toBeInTheDocument();
   });

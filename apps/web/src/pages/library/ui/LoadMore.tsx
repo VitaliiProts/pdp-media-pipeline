@@ -6,7 +6,14 @@ import styles from './LoadMore.module.css';
 /** Starts loading this far before the end of the grid scrolls into view. */
 const PRELOAD_MARGIN = '600px';
 
-type LoadMoreProps = { isLoading: boolean; failed: boolean; onLoad: () => void };
+/** What asked for the next page: a press moves focus on to it, scrolling does not. */
+export type LoadTrigger = 'button' | 'scroll';
+
+type LoadMoreProps = {
+  isLoading: boolean;
+  failed: boolean;
+  onLoad: (trigger: LoadTrigger) => void;
+};
 
 /**
  * The button is always there for keyboards, screen readers and browsers without
@@ -14,6 +21,7 @@ type LoadMoreProps = { isLoading: boolean; failed: boolean; onLoad: () => void }
  */
 export function LoadMore({ isLoading, failed, onLoad }: LoadMoreProps) {
   const { t } = useTranslation('assets');
+  const { t: tShell } = useTranslation('shell');
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -21,7 +29,7 @@ export function LoadMore({ isLoading, failed, onLoad }: LoadMoreProps) {
     if (!sentinel || isLoading || failed || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) onLoad();
+        if (entries.some((entry) => entry.isIntersecting)) onLoad('scroll');
       },
       { rootMargin: PRELOAD_MARGIN },
     );
@@ -37,8 +45,8 @@ export function LoadMore({ isLoading, failed, onLoad }: LoadMoreProps) {
           {t('library.more.failed')}
         </p>
       )}
-      <Button isBusy={isLoading} onClick={onLoad}>
-        {failed ? t('library.more.retry') : t('library.more.label')}
+      <Button isBusy={isLoading} onClick={() => onLoad('button')}>
+        {failed ? tShell('retry') : t('library.more.label')}
       </Button>
     </div>
   );

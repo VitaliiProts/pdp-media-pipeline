@@ -24,7 +24,6 @@
     "more": {
       "label": "Show more",
       "failed": "Could not load more files.",
-      "retry": "Try again",
       "added_one": "Added {{count}} more file.",
       "added_other": "Added {{count}} more files."
     }
