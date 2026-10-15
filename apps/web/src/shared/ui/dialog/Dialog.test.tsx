@@ -100,4 +100,43 @@ describe('Dialog', () => {
     expect(element).toHaveClass('extra');
     expect(element.classList.length).toBeGreaterThan(1);
   });
+
+  describe('while not dismissible', () => {
+    function renderHeld() {
+      const onClose = vi.fn();
+      render(
+        <Dialog open dismissible={false} onClose={onClose} title="Upload files" closeLabel="Close">
+          <p>Body</p>
+        </Dialog>,
+      );
+      return onClose;
+    }
+
+    it('opens again after the browser closes it anyway', () => {
+      const onClose = renderHeld();
+      const element = dialog();
+      if (!(element instanceof HTMLDialogElement)) throw new Error('expected a <dialog>');
+
+      element.close();
+
+      expect(element).toHaveAttribute('open');
+      expect(screen.getByText('Body')).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('ignores Escape, the backdrop and its close button', async () => {
+      const onClose = renderHeld();
+      const cancel = new Event('cancel', { cancelable: true });
+      fireEvent(dialog(), cancel);
+      fireEvent.pointerDown(dialog());
+      fireEvent.click(dialog());
+      const close = screen.getByRole('button', { name: 'Close' });
+      await userEvent.click(close);
+
+      expect(cancel.defaultPrevented).toBe(true);
+      expect(close).toHaveAttribute('aria-busy', 'true');
+      expect(onClose).not.toHaveBeenCalled();
+      expect(dialog()).toHaveAttribute('open');
+    });
+  });
 });

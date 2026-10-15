@@ -379,6 +379,36 @@ describe('deleting a file', () => {
     expect(await screen.findByText('File deleted.')).toBeInTheDocument();
   });
 
+  it('stays open when the browser closes it mid-request, and shows a late failure', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { user, dialog } = await openDelete(500, { message: 'storage unavailable' }, { gate });
+    if (!(dialog instanceof HTMLDialogElement)) throw new Error('expected a <dialog>');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'Delete' })).toHaveAttribute(
+        'aria-busy',
+        'true',
+      ),
+    );
+
+    dialog.close();
+    expect(dialog).toHaveAttribute('open');
+    release();
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Could not delete the file. storage unavailable',
+    );
+    expect(dialog).toHaveAttribute('open');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(dialog).not.toHaveAttribute('open');
+    await user.click(screen.getByRole('button', { name: 'Delete harbour.jpg' }));
+    expect(dialog).toHaveAttribute('open');
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('does not pull the user back once they have left the page', async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {

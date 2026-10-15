@@ -20,9 +20,7 @@ export function DeleteAssetButton({ assetId, name, onDeleted }: DeleteAssetButto
     setOpen(true);
   };
 
-  // The answer is applied whatever the user does meanwhile, so the dialog waits for it.
   const close = () => {
-    if (isLoading) return;
     setOpen(false);
     setProblem(null);
   };
@@ -56,6 +54,8 @@ export function DeleteAssetButton({ assetId, name, onDeleted }: DeleteAssetButto
       </Button>
       <Dialog
         open={isOpen}
+        // The answer is applied whatever the user does meanwhile, so the dialog waits for it.
+        dismissible={!isLoading}
         onClose={close}
         title={t('delete.title', { name })}
         closeLabel={t('delete.close')}
