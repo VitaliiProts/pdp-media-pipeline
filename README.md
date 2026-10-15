@@ -1011,6 +1011,41 @@ GET з `Content-Disposition: attachment`; посилання стабільні 
    [IA і user flows](docs/design/information-architecture.md),
    [дизайн-система](docs/design/design-system.md), [план 5c–5d](docs/plan/stages-5c-5d.md).
 
+### Етап 5c.5. Пререндер публічних сторінок (SSG)
+
+**Критерій підетапу:** HTML сторінок `/`, `/login` і `/register` уже містить розмітку, гідрація
+проходить без попереджень і без мигання форми; решта маршрутів — SPA, як і раніше.
+
+Що з'явилося:
+
+- Збірка вебу пререндерить опис сервісу, вхід і реєстрацію англійською
+  (`src/entry-server.tsx`, `scripts/prerender.mjs`): `dist/index.html`, `dist/login/index.html`,
+  `dist/register/index.html`, а порожня оболонка SPA — `dist/app.html`. У `<head>` кожної
+  сторінки — її CSS і `modulepreload` чанків.
+- Клієнт гідрує пререндерену сторінку (`hydrateRoot`), решту рендерить з нуля. Мова за
+  замовчуванням — англійська; збережений вибір вмикається після гідрації, `?next=` теж читається
+  після неї. Форма входу не підміняється скелетом, поки перевіряється сесія.
+- nginx: `try_files $uri $uri/index.html /app.html`.
+- k6-сценарій входу `perf/k6/login.js` (argon2id під навантаженням), compose передає ліміти
+  входу `AUTH_*` у gateway.
+
+1. Зібрати й підняти веб: `docker compose up -d --build --wait web`.
+2. Розмітка вже в HTML, без JS:
+   ```bash
+   curl -s http://localhost:18090/login | grep -o '<h1[^>]*>[^<]*</h1>\|<input[^>]*type="[a-z]*"'
+   curl -s http://localhost:18090/library | grep -o '<div id="root"></div>'   # SPA-оболонка
+   ```
+3. Відкрити http://localhost:18090/login?next=%2Fjobs з відкритою консоллю: попереджень про
+   гідрацію немає, посилання «Create one» веде на `/register?next=%2Fjobs`. Після вибору «UA» і
+   перезавантаження сторінка гідрується англійською й одразу перемикається на українську.
+4. Тести: `pnpm test:web` — проєкт `ssr` (`src/entry-server.ssr.test.tsx`, Node без браузерних
+   глобалів) і `src/app/hydration.test.tsx` (гідрація зібраної розмітки падає на будь-якому
+   `console.error` React).
+5. Вхід під навантаженням: `scripts/perf.sh login` (20 входів/с) і
+   `LOGIN_RATE=60 LOGIN_DURATION=30s scripts/perf.sh login`; ліміти входу на час прогону підняті.
+   Результати — [звіт 5c](perf/reports/stage-5c.md).
+6. Документи: [ADR-015](docs/adr/0015-frontend-prerender.md), [план 5c–5d](docs/plan/stages-5c-5d.md).
+
 ## Конфігурація Етапу 2
 
 Ліміти й пороги задаються через env gateway; у `docker-compose.yml` їх можна перевизначити
@@ -1109,4 +1144,5 @@ GET з `Content-Disposition: attachment`; посилання стабільні 
 - Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md), [Етап 4](docs/plan/stage-4.md), [Етап 5](docs/plan/stage-5.md), [Етапи 5c–5d](docs/plan/stages-5c-5d.md)
 - ADR: [docs/adr](docs/adr/README.md)
 - Спайк JetStream проти BullMQ: [docs/spikes](docs/spikes/01-jetstream-vs-bullmq.md)
-- Звіти навантаження: [Етап 2](perf/reports/stage-2.md), [Етап 5](perf/reports/stage-5.md)
+- Звіти навантаження: [Етап 2](perf/reports/stage-2.md), [Етап 5](perf/reports/stage-5.md),
+  [Етап 5c](perf/reports/stage-5c.md)
