@@ -1,0 +1,256 @@
+import { act, fireEvent, screen, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { type AssetDetails, type AssetJob, LIVE_POLL_MS } from '../../features/assets';
+import { TEST_ASSET, testAsset } from '../../test/fixtures';
+import { renderApp } from '../../test/render-app';
+import { server, STORAGE_ORIGIN } from '../../test/server';
+
+const ID = 'a0000000-0000-4000-8000-000000000001';
+
+const job = (overrides: Partial<AssetJob> = {}): AssetJob => ({
+  id: 'b0000000-0000-4000-8000-000000000001',
+  type: 'image.resize',
+  status: 'succeeded',
+  attempts: 1,
+  lastError: null,
+  deadReason: null,
+  createdAt: '2026-10-14T10:00:00.000Z',
+  traceId: null,
+  ...overrides,
+});
+
+function details(overrides: Partial<AssetDetails> = {}): AssetDetails {
+  return {
+    ...TEST_ASSET,
+    originalUrl: `${STORAGE_ORIGIN}/original`,
+    originalDownloadUrl: `${STORAGE_ORIGIN}/original?download`,
+    jobs: [
+      job({
+        results: [
+          {
+            preset: 'thumb',
+            width: 200,
+            height: 133,
+            bytes: 9_400,
+            url: `${STORAGE_ORIGIN}/thumb.webp`,
+            downloadUrl: `${STORAGE_ORIGIN}/thumb.webp?download`,
+          },
+        ],
+      }),
+    ],
+    jobsNextCursor: null,
+    ...overrides,
+  };
+}
+
+const serve = (body: AssetDetails) =>
+  server.use(http.get(`/v1/assets/${ID}`, () => HttpResponse.json(body)));
+
+const VIDEO_BASE = {
+  kind: 'video' as const,
+  name: 'cliffs.mp4',
+  contentType: 'video/mp4',
+  width: 1920,
+  height: 1080,
+  durationSeconds: 12,
+};
+
+describe('file page', () => {
+  it('shows an image with its facts and versions to download', async () => {
+    serve(details());
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'harbour.jpg' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'harbour.jpg' })).toHaveAttribute(
+      'src',
+      `${STORAGE_ORIGIN}/original`,
+    );
+    expect(screen.getByText('1200 × 800')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Download original' })).toHaveAttribute(
+      'href',
+      `${STORAGE_ORIGIN}/original?download`,
+    );
+    const panel = screen.getByRole('tabpanel', { name: 'Versions' });
+    expect(
+      within(panel).getByRole('link', { name: 'Download Thumbnail · 200 px' }),
+    ).toHaveAttribute('href', `${STORAGE_ORIGIN}/thumb.webp?download`);
+    expect(within(panel).getByText('WebP')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('navigation', { name: 'Breadcrumbs' })).getByRole('link', {
+        name: 'Library',
+      }),
+    ).toHaveAttribute('href', '/library');
+  });
+
+  it('plays the best transcoded rendition and switches quality', async () => {
+    const rendition = (name: string, height: number) => ({
+      rendition: name,
+      width: Math.round((height * 16) / 9),
+      height,
+      durationSeconds: 12,
+      bytes: 1,
+      bitrate: 1,
+      url: `${STORAGE_ORIGIN}/${name}.mp4`,
+      downloadUrl: `${STORAGE_ORIGIN}/${name}.mp4?download`,
+    });
+    const preview = {
+      atSeconds: 0,
+      width: 640,
+      height: 360,
+      bytes: 1,
+      url: `${STORAGE_ORIGIN}/preview.jpg`,
+      downloadUrl: `${STORAGE_ORIGIN}/preview.jpg?download`,
+    };
+    serve(
+      details({
+        ...VIDEO_BASE,
+        jobs: [
+          job({
+            type: 'video.transcode',
+            transcode: {
+              durationSeconds: 12,
+              width: 1280,
+              height: 720,
+              codec: 'h264',
+              preview,
+              renditions: [rendition('480p', 480), rendition('720p', 720)],
+            },
+          }),
+        ],
+      }),
+    );
+    const { user } = renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    const video = await screen.findByLabelText('Play cliffs.mp4');
+    expect(video).toHaveAttribute('src', `${STORAGE_ORIGIN}/720p.mp4`);
+    expect(video).toHaveAttribute('poster', `${STORAGE_ORIGIN}/preview.jpg`);
+    await user.click(screen.getByRole('radio', { name: '480p' }));
+    expect(screen.getByLabelText('Play cliffs.mp4')).toHaveAttribute(
+      'src',
+      `${STORAGE_ORIGIN}/480p.mp4`,
+    );
+  });
+
+  it('plays the original without a transcode, and explains when the browser cannot', async () => {
+    serve(details({ ...VIDEO_BASE, jobs: [] }));
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    const video = await screen.findByLabelText('Play cliffs.mp4');
+    expect(video).toHaveAttribute('src', `${STORAGE_ORIGIN}/original`);
+    fireEvent.error(video);
+    expect(
+      await screen.findByText(
+        'This browser cannot play this format. Transcode it to 480p or 720p.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Versions will appear once processing is done.')).toBeInTheDocument();
+  });
+
+  it('lists the jobs on the file with what went wrong', async () => {
+    serve(
+      details({
+        jobs: [
+          job({
+            status: 'dead',
+            attempts: 3,
+            lastError: 'unsupported image format',
+            deadReason: 'permanent',
+          }),
+        ],
+        jobsNextCursor: 'more',
+      }),
+    );
+    const { user } = renderApp({ signedIn: true, route: `/library/${ID}` });
+    await user.click(await screen.findByRole('tab', { name: 'Jobs' }));
+
+    const panel = screen.getByRole('tabpanel', { name: 'Jobs' });
+    expect(within(panel).getByText('Resize')).toBeInTheDocument();
+    expect(within(panel).getByText('Gave up')).toBeInTheDocument();
+    expect(within(panel).getByText('Attempt 3')).toBeInTheDocument();
+    expect(within(panel).getByText('unsupported image format')).toBeInTheDocument();
+    expect(within(panel).getByText('Showing the 1 newest jobs.')).toBeInTheDocument();
+  });
+
+  it('returns to the library with the filters it came from', async () => {
+    server.use(
+      http.get('/v1/assets', () => HttpResponse.json({ items: [testAsset()], nextCursor: null })),
+    );
+    serve(details());
+    const { user } = renderApp({ signedIn: true, route: '/library?kind=image' });
+    await user.click(await screen.findByRole('link', { name: /harbour\.jpg/ }));
+
+    await screen.findByRole('heading', { level: 1, name: 'harbour.jpg' });
+    expect(
+      within(screen.getByRole('navigation', { name: 'Breadcrumbs' })).getByRole('link', {
+        name: 'Library',
+      }),
+    ).toHaveAttribute('href', '/library?kind=image');
+  });
+
+  it('says so when the file does not exist', async () => {
+    server.use(
+      http.get(`/v1/assets/${ID}`, () =>
+        HttpResponse.json({ message: 'not found' }, { status: 404 }),
+      ),
+    );
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    expect(await screen.findByRole('heading', { name: 'File not found' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to the library' })).toHaveAttribute(
+      'href',
+      '/library',
+    );
+  });
+
+  it('offers a retry when the gateway fails', async () => {
+    let calls = 0;
+    server.use(
+      http.get(`/v1/assets/${ID}`, () => {
+        calls += 1;
+        return calls === 1
+          ? HttpResponse.json({ message: 'boom' }, { status: 500 })
+          : HttpResponse.json(details());
+      }),
+    );
+    const { user } = renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    expect(
+      await screen.findByRole('heading', { name: 'Could not load the file' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'harbour.jpg' }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('live file page', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('polls while a job on the file is going and stops when it is done', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+    let calls = 0;
+    server.use(
+      http.get(`/v1/assets/${ID}`, () => {
+        calls += 1;
+        return HttpResponse.json(
+          calls === 1 ? details({ jobs: [job({ status: 'running' })] }) : details(),
+        );
+      }),
+    );
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    expect(
+      await screen.findByText('Versions will appear once processing is done.'),
+    ).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS));
+    expect(
+      await screen.findByRole('link', { name: 'Download Thumbnail · 200 px' }),
+    ).toBeInTheDocument();
+    const settled = calls;
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS * 3));
+    expect(calls).toBe(settled);
+  });
+});

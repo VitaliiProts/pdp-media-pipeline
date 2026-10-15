@@ -35,5 +35,50 @@
   },
   "upload": {
     "remove": "Remove"
+  },
+  "asset": {
+    "breadcrumbs": "Breadcrumbs",
+    "loading": "Loading the file…",
+    "notFoundTitle": "File not found",
+    "notFoundBody": "It may have been deleted, or the link is wrong.",
+    "toLibrary": "Back to the library",
+    "errorTitle": "Could not load the file",
+    "error": "The gateway did not answer. Try again in a moment.",
+    "facts": "About the file",
+    "dimensions": "Size in pixels",
+    "dimensionsValue": "{{width}} × {{height}}",
+    "duration": "Duration",
+    "size": "File size",
+    "type": "Type",
+    "uploaded": "Uploaded",
+    "downloadOriginal": "Download original",
+    "tabs": "File details"
+  },
+  "player": {
+    "label": "Play {{name}}",
+    "quality": "Quality",
+    "unsupported": "This browser cannot play this format. Transcode it to 480p or 720p.",
+    "failed": "This video could not be played."
+  },
+  "versions": {
+    "tab": "Versions",
+    "none": "Versions will appear once processing is done.",
+    "imageLabel": "{{name}} · {{width}} px",
+    "preview": "Preview frame",
+    "dimensions": "{{width}} × {{height}}",
+    "download": "Download",
+    "downloadLabel": "Download {{name}}",
+    "frames": "Frames",
+    "frameLabel": "Download the frame at {{time}}"
+  },
+  "jobs": {
+    "tab": "Jobs",
+    "none": "No jobs on this file yet.",
+    "newestOnly": "Showing the {{count}} newest jobs.",
+    "type": {
+      "resize": "Resize",
+      "frames": "Frames",
+      "transcode": "Transcode"
+    }
   }
 }

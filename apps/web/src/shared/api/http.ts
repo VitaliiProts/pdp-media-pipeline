@@ -97,6 +97,10 @@ export function errorCodeOf(value: unknown): string | null {
   return isAppError(value) && value.kind === 'http' ? value.code : null;
 }
 
+export function httpStatusOf(value: unknown): number | null {
+  return isAppError(value) && value.kind === 'http' ? value.status : null;
+}
+
 /** Seconds the gateway asked to wait, if the request was refused for timing. */
 export function retryAfterOf(error: unknown): number | null {
   return isAppError(error) && error.kind === 'retryLater' ? error.retryAfterS : null;

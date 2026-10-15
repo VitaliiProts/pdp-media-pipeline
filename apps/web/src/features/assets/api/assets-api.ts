@@ -1,5 +1,5 @@
 import { baseApi } from '../../../shared/api/base-api';
-import { type AssetFilters, type AssetPage } from '../model/types';
+import { type AssetDetails, type AssetFilters, type AssetPage } from '../model/types';
 
 export const ASSETS_PAGE_SIZE = 24;
 /** Tag of every list page; a file's own page is tagged with its id. */
@@ -29,7 +29,11 @@ export const assetsApi = baseApi.injectEndpoints({
       }),
       providesTags: [ASSET_LIST_TAG],
     }),
+    getAsset: build.query<AssetDetails, string>({
+      query: (id) => ({ url: `/v1/assets/${encodeURIComponent(id)}` }),
+      providesTags: (_result, _error, id) => [{ type: 'Asset', id }],
+    }),
   }),
 });
 
-export const { useListAssetsInfiniteQuery } = assetsApi;
+export const { useGetAssetQuery, useListAssetsInfiniteQuery } = assetsApi;

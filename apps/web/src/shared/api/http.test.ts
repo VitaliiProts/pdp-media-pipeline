@@ -1,6 +1,14 @@
 import { http as mock, HttpResponse } from 'msw';
 import { server } from '../../test/server';
-import { appErrorOf, errorCodeOf, http, isUnauthorized, retryAfterOf, toAppError } from './http';
+import {
+  appErrorOf,
+  errorCodeOf,
+  http,
+  httpStatusOf,
+  isUnauthorized,
+  retryAfterOf,
+  toAppError,
+} from './http';
 
 describe('AppError helpers', () => {
   it('reads Retry-After only from refusals about timing', () => {
@@ -22,6 +30,12 @@ describe('AppError helpers', () => {
     expect(appErrorOf({ name: 'Error', message: 'boom' })).toBeNull();
     expect(appErrorOf('network')).toBeNull();
     expect(appErrorOf(null)).toBeNull();
+  });
+
+  it('reads the status of an HTTP refusal only', () => {
+    expect(httpStatusOf({ kind: 'http', status: 404, message: 'gone', code: null })).toBe(404);
+    expect(httpStatusOf({ kind: 'unauthorized' })).toBeNull();
+    expect(httpStatusOf(undefined)).toBeNull();
   });
 });
 

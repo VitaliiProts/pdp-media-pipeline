@@ -40,12 +40,6 @@
   "registerPage": {
     "title": "Create an account"
   },
-  "asset": {
-    "title": "File",
-    "emptyTitle": "File pages are on their way",
-    "emptyBody": "This page will show the original, every processed version and the jobs that made them.",
-    "toLibrary": "Back to the library"
-  },
   "settings": {
     "title": "Settings",
     "emptyTitle": "Nothing to set up yet",

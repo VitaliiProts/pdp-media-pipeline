@@ -33,4 +33,53 @@ export type AssetSummary = Asset & {
 
 export type AssetPage = { items: AssetSummary[]; nextCursor: string | null };
 
+/** `downloadUrl` is signed to be saved, not shown. */
+type Download = { url: string; downloadUrl: string };
+
+export type AssetImageVersion = {
+  preset: string;
+  width: number;
+  height: number;
+  bytes: number;
+} & Download;
+
+export type AssetFrame = {
+  atSeconds: number;
+  width: number;
+  height: number;
+  bytes: number;
+} & Download;
+
+export type AssetRendition = {
+  rendition: string;
+  width: number;
+  height: number;
+  durationSeconds: number;
+  bytes: number;
+  bitrate: number;
+} & Download;
+
+type VideoFacts = { durationSeconds: number; width: number; height: number; codec: string };
+
+export type AssetJob = {
+  id: string;
+  type: string;
+  status: AssetJobStatus;
+  attempts: number;
+  lastError: string | null;
+  deadReason: 'permanent' | 'exhausted' | null;
+  createdAt: string;
+  traceId: string | null;
+  results?: AssetImageVersion[];
+  video?: VideoFacts & { preview: AssetFrame; frames: AssetFrame[] };
+  transcode?: VideoFacts & { preview: AssetFrame; renditions: AssetRendition[] };
+};
+
+export type AssetDetails = Asset & {
+  originalUrl: string;
+  originalDownloadUrl: string;
+  jobs: AssetJob[];
+  jobsNextCursor: string | null;
+};
+
 export type AssetFilters = { kind: AssetKind | null; status: AssetStatus | null; q: string };
