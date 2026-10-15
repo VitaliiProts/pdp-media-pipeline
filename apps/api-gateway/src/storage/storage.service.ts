@@ -53,10 +53,20 @@ export class StorageService implements OnApplicationShutdown {
     );
   }
 
-  presignGet(key: string, expiresIn: number): Promise<string> {
-    return getSignedUrl(this.signer, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
-      expiresIn,
+  /** With `downloadName`, browsers save the file under that name instead of opening it. */
+  presignGet(
+    key: string,
+    expiresIn: number,
+    { downloadName }: { downloadName?: string } = {},
+  ): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ...(downloadName !== undefined && {
+        ResponseContentDisposition: `attachment; filename*=UTF-8''${rfc5987(downloadName)}`,
+      }),
     });
+    return getSignedUrl(this.signer, command, { expiresIn });
   }
 
   /** Returns the object size, or `null` when it does not exist. */
@@ -80,4 +90,12 @@ export class StorageService implements OnApplicationShutdown {
     this.internal.destroy();
     this.signer.destroy();
   }
+}
+
+/** `encodeURIComponent` leaves `'()*` as they are, which the header grammar does not allow. */
+function rfc5987(value: string): string {
+  return encodeURIComponent(value).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }

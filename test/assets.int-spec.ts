@@ -23,7 +23,12 @@ interface Summary {
 }
 interface Details extends Omit<Summary, 'preview' | 'latestJob'> {
   originalUrl: string;
-  jobs: { id: string; status: string; results?: { url: string }[] }[];
+  originalDownloadUrl: string;
+  jobs: {
+    id: string;
+    status: string;
+    results?: { preset: string; url: string; downloadUrl?: string }[];
+  }[];
   jobsNextCursor: string | null;
 }
 
@@ -181,6 +186,36 @@ describe('media library', () => {
       [second, assetId],
       [first, assetId],
     ]);
+  });
+
+  it('offers downloads named after the original', async () => {
+    const key = await newUser();
+    const { assetId } = await processedImage(key, 'Harbour at dawn.png');
+    const { body } = await api<Details>(key, `/v1/assets/${assetId}`);
+
+    const original = await fetch(body.originalDownloadUrl);
+    expect(original.status).toBe(200);
+    expect(original.headers.get('content-disposition')).toBe(
+      `attachment; filename*=UTF-8''Harbour%20at%20dawn.png`,
+    );
+
+    const thumb = body.jobs[0]?.results?.find((r) => r.preset === 'thumb');
+    expect(thumb?.downloadUrl).toBeDefined();
+    const version = await fetch(thumb?.downloadUrl ?? '');
+    expect(version.headers.get('content-disposition')).toBe(
+      `attachment; filename*=UTF-8''Harbour%20at%20dawn-thumb.webp`,
+    );
+  });
+
+  it('keeps job listings free of download links', async () => {
+    const key = await newUser();
+    await processedImage(key);
+    const { body } = await api<{ items: { results?: { downloadUrl?: string }[] }[] }>(
+      key,
+      '/v1/jobs',
+    );
+    expect(body.items[0]?.results?.[0]).toBeDefined();
+    expect(body.items[0]?.results?.[0]?.downloadUrl).toBeUndefined();
   });
 
   it('filters photos from videos and pages with a cursor', async () => {

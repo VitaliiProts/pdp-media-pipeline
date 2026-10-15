@@ -148,6 +148,11 @@ export class JobResultDto {
 
   @ApiProperty({ description: 'Presigned GET URL, valid for one hour.' })
   url!: string;
+
+  @ApiPropertyOptional({
+    description: 'Presigned GET URL that saves the file under a readable name. Asset details only.',
+  })
+  downloadUrl?: string;
 }
 
 export class VideoFrameDto {
@@ -165,6 +170,11 @@ export class VideoFrameDto {
 
   @ApiProperty({ description: 'Presigned GET URL, valid for one hour.' })
   url!: string;
+
+  @ApiPropertyOptional({
+    description: 'Presigned GET URL that saves the file under a readable name. Asset details only.',
+  })
+  downloadUrl?: string;
 }
 
 export class VideoResultDto {
@@ -208,6 +218,11 @@ export class RenditionDto {
 
   @ApiProperty({ description: 'Presigned GET URL of the MP4, valid for one hour.' })
   url!: string;
+
+  @ApiPropertyOptional({
+    description: 'Presigned GET URL that saves the file under a readable name. Asset details only.',
+  })
+  downloadUrl?: string;
 }
 
 export class TranscodeResultDto {

@@ -136,6 +136,12 @@ export class AssetDetailsDto extends AssetDto {
   originalUrl!: string;
 
   @ApiProperty({
+    description:
+      'Presigned GET URL that saves the original under its uploaded name, valid for one hour.',
+  })
+  originalDownloadUrl!: string;
+
+  @ApiProperty({
     type: [JobResponseDto],
     description: 'Newest jobs on the file with presigned result URLs.',
   })
