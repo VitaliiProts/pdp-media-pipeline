@@ -1,9 +1,4 @@
 {
-  "title": "Media pipeline",
-  "subtitle": "Every image becomes a resize job and every video a frames or transcoding job: the scheduler queues it, a worker processes it, results land in storage.",
-  "apiDocs": "API docs",
-  "changeKey": "Change key",
-  "language": "Language",
   "sheet": {
     "title": "Jobs",
     "loading": "Loading jobs…",
@@ -47,11 +42,6 @@
   "dismiss": "Remove",
   "retryIn_one": "retry in {{count}} s",
   "retryIn_other": "retry in {{count}} s",
-  "views": {
-    "label": "View",
-    "jobs": "Jobs",
-    "webhooks": "Webhooks"
-  },
   "progressLabel": "Progress of {{title}}",
   "announce": {
     "finished": "{{title}} — {{status}}"

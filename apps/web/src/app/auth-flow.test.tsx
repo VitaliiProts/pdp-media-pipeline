@@ -42,6 +42,33 @@ describe('signing in', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not check your sign-in');
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
+
+  it('asks for a key and sends it with every request', async () => {
+    const seenKeys: (string | null)[] = [];
+    server.use(
+      http.get('/v1/jobs', ({ request }) => {
+        seenKeys.push(request.headers.get('x-api-key'));
+        return HttpResponse.json({ items: [], nextCursor: null });
+      }),
+    );
+    const { user } = renderApp();
+
+    await user.type(await screen.findByLabelText('API key'), `  ${TEST_API_KEY} `);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByText(/No jobs yet/)).toBeInTheDocument();
+    expect(seenKeys[0]).toBe(TEST_API_KEY);
+    expect(window.localStorage.getItem('pdp.apiKey')).toBe(TEST_API_KEY);
+  });
+
+  it('returns to the form when the gateway rejects the stored key', async () => {
+    server.use(http.get('/v1/jobs', () => new HttpResponse(null, { status: 401 })));
+    renderApp({ apiKey: 'revoked' });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('rejected this key');
+    expect(screen.getByLabelText('API key')).toHaveValue('');
+    expect(window.localStorage.getItem('pdp.apiKey')).toBeNull();
+  });
 });
 
 describe('app shell', () => {
