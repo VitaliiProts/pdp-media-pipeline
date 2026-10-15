@@ -11,6 +11,9 @@ import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type Env } from '../config';
 
+/** Polling clients get the same GET links for this long, so browsers reuse what they cached. */
+export const PRESIGN_BUCKET_S = 300;
+
 @Injectable()
 export class StorageService implements OnApplicationShutdown {
   readonly bucket: string;
@@ -53,7 +56,11 @@ export class StorageService implements OnApplicationShutdown {
     );
   }
 
-  /** With `downloadName`, browsers save the file under that name instead of opening it. */
+  /**
+   * With `downloadName`, browsers save the file under that name instead of opening it.
+   * Signed as of the start of the current `PRESIGN_BUCKET_S` bucket, so the link stays valid
+   * for at least `expiresIn` seconds and repeats until the bucket ends.
+   */
   presignGet(
     key: string,
     expiresIn: number,
@@ -66,7 +73,11 @@ export class StorageService implements OnApplicationShutdown {
         ResponseContentDisposition: `attachment; filename*=UTF-8''${rfc5987(downloadName)}`,
       }),
     });
-    return getSignedUrl(this.signer, command, { expiresIn });
+    const bucketMs = PRESIGN_BUCKET_S * 1000;
+    return getSignedUrl(this.signer, command, {
+      signingDate: new Date(Math.floor(Date.now() / bucketMs) * bucketMs),
+      expiresIn: expiresIn + PRESIGN_BUCKET_S,
+    });
   }
 
   /** Returns the object size, or `null` when it does not exist. */
