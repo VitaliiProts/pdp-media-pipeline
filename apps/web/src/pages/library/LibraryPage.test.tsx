@@ -186,6 +186,35 @@ describe('library pages', () => {
     expect(screen.queryByText(/^Added/)).not.toBeInTheDocument();
   });
 
+  it('keeps focus on the button when a page brings no files but more are left', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get('/v1/assets', async ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        if (cursor === 'c1') {
+          await held;
+          return HttpResponse.json({ items: [], nextCursor: 'c2' });
+        }
+        if (cursor === 'c2') return HttpResponse.json({ items: [SECOND], nextCursor: null });
+        return HttpResponse.json({ items: [testAsset()], nextCursor: 'c1' });
+      }),
+    );
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    const button = await screen.findByRole('button', { name: 'Show more' });
+    await user.click(button);
+    await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'true'));
+    release();
+
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-busy'));
+    expect(button).toHaveFocus();
+    await user.click(button);
+    const dunes = await screen.findByRole('link', { name: /dunes\.jpg/ });
+    await waitFor(() => expect(dunes).toHaveFocus());
+  });
+
   it('loads the next page when the end of the grid scrolls into view', async () => {
     twoPages();
     const { user } = renderApp({ signedIn: true, route: '/library' });

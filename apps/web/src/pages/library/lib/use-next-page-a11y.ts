@@ -12,7 +12,7 @@ type NextPageA11yOptions = {
   fetchNextPage: () => unknown;
   /** Holds the tiles, each marked with `data-asset-id`. */
   gridRef: RefObject<HTMLElement | null>;
-  /** Takes focus when a pressed load brings no tile to move on to. */
+  /** Takes focus when a pressed load brings no tile to move on to and the button went away. */
   fallbackRef: RefObject<HTMLElement | null>;
 };
 
@@ -71,7 +71,10 @@ export function useNextPageA11y({
     );
     const link = tile?.querySelector('a');
     if (link) link.focus();
-    else fallbackRef.current?.focus();
+    // An empty page that is not the last leaves the button, and the focus on it, in place.
+    else if (document.activeElement === null || document.activeElement === document.body) {
+      fallbackRef.current?.focus();
+    }
   }, [filtersKey, pageCount, newestPageFirstId, gridRef, fallbackRef]);
 
   return {
