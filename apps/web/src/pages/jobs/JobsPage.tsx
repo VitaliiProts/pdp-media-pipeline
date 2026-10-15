@@ -14,6 +14,7 @@ import { useStatusParam } from './lib/use-status-param';
 import { buildSheetItems } from './model/sheet-items';
 import { ContactSheet } from './ui/ContactSheet';
 import sheetStyles from './ui/ContactSheet.module.css';
+import { JobAnnouncer } from './ui/JobAnnouncer';
 
 const SKELETON_SLIDES = 6;
 
@@ -83,6 +84,7 @@ export function JobsPage() {
     <>
       <UploadPanel />
       <section className={styles.sheetSection} aria-label={t('sheet.title')}>
+        <JobAnnouncer items={items} />
         <div className={styles.sheetHeader}>
           <PageHeading>{t('sheet.title')}</PageHeading>
           <StatusFilter value={status} onChange={setStatus} />

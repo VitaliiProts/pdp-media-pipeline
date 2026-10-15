@@ -215,6 +215,24 @@ describe('jobs sheet', () => {
     expect(router.state.location.search).toBe('?status=dead');
     expect(statuses).toContain('dead');
   });
+
+  it('announces jobs that finish while the page is open', async () => {
+    const id = 'abababab-0000-4000-8000-000000000007';
+    let polls = 0;
+    server.use(
+      http.get('/v1/jobs', () =>
+        HttpResponse.json({
+          items: [job({ id, status: ++polls === 1 ? 'running' : 'succeeded', attempts: 1 })],
+          nextCursor: null,
+        }),
+      ),
+    );
+    renderApp({ apiKey: TEST_API_KEY });
+    await screen.findByRole('heading', { name: 'Job abababab' });
+    expect(
+      await screen.findByText('Job abababab — Done', {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('uploading', () => {
