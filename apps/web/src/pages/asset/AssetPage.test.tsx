@@ -148,6 +148,47 @@ describe('file page', () => {
     expect(screen.getByText('Versions will appear once processing is done.')).toBeInTheDocument();
   });
 
+  it('offers every frame of a video to download', async () => {
+    const frame = (atSeconds: number) => ({
+      atSeconds,
+      width: 640,
+      height: 360,
+      bytes: 1,
+      url: `${STORAGE_ORIGIN}/frame-${atSeconds}.jpg`,
+      downloadUrl: `${STORAGE_ORIGIN}/frame-${atSeconds}.jpg?download`,
+    });
+    serve(
+      details({
+        ...VIDEO_BASE,
+        jobs: [
+          job({
+            type: 'video.frames',
+            video: {
+              durationSeconds: 12,
+              width: 1920,
+              height: 1080,
+              codec: 'h264',
+              preview: frame(0),
+              frames: [frame(0), frame(2)],
+            },
+          }),
+        ],
+      }),
+    );
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    const panel = await screen.findByRole('tabpanel', { name: 'Versions' });
+    expect(within(panel).getByRole('link', { name: 'Download Preview frame' })).toHaveAttribute(
+      'href',
+      `${STORAGE_ORIGIN}/frame-0.jpg?download`,
+    );
+    const frames = within(panel).getByRole('region', { name: 'Frames' });
+    expect(within(frames).getByRole('heading', { level: 2 })).toHaveTextContent('Frames');
+    expect(
+      within(frames).getByRole('link', { name: 'Download the frame at 0:02' }),
+    ).toHaveAttribute('href', `${STORAGE_ORIGIN}/frame-2.jpg?download`);
+  });
+
   it('lists the jobs on the file with what went wrong', async () => {
     serve(
       details({
@@ -198,6 +239,8 @@ describe('file page', () => {
     renderApp({ signedIn: true, route: `/library/${ID}` });
 
     expect(await screen.findByRole('heading', { name: 'File not found' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'File' })).toBeInTheDocument();
+    expect(document.title).toBe('File — PDP Media Pipeline');
     expect(screen.getByRole('link', { name: 'Back to the library' })).toHaveAttribute(
       'href',
       '/library',
@@ -219,6 +262,7 @@ describe('file page', () => {
     expect(
       await screen.findByRole('heading', { name: 'Could not load the file' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'File' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(
       await screen.findByRole('heading', { level: 1, name: 'harbour.jpg' }),
@@ -252,5 +296,42 @@ describe('live file page', () => {
     const settled = calls;
     await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS * 3));
     expect(calls).toBe(settled);
+  });
+
+  it('keeps the video and its failure when a poll signs the links anew, retrying a stale link once', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+    let calls = 0;
+    server.use(
+      http.get(`/v1/assets/${ID}`, () => {
+        calls += 1;
+        return HttpResponse.json(
+          details({
+            ...VIDEO_BASE,
+            // A visible change, so the test can tell the poll's answer has rendered.
+            size: calls * 1024 * 1024,
+            originalUrl: `${STORAGE_ORIGIN}/original?signature=${calls}`,
+            jobs: [job({ type: 'video.transcode', status: 'running' })],
+          }),
+        );
+      }),
+    );
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+
+    const video = await screen.findByLabelText('Play cliffs.mp4');
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS));
+    expect(await screen.findByText('2 MB')).toBeInTheDocument();
+    expect(screen.getByLabelText('Play cliffs.mp4')).toBe(video);
+    expect(video).toHaveAttribute('src', `${STORAGE_ORIGIN}/original?signature=1`);
+
+    fireEvent.error(video);
+    const retried = screen.getByLabelText('Play cliffs.mp4');
+    expect(retried).toHaveAttribute('src', `${STORAGE_ORIGIN}/original?signature=2`);
+    fireEvent.error(retried);
+    const unsupported = 'This browser cannot play this format. Transcode it to 480p or 720p.';
+    expect(await screen.findByText(unsupported)).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_POLL_MS));
+    expect(await screen.findByText('3 MB')).toBeInTheDocument();
+    expect(screen.getByText(unsupported)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Play cliffs.mp4')).not.toBeInTheDocument();
   });
 });

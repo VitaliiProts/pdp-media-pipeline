@@ -37,6 +37,7 @@
     "remove": "Remove"
   },
   "asset": {
+    "title": "File",
     "breadcrumbs": "Breadcrumbs",
     "loading": "Loading the file…",
     "notFoundTitle": "File not found",

@@ -30,32 +30,34 @@ export function AssetPage() {
   if (asset.data) return <AssetView asset={asset.data} />;
   if (asset.isError) {
     const status = httpStatusOf(asset.error);
-    if (status !== null && MISSING.includes(status)) {
-      return (
-        <EmptyState
-          title={t('asset.notFoundTitle')}
-          action={
-            <Link to="/library" className={buttonClass()}>
-              {t('asset.toLibrary')}
-            </Link>
-          }
-        >
-          <p>{t('asset.notFoundBody')}</p>
-        </EmptyState>
-      );
-    }
     const retryAfterS = retryAfterOf(asset.error);
     return (
-      <ErrorState
-        title={t('asset.errorTitle')}
-        retry={{ label: tShell('retry'), onRetry: () => void asset.refetch() }}
-      >
-        <p>
-          {retryAfterS === null
-            ? t('asset.error')
-            : t('library.tooManyRequests', { count: retryAfterS })}
-        </p>
-      </ErrorState>
+      <div className={styles.page}>
+        <PageHeading>{t('asset.title')}</PageHeading>
+        {status !== null && MISSING.includes(status) ? (
+          <EmptyState
+            title={t('asset.notFoundTitle')}
+            action={
+              <Link to="/library" className={buttonClass()}>
+                {t('asset.toLibrary')}
+              </Link>
+            }
+          >
+            <p>{t('asset.notFoundBody')}</p>
+          </EmptyState>
+        ) : (
+          <ErrorState
+            title={t('asset.errorTitle')}
+            retry={{ label: tShell('retry'), onRetry: () => void asset.refetch() }}
+          >
+            <p>
+              {retryAfterS === null
+                ? t('asset.error')
+                : t('library.tooManyRequests', { count: retryAfterS })}
+            </p>
+          </ErrorState>
+        )}
+      </div>
     );
   }
   return (

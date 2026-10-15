@@ -5,6 +5,8 @@ import { ChoiceGroup } from '../../../shared/ui/choice/ChoiceGroup';
 import { Radio } from '../../../shared/ui/choice/Radio';
 import styles from './AssetPage.module.css';
 
+const ORIGINAL = 'original';
+
 type VideoPlayerProps = {
   name: string;
   originalUrl: string;
@@ -17,13 +19,24 @@ export function VideoPlayer({ name, originalUrl, renditions, poster }: VideoPlay
   const { t } = useTranslation('assets');
   const qualityName = useId();
   const [chosen, setChosen] = useState<string | null>(null);
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const current = renditions.find((r) => r.rendition === chosen) ?? renditions[0];
-  const src = current?.url ?? originalUrl;
+  const sourceId = current?.rendition ?? ORIGINAL;
+  const freshUrl = current?.url ?? originalUrl;
+  // Every fetch signs the links anew; a new `src` would restart playback, so a source keeps its first link.
+  const [source, setSource] = useState({ id: sourceId, url: freshUrl });
+  const [failedId, setFailedId] = useState<string | null>(null);
+  if (source.id !== sourceId) setSource({ id: sourceId, url: freshUrl });
+  const src = source.id === sourceId ? source.url : freshUrl;
+
+  const handleError = () => {
+    // An expired link fails too; a newer one gets a try before the source counts as unplayable.
+    if (src !== freshUrl) setSource({ id: sourceId, url: freshUrl });
+    else setFailedId(sourceId);
+  };
 
   return (
     <div className={styles.player}>
-      {failedSrc === src ? (
+      {failedId === sourceId ? (
         <div className={styles.unplayable}>
           {poster && <img className={styles.original} src={poster} alt="" />}
           <p>{t(current ? 'player.failed' : 'player.unsupported')}</p>
@@ -37,7 +50,7 @@ export function VideoPlayer({ name, originalUrl, renditions, poster }: VideoPlay
           controls
           preload="metadata"
           aria-label={t('player.label', { name })}
-          onError={() => setFailedSrc(src)}
+          onError={handleError}
         />
       )}
       {renditions.length > 1 && (

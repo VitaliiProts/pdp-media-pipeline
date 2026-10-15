@@ -62,9 +62,9 @@ export function VersionList({ jobs }: { jobs: readonly AssetJob[] }) {
       </ul>
       {frames.length > 0 && (
         <section aria-labelledby={framesHeadingId}>
-          <h3 id={framesHeadingId} className={styles.subheading}>
+          <h2 id={framesHeadingId} className={styles.subheading}>
             {t('versions.frames')}
-          </h3>
+          </h2>
           <ul className={styles.frames}>
             {frames.map((frame) => (
               <li key={frame.url}>
