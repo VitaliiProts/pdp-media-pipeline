@@ -13,7 +13,7 @@ export {
   type VideoResult,
 } from './model/types';
 export { useLiveJobs } from './model/use-live-jobs';
-export { STATUS_LABEL_KEY } from './model/status-labels';
+export { STATUS_LABEL_KEY, STATUS_TONE } from './model/status-labels';
 export { RedriveButton } from './ui/RedriveButton';
 export { StatusFilter } from './ui/StatusFilter';
 export { TraceLink } from './ui/TraceLink';

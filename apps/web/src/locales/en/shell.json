@@ -3,6 +3,7 @@
   "skipToContent": "Skip to content",
   "loading": "Loading…",
   "close": "Close",
+  "retry": "Try again",
   "language": "Language",
   "nav": {
     "main": "Main",
@@ -38,12 +39,6 @@
   },
   "registerPage": {
     "title": "Create an account"
-  },
-  "library": {
-    "title": "Library",
-    "emptyTitle": "Your files will live here",
-    "emptyBody": "Every upload and its processed versions will be collected on this page. Until then, follow processing on the Jobs page.",
-    "toJobs": "Open jobs"
   },
   "asset": {
     "title": "File",

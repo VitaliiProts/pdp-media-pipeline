@@ -1,11 +1,13 @@
 import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import enAssets from '../locales/en/assets.json';
 import enAuth from '../locales/en/auth.json';
 import enJobs from '../locales/en/jobs.json';
 import enShell from '../locales/en/shell.json';
 import enUpload from '../locales/en/upload.json';
 import enWebhooks from '../locales/en/webhooks.json';
 import enWorkspace from '../locales/en/workspace.json';
+import ukAssets from '../locales/uk/assets.json';
 import ukAuth from '../locales/uk/auth.json';
 import ukJobs from '../locales/uk/jobs.json';
 import ukShell from '../locales/uk/shell.json';
@@ -15,6 +17,7 @@ import ukWorkspace from '../locales/uk/workspace.json';
 
 export const resources = {
   en: {
+    assets: enAssets,
     auth: enAuth,
     jobs: enJobs,
     shell: enShell,
@@ -23,6 +26,7 @@ export const resources = {
     workspace: enWorkspace,
   },
   uk: {
+    assets: ukAssets,
     auth: ukAuth,
     jobs: ukJobs,
     shell: ukShell,
@@ -46,7 +50,7 @@ export function initI18n(language = initialLanguage()) {
     resources,
     lng: language,
     fallbackLng: 'en',
-    ns: ['workspace', 'jobs', 'upload', 'webhooks', 'auth', 'shell'],
+    ns: ['workspace', 'jobs', 'upload', 'webhooks', 'auth', 'assets', 'shell'],
     defaultNS: 'workspace',
     interpolation: { escapeValue: false },
     initAsync: false,
