@@ -8,3 +8,4 @@ export {
 export { signedOut } from './model/signed-out';
 export { type AuthMethod, type Me } from './model/types';
 export { LoginForm } from './ui/LoginForm';
+export { RegisterForm } from './ui/RegisterForm';
