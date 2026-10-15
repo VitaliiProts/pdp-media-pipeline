@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Button } from '../../../shared/ui/button/Button';
 import { useRedriveJobMutation } from '../api/jobs-api';
 import styles from './RedriveButton.module.css';
 
@@ -8,21 +9,16 @@ type RedriveButtonProps = { jobId: string };
 export function RedriveButton({ jobId }: RedriveButtonProps) {
   const { t } = useTranslation('jobs');
   const [redrive, { isLoading, isError, error }] = useRedriveJobMutation();
-  const isBusy = isError && 'kind' in error && error.kind === 'retryLater';
+  const isRetryLater = isError && 'kind' in error && error.kind === 'retryLater';
 
   return (
     <div className={styles.root}>
-      <button
-        type="button"
-        className={styles.action}
-        disabled={isLoading}
-        onClick={() => void redrive(jobId)}
-      >
+      <Button variant="quiet" size="sm" isBusy={isLoading} onClick={() => void redrive(jobId)}>
         {isLoading ? t('redrive.pending') : t('redrive.action')}
-      </button>
+      </Button>
       {isError && (
         <p className={styles.problem} role="alert">
-          {isBusy ? t('redrive.busy') : t('redrive.failed')}
+          {isRetryLater ? t('redrive.busy') : t('redrive.failed')}
         </p>
       )}
     </div>

@@ -32,9 +32,10 @@
   overflow-wrap: anywhere;
 }
 
-.retry {
-  composes: primary from '../../../shared/ui/button.module.css';
-  margin-top: var(--space-3);
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 @media (max-width: 56rem) {

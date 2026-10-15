@@ -1,5 +1,8 @@
 import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { EmptyState } from '../../../shared/ui/state/EmptyState';
+import { ErrorState } from '../../../shared/ui/state/ErrorState';
+import { VisuallyHidden } from '../../../shared/ui/visually-hidden/VisuallyHidden';
 import { problemOf } from '../model/problem';
 import { type Delivery } from '../model/types';
 import { useLiveDeliveries } from '../model/use-live-deliveries';
@@ -22,16 +25,17 @@ export function DeliveryList({ endpointId, renderAction }: DeliveryListProps) {
   if (deliveries.isLoading) return <p className={styles.message}>{t('deliveries.loading')}</p>;
   if (!deliveries.data) {
     return (
-      <div className={styles.message}>
-        {problem && <ProblemText problem={problem} />}
-        <button type="button" className={styles.quiet} onClick={() => void deliveries.refetch()}>
-          {t('deliveries.retry')}
-        </button>
-      </div>
+      <ErrorState
+        headingLevel={3}
+        title={t('deliveries.errorTitle')}
+        retry={{ label: t('deliveries.retry'), onRetry: () => void deliveries.refetch() }}
+      >
+        {problem && <ProblemText problem={problem} isAlert={false} />}
+      </ErrorState>
     );
   }
   if (deliveries.data.items.length === 0) {
-    return <p className={styles.message}>{t('deliveries.empty')}</p>;
+    return <EmptyState headingLevel={3} title={t('deliveries.empty')} />;
   }
 
   return (
@@ -45,7 +49,7 @@ export function DeliveryList({ endpointId, renderAction }: DeliveryListProps) {
             <th scope="col">{t('deliveries.response')}</th>
             <th scope="col">{t('deliveries.updated')}</th>
             <th scope="col">
-              <span className={styles.visuallyHidden}>{t('deliveries.actions')}</span>
+              <VisuallyHidden>{t('deliveries.actions')}</VisuallyHidden>
             </th>
           </tr>
         </thead>
