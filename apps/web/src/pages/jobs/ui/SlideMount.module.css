@@ -1,6 +1,6 @@
 /*
  * A 35mm slide mount: thick card stock around a small window, notes written on
- * the bottom strip. The tone shows up only as the dot and the window edge.
+ * the bottom strip. The tone shows up only as the badge and the window edge.
  */
 .mount {
   --tone: var(--graphite);
@@ -70,25 +70,6 @@
   inset: auto var(--space-2) var(--space-2);
   width: calc(100% - 2 * var(--space-2));
   height: 6px;
-  appearance: none;
-  border: 0;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--mount) 60%, transparent);
-}
-
-.progress::-webkit-progress-bar {
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--mount) 60%, transparent);
-}
-
-.progress::-webkit-progress-value {
-  border-radius: 3px;
-  background: var(--ink);
-}
-
-.progress::-moz-progress-bar {
-  border-radius: 3px;
-  background: var(--ink);
 }
 
 .caption {
@@ -114,13 +95,6 @@
   margin: 0;
   color: var(--graphite);
   font-size: var(--text-sm);
-}
-
-.dot {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: var(--tone);
 }
 
 .attempts {
@@ -169,10 +143,8 @@
 }
 
 .dismiss {
-  composes: quiet from '../../../shared/ui/button.module.css';
   align-self: flex-start;
   margin-top: var(--space-1);
-  font-size: var(--text-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {

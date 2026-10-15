@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { type JobResult, type VideoFrame } from '../../../features/jobs';
 import { IMAGE_PRESETS, type ImagePreset, PRESET_LABEL_KEY } from '../../../features/upload';
 import { formatBytes } from '../../../shared/lib/format-bytes';
-import { type ItemDescription } from '../model/describe-item';
+import { Badge } from '../../../shared/ui/badge/Badge';
+import { Button } from '../../../shared/ui/button/Button';
+import { Progress } from '../../../shared/ui/progress/Progress';
+import { type Tone } from '../../../shared/ui/tone';
+import { type ItemDescription, type ItemTone } from '../model/describe-item';
 import { formatTimecode } from '../model/timecode';
 import { Countdown } from './Countdown';
 import styles from './SlideMount.module.css';
@@ -18,6 +22,13 @@ type SlideMountProps = {
   onDismiss?: () => void;
   /** Extra controls under the caption, e.g. a redrive button. */
   action?: ReactNode;
+};
+
+const BADGE_TONE: Record<ItemTone, Tone> = {
+  pending: 'neutral',
+  active: 'progress',
+  done: 'success',
+  failed: 'danger',
 };
 
 const isPreset = (value: string): value is ImagePreset =>
@@ -53,9 +64,11 @@ export function SlideMount({
           <div className={styles.blank} aria-hidden="true" />
         )}
         {progress !== null && (
-          <progress className={styles.progress} value={progress} max={1}>
-            {Math.round(progress * 100)}%
-          </progress>
+          <Progress
+            className={styles.progress}
+            label={t('progressLabel', { title })}
+            value={progress}
+          />
         )}
       </div>
 
@@ -64,8 +77,7 @@ export function SlideMount({
           {title}
         </h3>
         <p className={styles.status}>
-          <span className={styles.dot} aria-hidden="true" />
-          {t(label.key, { ns: label.ns })}
+          <Badge tone={BADGE_TONE[tone]}>{t(label.key, { ns: label.ns })}</Badge>
           {attempts > 1 && (
             <span className={styles.attempts}>{t('attempt', { count: attempts })}</span>
           )}
@@ -123,9 +135,9 @@ export function SlideMount({
         {action}
 
         {onDismiss && (
-          <button type="button" className={styles.dismiss} onClick={onDismiss}>
+          <Button variant="quiet" size="sm" className={styles.dismiss} onClick={onDismiss}>
             {t('dismiss')}
-          </button>
+          </Button>
         )}
       </div>
     </article>

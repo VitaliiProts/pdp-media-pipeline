@@ -2,10 +2,10 @@ import { type DeadReason, STATUS_LABEL_KEY, type JobStatus } from '../../../feat
 import { type UploadProblem, type WaitReason } from '../../../features/upload';
 import { type SheetItem } from './sheet-items';
 
-export type Tone = 'pending' | 'active' | 'done' | 'failed';
+export type ItemTone = 'pending' | 'active' | 'done' | 'failed';
 
 export type ItemDescription = {
-  tone: Tone;
+  tone: ItemTone;
   /** Key in the `jobs` or `workspace` namespace, see `ns`. */
   label: { ns: 'jobs' | 'workspace'; key: string };
   progress: number | null;
@@ -14,7 +14,7 @@ export type ItemDescription = {
   problem: { key: string; detail: string | null } | null;
 };
 
-const TONE_BY_STATUS: Record<JobStatus, Tone> = {
+const TONE_BY_STATUS: Record<JobStatus, ItemTone> = {
   queued: 'pending',
   scheduled: 'pending',
   running: 'active',

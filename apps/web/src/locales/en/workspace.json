@@ -7,9 +7,12 @@
   "sheet": {
     "title": "Jobs",
     "loading": "Loading jobs…",
-    "error": "Could not load jobs. Is the gateway running?",
+    "error": "Is the gateway running?",
+    "errorTitle": "Could not load jobs",
     "retry": "Try again",
-    "empty": "No jobs yet. Drop an image or a video above to start one.",
+    "empty": "No jobs yet",
+    "emptyBody": "Upload an image or a video to start one.",
+    "uploadFirst": "Upload a file",
     "emptyFiltered": "No jobs with this status.",
     "tooManyRequests_one": "Too many requests. Refreshing in {{count}} second.",
     "tooManyRequests_other": "Too many requests. Refreshing in {{count}} seconds."
@@ -48,5 +51,9 @@
     "label": "View",
     "jobs": "Jobs",
     "webhooks": "Webhooks"
+  },
+  "progressLabel": "Progress of {{title}}",
+  "announce": {
+    "finished": "{{title}} — {{status}}"
   }
 }

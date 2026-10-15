@@ -1,4 +1,3 @@
-import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RedriveButton, TraceLink } from '../../../features/jobs';
 import { describeItem } from '../model/describe-item';
@@ -47,15 +46,5 @@ export function ContactSheet({ items, onDismiss }: ContactSheetProps) {
         </li>
       ))}
     </ol>
-  );
-}
-
-type SheetMessageProps = { tone?: 'error'; children: ReactNode };
-
-export function SheetMessage({ tone, children }: SheetMessageProps) {
-  return (
-    <div className={styles.message} role={tone === 'error' ? 'alert' : 'status'} data-tone={tone}>
-      {children}
-    </div>
   );
 }
