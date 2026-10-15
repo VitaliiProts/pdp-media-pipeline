@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 import { useListAssetsInfiniteQuery } from '../../features/assets';
@@ -12,9 +12,10 @@ import { ErrorState } from '../../shared/ui/state/ErrorState';
 import { VisuallyHidden } from '../../shared/ui/visually-hidden/VisuallyHidden';
 import styles from './LibraryPage.module.css';
 import { useLibraryParams } from './lib/use-library-params';
+import { useNextPageA11y } from './lib/use-next-page-a11y';
 import { AssetTile } from './ui/AssetTile';
 import { LibraryFilters } from './ui/LibraryFilters';
-import { LoadMore, type LoadTrigger } from './ui/LoadMore';
+import { LoadMore } from './ui/LoadMore';
 
 const SKELETON_TILES = 8;
 
@@ -32,48 +33,14 @@ export function LibraryPage() {
   const items = useMemo(() => pages?.flatMap((page) => page.items) ?? [], [pages]);
   const linkState = useMemo(() => ({ librarySearch: search }), [search]);
 
-  const filtersKey = JSON.stringify([filters.kind, filters.status, filters.q]);
-  const pageCount = pages?.length ?? 0;
-  const lastPageStart = items.length - (pages?.at(-1)?.items.length ?? 0);
-  const [announced, setAnnounced] = useState({ filtersKey, pageCount, message: '' });
-  // Other filters start over, even when their pages come straight from the cache. Within the
-  // same filters a new page says how many files it added; polling refetches keep the count.
-  if (filtersKey !== announced.filtersKey || pageCount !== announced.pageCount) {
-    const isNextPage =
-      filtersKey === announced.filtersKey &&
-      announced.pageCount > 0 &&
-      pageCount > announced.pageCount;
-    const added = isNextPage ? (pages?.at(-1)?.items.length ?? 0) : 0;
-    setAnnounced({
-      filtersKey,
-      pageCount,
-      message: added > 0 ? t('library.more.added', { count: added }) : '',
-    });
-  }
-
   const gridRef = useRef<HTMLUListElement>(null);
-  /** Set by a press of the button: the first file of the page it asked for takes focus. */
-  const focusNextPage = useRef<{ filtersKey: string; pageCount: number } | null>(null);
-  const { fetchNextPage } = assets;
-  const loadMore = useCallback(
-    (trigger: LoadTrigger) => {
-      if (trigger === 'button') focusNextPage.current = { filtersKey, pageCount };
-      void fetchNextPage();
-    },
-    [fetchNextPage, filtersKey, pageCount],
-  );
-
-  useEffect(() => {
-    const pending = focusNextPage.current;
-    if (!pending) return;
-    if (pending.filtersKey !== filtersKey) {
-      focusNextPage.current = null;
-      return;
-    }
-    if (pageCount <= pending.pageCount) return;
-    focusNextPage.current = null;
-    gridRef.current?.children.item(lastPageStart)?.querySelector('a')?.focus();
-  }, [filtersKey, pageCount, lastPageStart]);
+  const { announcement, loadMore } = useNextPageA11y({
+    filtersKey: JSON.stringify([filters.kind, filters.status, filters.q]),
+    pages,
+    fetchNextPage: assets.fetchNextPage,
+    gridRef,
+    fallbackRef: searchRef,
+  });
 
   const content = (() => {
     if (!pages) {
@@ -140,7 +107,7 @@ export function LibraryPage() {
       <>
         <ul ref={gridRef} className={styles.grid}>
           {items.map((asset) => (
-            <li key={asset.id}>
+            <li key={asset.id} data-asset-id={asset.id}>
               <AssetTile asset={asset} linkState={linkState} />
             </li>
           ))}
@@ -162,8 +129,7 @@ export function LibraryPage() {
       <LibraryFilters filters={filters} onChange={setFilters} searchRef={searchRef} />
       {content}
       <VisuallyHidden aria-live="polite">
-        {/* A new node per page: the same text twice in a row would not be read again. */}
-        <span key={announced.pageCount}>{announced.message}</span>
+        <span key={announcement.key}>{announcement.message}</span>
       </VisuallyHidden>
     </div>
   );

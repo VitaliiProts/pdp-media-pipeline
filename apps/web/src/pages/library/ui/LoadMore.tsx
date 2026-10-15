@@ -1,13 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../../shared/ui/button/Button';
+import { type LoadTrigger } from '../lib/use-next-page-a11y';
 import styles from './LoadMore.module.css';
 
 /** Starts loading this far before the end of the grid scrolls into view. */
 const PRELOAD_MARGIN = '600px';
-
-/** What asked for the next page: a press moves focus on to it, scrolling does not. */
-export type LoadTrigger = 'button' | 'scroll';
 
 type LoadMoreProps = {
   isLoading: boolean;

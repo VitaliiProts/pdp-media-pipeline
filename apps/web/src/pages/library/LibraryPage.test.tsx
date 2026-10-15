@@ -172,6 +172,20 @@ describe('library pages', () => {
     await waitFor(() => expect(dunes).toHaveFocus());
   });
 
+  it('keeps focus on the page when the button brings no files', async () => {
+    twoPages(() => HttpResponse.json({ items: [], nextCursor: null }));
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('searchbox', { name: 'Search by name' })).toHaveFocus(),
+    );
+    expect(screen.queryByText(/^Added/)).not.toBeInTheDocument();
+  });
+
   it('loads the next page when the end of the grid scrolls into view', async () => {
     twoPages();
     const { user } = renderApp({ signedIn: true, route: '/library' });
