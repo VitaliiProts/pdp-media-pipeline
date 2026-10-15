@@ -9,40 +9,26 @@ export type AppError =
   | { kind: 'http'; status: number; message: string; code: string | null };
 
 interface HttpHooks {
-  getApiKey: () => string | null;
-  /** `sentKey` is the key the rejected request carried, which may no longer be the current one. */
-  onUnauthorized: (sentKey: string | null) => void;
+  /** `url` of the refused request; 401 from `/v1/auth/*` means a wrong password, not an ended session. */
+  onUnauthorized: (url: string) => void;
 }
 
-let hooks: HttpHooks = { getApiKey: () => null, onUnauthorized: () => undefined };
+let hooks: HttpHooks = { onUnauthorized: () => undefined };
 
 /** Wired once by the app layer, so `shared` never imports the store. */
 export function configureHttp(next: HttpHooks): void {
   hooks = next;
 }
 
-export const API_KEY_HEADER = 'x-api-key';
-
 export const http = axios.create({ baseURL: '/', timeout: 15_000 });
 
-http.interceptors.request.use((config) => {
-  const key = hooks.getApiKey();
-  if (key) config.headers.set(API_KEY_HEADER, key);
-  return config;
-});
-
 http.interceptors.response.use(undefined, (error: unknown) => {
-  if (isAxiosError(error) && error.response?.status === 401) {
-    const sentKey = error.config?.headers.get(API_KEY_HEADER);
-    hooks.onUnauthorized(typeof sentKey === 'string' ? sentKey : null);
-  }
+  if (isAxiosError(error) && error.response?.status === 401)
+    hooks.onUnauthorized(error.config?.url ?? '');
   throw error;
 });
 
-/**
- * Presigned URLs point straight at object storage on another origin. They must not
- * carry the API key, so they get their own instance without interceptors.
- */
+/** Presigned URLs point straight at object storage on another origin: no interceptors. */
 export const storageHttp = axios.create({ timeout: 120_000 });
 
 function messageOf(data: unknown): string | null {

@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { type Job } from '../../features/jobs';
-import { renderApp, TEST_API_KEY } from '../../test/render-app';
+import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 
 const job = (overrides: Partial<Job> = {}): Job => ({
@@ -55,7 +55,7 @@ describe('webhooks', () => {
         HttpResponse.json({ items: [], nextCursor: null }),
       ),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
+    const { user } = renderApp({ signedIn: true, route: '/webhooks' });
     expect(await screen.findByText(/No endpoints yet/)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/URL that receives/), ENDPOINT.url);
@@ -80,7 +80,7 @@ describe('webhooks', () => {
         ),
       ),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
+    const { user } = renderApp({ signedIn: true, route: '/webhooks' });
 
     await user.type(await screen.findByLabelText(/URL that receives/), 'http://10.0.0.1/hook');
     await user.click(screen.getByRole('button', { name: 'Add endpoint' }));
@@ -107,7 +107,7 @@ describe('webhooks', () => {
         });
       }),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
+    const { user } = renderApp({ signedIn: true, route: '/webhooks' });
 
     const row = (await screen.findByText('msg_abc')).closest('tr');
     if (!row) throw new Error('row not found');

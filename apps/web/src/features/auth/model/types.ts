@@ -8,3 +8,6 @@ export type Me = {
   createdAt: string;
   authMethod: AuthMethod;
 };
+
+export type Credentials = { email: string; password: string };
+export type Registration = Credentials & { name?: string };

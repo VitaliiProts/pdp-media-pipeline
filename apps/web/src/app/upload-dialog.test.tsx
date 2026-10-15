@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { delay, http, HttpResponse } from 'msw';
 import { type Job } from '../features/jobs';
-import { TEST_API_KEY } from '../test/fixtures';
+import { TEST_EMAIL, TEST_PASSWORD } from '../test/fixtures';
 import { renderApp } from '../test/render-app';
 import { server, STORAGE_ORIGIN } from '../test/server';
 
@@ -54,7 +54,7 @@ function uploadHandlers() {
 describe('upload dialog', () => {
   it('uploads from any page and points to the jobs', async () => {
     uploadHandlers();
-    const { user, router } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
+    const { user, router } = renderApp({ signedIn: true, route: '/webhooks' });
 
     await user.click(await screen.findByRole('button', { name: 'Upload' }));
     const dialog = screen.getByRole('dialog', { name: 'Upload files' });
@@ -73,7 +73,7 @@ describe('upload dialog', () => {
 
   it('offers an upload from the empty jobs page and keeps focus on the page', async () => {
     uploadHandlers();
-    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/jobs' });
+    const { user } = renderApp({ signedIn: true, route: '/jobs' });
     await user.click(await screen.findByRole('button', { name: 'Upload a file' }));
     const dialog = screen.getByRole('dialog', { name: 'Upload files' });
     expect(dialog).toHaveAttribute('open');
@@ -113,7 +113,7 @@ describe('upload dialog', () => {
         return HttpResponse.json({ jobId: JOB_ID }, { status: 202 });
       }),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
+    const { user } = renderApp({ signedIn: true, route: '/webhooks' });
     await user.click(await screen.findByRole('button', { name: 'Upload' }));
     await user.upload(screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }), [
       new File([new Uint8Array(64)], 'harbour.png', { type: 'image/png' }),
@@ -121,11 +121,12 @@ describe('upload dialog', () => {
     ]);
     expect(await screen.findByText('empty.png was not uploaded.')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Account: dev' }));
+    await user.click(screen.getByRole('button', { name: 'Account: dev@example.com' }));
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
-    await user.type(await screen.findByLabelText('API key'), TEST_API_KEY);
+    await user.type(await screen.findByLabelText('Email'), TEST_EMAIL);
+    await user.type(screen.getByLabelText('Password'), TEST_PASSWORD);
     releaseStorage();
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
     await user.click(await screen.findByRole('link', { name: 'Jobs' }));
 
     expect(await screen.findByText(/No jobs yet/)).toBeInTheDocument();
@@ -136,7 +137,7 @@ describe('upload dialog', () => {
 
   it('alerts about a file that could not be uploaded, away from the jobs page', async () => {
     server.use(http.get('/v1/webhooks', () => HttpResponse.json({ items: [] })));
-    const { user } = renderApp({ apiKey: TEST_API_KEY, route: '/webhooks' });
+    const { user } = renderApp({ signedIn: true, route: '/webhooks' });
     await user.click(await screen.findByRole('button', { name: 'Upload' }));
     await user.upload(
       screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),

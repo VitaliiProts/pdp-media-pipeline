@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { Navigate, useSearchParams } from 'react-router';
-import { ApiKeyForm } from '../../features/api-key';
-import { useGetMeQuery } from '../../features/session';
+import { Link, Navigate, useSearchParams } from 'react-router';
+import { LoginForm, useGetMeQuery } from '../../features/auth';
 import { isUnauthorized, retryAfterOf } from '../../shared/api/http';
 import { safeReturnTo } from '../../shared/lib/return-to';
 import { PageHeading } from '../../shared/ui/page-heading/PageHeading';
@@ -11,10 +10,13 @@ import styles from '../page.module.css';
 
 export function LoginPage() {
   const { t } = useTranslation('shell');
+  const { t: tAuth } = useTranslation('auth');
   const [params] = useSearchParams();
   const me = useGetMeQuery();
+  const next = params.get('next');
 
-  if (me.data) return <Navigate to={safeReturnTo(params.get('next'))} replace />;
+  // A session that ended mid-work leaves the last user in `data` until the next sign-in.
+  if (me.data && !me.isError) return <Navigate to={safeReturnTo(next)} replace />;
 
   // A 401 just means "not signed in yet"; anything else is worth saying, but the form stays.
   const checkFailed = me.isError && !isUnauthorized(me.error);
@@ -35,7 +37,13 @@ export function LoginPage() {
           </p>
         </ErrorState>
       )}
-      {me.isLoading ? <Skeleton height="12rem" radius="mount" /> : <ApiKeyForm />}
+      {me.isLoading ? <Skeleton height="16rem" radius="mount" /> : <LoginForm />}
+      <p className={styles.switch}>
+        {tAuth('login.noAccount')}{' '}
+        <Link to={next ? `/register?next=${encodeURIComponent(next)}` : '/register'}>
+          {tAuth('login.toRegister')}
+        </Link>
+      </p>
     </div>
   );
 }

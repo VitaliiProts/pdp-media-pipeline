@@ -5,13 +5,14 @@ import { initI18n } from '../app/i18n';
 import { Providers } from '../app/Providers';
 import { routes } from '../app/router';
 import { createStore } from '../app/store';
-import { API_KEY_STORAGE_KEY } from '../features/api-key';
+import { testSession } from './session';
 
-export { TEST_API_KEY } from './fixtures';
-
-export function renderApp({ apiKey, route = '/jobs' }: { apiKey?: string; route?: string } = {}) {
-  if (apiKey) window.localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
-  const store = createStore(window.localStorage);
+export function renderApp({
+  signedIn = false,
+  route = '/jobs',
+}: { signedIn?: boolean; route?: string } = {}) {
+  if (signedIn) testSession.signIn();
+  const store = createStore();
   const router = createMemoryRouter(routes, { initialEntries: [route] });
   const user = userEvent.setup();
   const view = render(

@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { type Job } from '../../features/jobs';
-import { renderApp, TEST_API_KEY } from '../../test/render-app';
+import { renderApp } from '../../test/render-app';
 import { server, STORAGE_ORIGIN } from '../../test/server';
 
 const job = (overrides: Partial<Job> = {}): Job => ({
@@ -58,7 +58,7 @@ describe('jobs sheet', () => {
         }),
       ]),
     );
-    renderApp({ apiKey: TEST_API_KEY });
+    renderApp({ signedIn: true });
 
     const done = (await screen.findByRole('heading', { name: 'Job aaaaaaaa' })).closest('article');
     if (!done) throw new Error('mount not found');
@@ -83,7 +83,7 @@ describe('jobs sheet', () => {
       http.get('/config.json', () => HttpResponse.json({ grafanaUrl: 'http://grafana.test/' })),
       listJobs([job({ id: 'cccccccc-0000-4000-8000-000000000003', traceId })]),
     );
-    renderApp({ apiKey: TEST_API_KEY });
+    renderApp({ signedIn: true });
 
     const mount = (await screen.findByRole('heading', { name: 'Job cccccccc' })).closest('article');
     if (!mount) throw new Error('mount not found');
@@ -96,7 +96,7 @@ describe('jobs sheet', () => {
 
   it('shows no trace link without Grafana', async () => {
     server.use(listJobs([job({ id: 'dddddddd-0000-4000-8000-000000000004' })]));
-    renderApp({ apiKey: TEST_API_KEY });
+    renderApp({ signedIn: true });
 
     const mount = (await screen.findByRole('heading', { name: 'Job dddddddd' })).closest('article');
     if (!mount) throw new Error('mount not found');
@@ -128,7 +128,7 @@ describe('jobs sheet', () => {
         return HttpResponse.json(job({ id, status: 'queued', attempts: 5 }), { status: 202 });
       }),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ signedIn: true });
 
     const mount = (await screen.findByRole('heading', { name: 'Job eeeeeeee' })).closest('article');
     if (!mount) throw new Error('mount not found');
@@ -151,7 +151,7 @@ describe('jobs sheet', () => {
         HttpResponse.json({ code: 'NOT_REDRIVABLE', message: 'not dead' }, { status: 409 }),
       ),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ signedIn: true });
 
     await user.click(await screen.findByRole('button', { name: 'Run again' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not send the job again.');
@@ -166,7 +166,7 @@ describe('jobs sheet', () => {
           : HttpResponse.json({ items: [], nextCursor: null }),
       ),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ signedIn: true });
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load jobs');
     await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -181,7 +181,7 @@ describe('jobs sheet', () => {
         return HttpResponse.json({ items: [], nextCursor: null });
       }),
     );
-    const { user, router } = renderApp({ apiKey: TEST_API_KEY });
+    const { user, router } = renderApp({ signedIn: true });
     await screen.findByText(/No jobs yet/);
 
     await user.click(screen.getByRole('button', { name: 'Gave up' }));
@@ -202,7 +202,7 @@ describe('jobs sheet', () => {
         }),
       ),
     );
-    renderApp({ apiKey: TEST_API_KEY });
+    renderApp({ signedIn: true });
     await screen.findByRole('heading', { name: 'Job abababab' });
     expect(
       await screen.findByText('Job abababab — Done', {}, { timeout: 3000 }),
@@ -243,7 +243,7 @@ describe('uploading', () => {
         return HttpResponse.json({ jobId }, { status: 201 });
       }),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ signedIn: true });
     await screen.findByText(/No jobs yet/);
     await openUpload(user);
 
@@ -267,7 +267,7 @@ describe('uploading', () => {
 
   it('rejects unusable files locally and lets the user remove them', async () => {
     server.use(listJobs([]));
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ signedIn: true });
     await screen.findByText(/No jobs yet/);
     await openUpload(user);
 
@@ -306,7 +306,7 @@ describe('video', () => {
         return HttpResponse.json({ jobId: VIDEO_JOB_ID }, { status: 201 });
       }),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ signedIn: true });
     await screen.findByText(/No jobs yet/);
     await openUpload(user);
 
@@ -346,7 +346,7 @@ describe('video', () => {
         }),
       ]),
     );
-    renderApp({ apiKey: TEST_API_KEY });
+    renderApp({ signedIn: true });
 
     const mount = (await screen.findByRole('heading', { name: 'Job 99999999' })).closest('article');
     if (!mount) throw new Error('mount not found');
@@ -381,7 +381,7 @@ describe('video', () => {
         return HttpResponse.json({ jobId: VIDEO_JOB_ID }, { status: 201 });
       }),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ signedIn: true });
     await screen.findByText(/No jobs yet/);
     await openUpload(user);
 
@@ -402,7 +402,7 @@ describe('video', () => {
         job({ id: VIDEO_JOB_ID, type: 'video.transcode', status: 'running', progress: 40 }),
       ]),
     );
-    renderApp({ apiKey: TEST_API_KEY });
+    renderApp({ signedIn: true });
     expect(await screen.findByRole('progressbar')).toHaveAttribute('value', '0.4');
   });
 
@@ -442,7 +442,7 @@ describe('video', () => {
         }),
       ]),
     );
-    renderApp({ apiKey: TEST_API_KEY });
+    renderApp({ signedIn: true });
     const results = await screen.findByRole('list', { name: 'Results' });
     expect(within(results).getByRole('link', { name: /720p/ })).toHaveAttribute(
       'href',
@@ -484,7 +484,7 @@ describe('when the gateway asks to come back later', () => {
           : HttpResponse.json({ jobId }, { status: 202 });
       }),
     );
-    const { user } = renderApp({ apiKey: TEST_API_KEY });
+    const { user } = renderApp({ signedIn: true });
     await screen.findByText(/No jobs yet/);
     await openUpload(user);
 
@@ -518,7 +518,7 @@ describe('when the gateway asks to come back later', () => {
           }),
       ),
     );
-    renderApp({ apiKey: TEST_API_KEY });
+    renderApp({ signedIn: true });
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Too many requests. Refreshing in 3 seconds.',
     );

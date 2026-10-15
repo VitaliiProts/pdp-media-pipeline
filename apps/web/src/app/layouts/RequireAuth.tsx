@@ -1,13 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
-import { useGetMeQuery } from '../../features/session';
+import { useGetMeQuery } from '../../features/auth';
 import { isUnauthorized, retryAfterOf } from '../../shared/api/http';
 import { loginPath } from '../../shared/lib/return-to';
 import { ErrorState } from '../../shared/ui/state/ErrorState';
 import styles from './AppLayout.module.css';
 import { RouteFallback } from './RouteFallback';
 
-/** The app shell is for signed-in users: a session cookie or an API key. */
+/** The app shell is for signed-in users. */
 export function RequireAuth() {
   const { t } = useTranslation('shell');
   const location = useLocation();

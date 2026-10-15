@@ -44,9 +44,7 @@
     "title": "Sign in"
   },
   "registerPage": {
-    "title": "Create an account",
-    "body": "Accounts with email and password are on their way. Until then, sign in with an API key.",
-    "toLogin": "Sign in with an API key"
+    "title": "Create an account"
   },
   "library": {
     "title": "Library",

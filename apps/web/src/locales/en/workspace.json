@@ -23,7 +23,7 @@
     "type": "This file type is not supported.",
     "size": "The file is larger than the limit.",
     "empty": "The file is empty.",
-    "unauthorized": "The API key was rejected.",
+    "unauthorized": "Your session has ended. Sign in again.",
     "network": "Network error, check the connection to the gateway.",
     "rejected": "The gateway refused the request.",
     "processing": "Last error",
