@@ -34,7 +34,7 @@ seed_users() {
       for (let n = 1; n <= $USERS; n++) {
         const id = String(n).padStart(2, '0');
         try {
-          await seedUser(process.env.DATABASE_URL, 'perf-' + id, 'pdp_perf_' + id + '_local');
+          await seedUser(process.env.DATABASE_URL, 'perf-' + id, { apiKey: 'pdp_perf_' + id + '_local' });
         } catch (err) {
           if (err.cause?.code !== '23505' && err.code !== '23505') throw err;
         }
