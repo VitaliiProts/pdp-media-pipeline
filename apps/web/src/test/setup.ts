@@ -1,7 +1,10 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { server } from './server';
 import { testSession } from './session';
+
+// The first test of a file loads its route chunks cold; under a loaded CPU that outlasts 1 s.
+configure({ asyncUtilTimeout: 3000 });
 
 // jsdom has no object URLs; previews only need a stable string.
 let objectUrlCount = 0;
@@ -35,4 +38,9 @@ afterEach(() => {
   window.localStorage.clear();
   window.history.replaceState(null, '', '/');
 });
-afterAll(() => server.close());
+afterAll(async () => {
+  // Redux batches notifications in an animation frame; one left over would run in a torn-down
+  // jsdom window and fail the run with an uncaught error.
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  server.close();
+});

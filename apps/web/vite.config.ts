@@ -14,6 +14,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // Room for `asyncUtilTimeout` (setup.ts) when the first test of a file loads its chunks cold.
+    testTimeout: 15_000,
     // Stylesheets stay out of jsdom; `?raw` imports still need their text.
     css: { include: [/\.css\?raw$/] },
   },
