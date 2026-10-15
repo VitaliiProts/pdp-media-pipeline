@@ -85,6 +85,39 @@ describe('upload dialog', () => {
     expect(uploadBodies).toEqual([{ contentType: 'image/png', size: 64, name: 'harbour.png' }]);
   });
 
+  it('refreshes the library as soon as the job is created, not on the next poll', async () => {
+    uploadHandlers();
+    let listRequests = 0;
+    let releaseJob: () => void = () => undefined;
+    const jobHeld = new Promise<void>((resolve) => {
+      releaseJob = resolve;
+    });
+    server.use(
+      http.get('/v1/assets', () => {
+        listRequests += 1;
+        return HttpResponse.json({ items: listRequests > 1 ? [ASSET] : [], nextCursor: null });
+      }),
+      http.post('/v1/jobs', async () => {
+        await jobHeld;
+        return HttpResponse.json({ jobId: JOB_ID }, { status: 202 });
+      }),
+    );
+    const { user } = renderApp({ signedIn: true, route: '/library' });
+    await waitFor(() => expect(listRequests).toBe(1));
+    await user.click(screen.getByRole('button', { name: 'Upload' }));
+    await user.upload(
+      screen.getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+      new File([new Uint8Array(64)], 'harbour.png', { type: 'image/png' }),
+    );
+    expect(await screen.findByText('harbour.png')).toBeInTheDocument();
+    expect(listRequests).toBe(1);
+
+    releaseJob();
+    // Well inside the library's 3 s poll: only the tag invalidation can ask this early.
+    await waitFor(() => expect(listRequests).toBe(2), { timeout: 1500 });
+    expect(await screen.findByRole('link', { name: /harbour\.png/ })).toBeInTheDocument();
+  });
+
   it('offers an upload from the empty jobs page and moves focus to the library', async () => {
     uploadHandlers();
     const { user } = renderApp({ signedIn: true, route: '/jobs' });

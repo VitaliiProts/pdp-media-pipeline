@@ -39,8 +39,9 @@ afterEach(() => {
   window.history.replaceState(null, '', '/');
 });
 afterAll(async () => {
-  // Redux batches notifications in an animation frame; one left over would run in a torn-down
-  // jsdom window and fail the run with an uncaught error.
+  // Redux batches notifications in an animation frame, with a 100 ms timer as a fallback. One
+  // still queued (a response that landed after the store was reset) would fire in a torn-down
+  // jsdom window and fail the run with an uncaught error; the frame flushes it first.
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   server.close();
 });
