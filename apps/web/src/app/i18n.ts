@@ -18,6 +18,7 @@ import ukShell from '../locales/uk/shell.json';
 import ukUpload from '../locales/uk/upload.json';
 import ukWebhooks from '../locales/uk/webhooks.json';
 import ukWorkspace from '../locales/uk/workspace.json';
+import { safeStorage } from '../shared/lib/safe-storage';
 
 export const resources = {
   en: {
@@ -47,7 +48,7 @@ export const resources = {
 const LANGUAGE_STORAGE_KEY = 'pdp.language';
 
 function initialLanguage(): string {
-  const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  const stored = safeStorage.get(LANGUAGE_STORAGE_KEY);
   if (stored && stored in resources) return stored;
   return navigator.language.toLowerCase().startsWith('en') ? 'en' : 'uk';
 }
@@ -74,7 +75,7 @@ export function initI18n(language = initialLanguage()) {
     initAsync: false,
   });
   instance.on('languageChanged', (lng) => {
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, lng);
+    safeStorage.set(LANGUAGE_STORAGE_KEY, lng);
     document.documentElement.lang = lng;
   });
   document.documentElement.lang = language;
