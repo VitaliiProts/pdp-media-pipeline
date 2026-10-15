@@ -36,7 +36,7 @@ const ACTIVE_STATUSES = ['queued', 'scheduled', 'running'] as const;
 export const JANITOR_BATCH = 100;
 
 const JOB_STATUSES_OF: Record<AssetStatus, JobStatus[]> = {
-  processing: ['queued', 'scheduled', 'running'],
+  processing: [...ACTIVE_STATUSES],
   ready: ['succeeded'],
   failed: ['failed', 'dead'],
 };

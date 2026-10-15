@@ -245,6 +245,67 @@ describe('media library', () => {
     expect(await idsWith('processing')).toEqual([video.assetId]);
   });
 
+  it('judges a file by its latest job, not an earlier one that succeeded', async () => {
+    const key = await newUser();
+    const { assetId, sourceKey, jobId: older } = await processedImage(key);
+    const newer = await resize(key, sourceKey);
+    await succeeded(key, newer);
+    await pool.query(`UPDATE jobs SET status = 'dead', dead_reason = 'permanent' WHERE id = $1`, [
+      newer,
+    ]);
+    await pool.query(
+      `UPDATE jobs SET created_at = CASE id
+         WHEN $1::uuid THEN now() - interval '2 minutes'
+         WHEN $2::uuid THEN now() - interval '1 minute' END
+       WHERE id IN ($1, $2)`,
+      [older, newer],
+    );
+
+    const idsWith = async (status: string) =>
+      (await api<{ items: Summary[] }>(key, `/v1/assets?status=${status}`)).body.items.map(
+        (a) => a.id,
+      );
+    expect(await idsWith('failed')).toEqual([assetId]);
+    expect(await idsWith('ready')).toEqual([]);
+  });
+
+  it('combines kind, status and name across pages', async () => {
+    const key = await newUser();
+    const matching: string[] = [];
+    matching.push((await processedImage(key, 'trip-1.png')).assetId);
+    // Differs in kind only: no video worker runs here, so the job is marked succeeded by hand.
+    const video = await upload(key, Buffer.from('a video in name only'), {
+      contentType: 'video/mp4',
+      name: 'trip-clip.mp4',
+    });
+    const videoJob = await createJob(key, { type: 'video.frames', sourceKey: video.sourceKey });
+    await pool.query(`UPDATE jobs SET status = 'succeeded' WHERE id = $1`, [videoJob]);
+    matching.push((await processedImage(key, 'trip-2.png')).assetId);
+    // Differs in status only.
+    const broken = await processedImage(key, 'trip-broken.png');
+    await pool.query(`UPDATE jobs SET status = 'dead', dead_reason = 'permanent' WHERE id = $1`, [
+      broken.jobId,
+    ]);
+    matching.push((await processedImage(key, 'trip-3.png')).assetId);
+    // Differs in name only.
+    await processedImage(key, 'harbour.png');
+
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const after: string = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
+      const page = await api<{ items: Summary[]; nextCursor: string | null }>(
+        key,
+        `/v1/assets?kind=image&status=ready&q=trip&limit=2${after}`,
+      );
+      expect(page.status).toBe(200);
+      expect(page.body.items.length).toBeLessThanOrEqual(2);
+      seen.push(...page.body.items.map((a) => a.id));
+      cursor = page.body.nextCursor;
+    } while (cursor);
+    expect(seen).toEqual(matching.reverse());
+  });
+
   it('finds files by part of the name, taking % and _ literally', async () => {
     const key = await newUser();
     await attached(key, 'Harbour at dawn.png');
@@ -260,10 +321,24 @@ describe('media library', () => {
     expect(await namesFor('nothing like it')).toEqual([]);
   });
 
+  it('takes a backslash in the search literally', async () => {
+    const key = await newUser();
+    await attached(key, 'a\\b.png');
+    await attached(key, 'ab.png');
+
+    const { body } = await api<{ items: Summary[] }>(
+      key,
+      `/v1/assets?q=${encodeURIComponent('\\')}`,
+    );
+    expect(body.items.map((a) => a.name)).toEqual(['a\\b.png']);
+  });
+
   it('rejects an unknown status and an overlong search', async () => {
     const key = await newUser();
     expect((await api(key, '/v1/assets?status=done')).status).toBe(400);
     expect((await api(key, `/v1/assets?q=${'x'.repeat(101)}`)).status).toBe(400);
+    const padded = encodeURIComponent(`  ${'x'.repeat(100)}  `);
+    expect((await api(key, `/v1/assets?q=${padded}`)).status).toBe(200);
   });
 
   it("keeps another user's files and jobs out of reach", async () => {

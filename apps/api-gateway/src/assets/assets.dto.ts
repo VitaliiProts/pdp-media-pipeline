@@ -10,7 +10,7 @@ import {
   UPLOAD_CONTENT_TYPES,
   type UploadContentType,
 } from '@pdp/contracts';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { JobResponseDto } from '../jobs/jobs.dto';
 
@@ -33,6 +33,7 @@ export class ListAssetsQueryDto {
     description: 'Part of the file name, case-insensitive.',
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(ASSET_SEARCH_MAX_LENGTH)
   q?: string;
