@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { type AssetSummary, isActiveJobStatus } from '../../../features/assets';
+import { type AssetJobStatus, type AssetSummary } from '../../../features/assets';
 import { STATUS_LABEL_KEY, STATUS_TONE } from '../../../features/jobs';
 import { formatBytes } from '../../../shared/lib/format-bytes';
 import { formatDuration } from '../../../shared/lib/format-duration';
@@ -10,8 +10,18 @@ import { Card } from '../../../shared/ui/card/Card';
 import { Progress } from '../../../shared/ui/progress/Progress';
 import styles from './AssetTile.module.css';
 
-const progressOf = (percent: number | null | undefined) =>
-  percent === null || percent === undefined ? undefined : percent / 100;
+/** Where each status puts the bar, in percent; a stage marker, not a share of the time. */
+const STAGE_PERCENT = { queued: 10, scheduled: 25, running: 40 } as const;
+
+const isActiveStatus = (status: AssetJobStatus): status is keyof typeof STAGE_PERCENT =>
+  status in STAGE_PERCENT;
+
+/** While running, the job's own percent fills the rest of the bar. */
+function stagePercent(status: keyof typeof STAGE_PERCENT, reported: number | null | undefined) {
+  const start = STAGE_PERCENT[status];
+  if (status !== 'running' || reported === null || reported === undefined) return start;
+  return Math.round(start + ((100 - start) * reported) / 100);
+}
 
 /** Sent along to the file page, so its breadcrumb returns to the same filters. */
 export type LibraryLinkState = { librarySearch: string };
@@ -56,12 +66,12 @@ export function AssetTile({ asset, linkState }: AssetTileProps) {
         </span>
       </Link>
       <span className={styles.meta}>
-        {job && isActiveJobStatus(job.status) && (
+        {job && isActiveStatus(job.status) && (
           <Progress
             className={styles.bar}
             label={t('tile.progress')}
-            // Empty while waiting, indeterminate until the job reports a percent.
-            value={job.status === 'running' ? progressOf(job.progress) : 0}
+            value={stagePercent(job.status, job.progress)}
+            max={100}
             aria-describedby={nameId}
           />
         )}
