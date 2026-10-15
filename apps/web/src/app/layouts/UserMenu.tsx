@@ -2,10 +2,10 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { signedOut, useGetMeQuery, useLogoutMutation } from '../../features/auth';
+import { LanguageSwitch } from '../../features/language';
 import { useAppDispatch } from '../../shared/lib/redux';
 import { Button } from '../../shared/ui/button/Button';
 import { useToast } from '../../shared/ui/toast/toast-context';
-import { LanguageSwitch } from './LanguageSwitch';
 import styles from './UserMenu.module.css';
 
 /**
