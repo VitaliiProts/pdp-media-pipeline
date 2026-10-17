@@ -83,6 +83,9 @@ const SYSTEM = [
   'limit. For every line give three natural spoken phrasings, each clearly shorter than the one',
   'before: the first is a faithful translation that fits, the last keeps only the core meaning.',
   'Never change who does what or the meaning. Keep tone and register.',
+  'Lines with the same `turn` are consecutive parts of one utterance split at the pauses of the',
+  'speaker: each part is spoken in its own time, so keep the content of each part in that part',
+  'as far as the target grammar allows, and let the parts read as one utterance.',
   'Write numbers, dates, times and units out the way they are spoken. Return every id once.',
 ].join(' ');
 

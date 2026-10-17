@@ -23,6 +23,7 @@ import {
   speechOf,
   tooLong,
 } from './lib/fit.mjs';
+import { toPhrases } from './lib/phrases.mjs';
 import { writeWav } from './lib/wav.mjs';
 import { fakeStt, fakeTranslator, fixtureTranslator } from './providers/fake.mjs';
 import { openAiChunkedStt, openAiDiarizedStt, openAiTranslator } from './providers/openai.mjs';
@@ -110,7 +111,10 @@ await step('extract', () => extractSpeechAudio(env.STT_SOURCE ?? INPUT, speechAu
 const transcript = await step('transcribe', () =>
   cached('transcript', () => stt.transcribe(speechAudio, { duration, workDir: OUT })),
 );
-const segments = transcript.segments;
+// WORDS=…/words.json (separate/align.py) times every phrase by its own words.
+const segments = env.WORDS
+  ? toPhrases(transcript.segments, JSON.parse(readFileSync(env.WORDS, 'utf8')))
+  : transcript.segments;
 if (segments.length === 0) throw new Error('no speech');
 
 const translation = await step('translate', () =>

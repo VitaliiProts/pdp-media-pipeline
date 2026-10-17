@@ -1,7 +1,12 @@
 /** German at speed 1.0 in Supertonic, measured by tts-bench.mjs on ordinary sentences. */
 export const CHARS_PER_SECOND = 14;
 export const MAX_SPEED = 1.4;
+/** A slightly slower voice is less audible than a phrase that ends before the actor stops. */
+const MIN_SPEED = 0.9;
 const MIN_GAP = 0.08;
+
+const speedFor = (natural, target) =>
+  Math.min(MAX_SPEED, Math.max(MIN_SPEED, natural / Math.max(0.1, target)));
 
 const slotOf = (segments, i, videoEnd) => (segments[i + 1]?.start ?? videoEnd) - segments[i].start;
 
@@ -21,10 +26,10 @@ const FULLNESS = Number(process.env.FULLNESS ?? 0.3);
  */
 export function chooseVariant(predicted, speech, slot) {
   const cost = (p, k) => {
-    const speed = Math.min(MAX_SPEED, Math.max(1, p / slot));
+    const speed = speedFor(p, speech);
     const overflow = p / MAX_SPEED - slot;
     const misfit = overflow > 0 ? 100 + 10 * overflow : 0;
-    const shape = Math.abs(p / speed - speech) + (speed - 1);
+    const shape = Math.abs(p / speed - speech) + Math.abs(speed - 1);
     return misfit + shape + 3 * Math.max(0, speed - COMFORT_SPEED) + FULLNESS * k;
   };
   return predicted.reduce((best, p, k) => (cost(p, k) < cost(predicted[best], best) ? k : best), 0);
@@ -39,16 +44,16 @@ export const tooLong = (segments, natural, videoEnd) =>
   segments.flatMap((_, i) => (natural[i] / MAX_SPEED > slotOf(segments, i, videoEnd) ? [i] : []));
 
 /**
- * Each phrase starts at its original time unless the previous one still speaks, takes the time
- * up to the next original start, and speeds up to MAX_SPEED to fit it; there is no slowing down.
- * Whatever still does not fit pushes the next phrase later.
+ * Each phrase starts at its original time unless the previous one still speaks and aims to end
+ * when the original ends, speeding up to MAX_SPEED or slowing down to MIN_SPEED for that.
+ * Whatever runs past the next original start pushes the next phrase later.
  */
 export function placePhrases(segments, natural, videoEnd) {
   let previousEnd = Number.NEGATIVE_INFINITY;
   return segments.map((segment, i) => {
     const place = Math.max(segment.start, previousEnd + MIN_GAP);
     const available = Math.max(0.1, (segments[i + 1]?.start ?? videoEnd) - place);
-    const speed = Math.min(MAX_SPEED, Math.max(1, natural[i] / available));
+    const speed = speedFor(natural[i], Math.min(available, segment.end - place));
     const length = natural[i] / speed;
     previousEnd = place + length;
     return {
