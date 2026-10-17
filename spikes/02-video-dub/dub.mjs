@@ -132,9 +132,27 @@ const translation = await step('translate', () =>
 if (translation.sourceLanguage === TARGET) throw new Error(`speech is already ${TARGET}`);
 const variantsOf = new Map(translation.segments.map((s) => [s.id, s.variants ?? [s.text]]));
 
-const voiceList = env.VOICES ? env.VOICES.split(',') : tts.voices;
+// GENDER=…/gender.json (separate/gender.py) picks male or female voices; VOICES overrides.
 const speakers = [...new Set(segments.map((s) => s.speaker))];
-const voiceOf = new Map(speakers.map((sp, i) => [sp, voiceList[i % voiceList.length]]));
+const genderOf = env.GENDER
+  ? JSON.parse(readFileSync(env.GENDER, 'utf8')).speakers
+  : Object.fromEntries(speakers.map((sp) => [sp, { gender: 'unknown' }]));
+const voiceOf = new Map();
+if (env.VOICES) {
+  const list = env.VOICES.split(',');
+  speakers.forEach((sp, i) => voiceOf.set(sp, list[i % list.length]));
+} else {
+  const pools = {
+    male: tts.voices.filter((v) => v.startsWith('M')),
+    female: tts.voices.filter((v) => v.startsWith('F')),
+    unknown: tts.voices,
+  };
+  const used = { male: 0, female: 0, unknown: 0 };
+  for (const sp of speakers) {
+    const gender = genderOf[sp]?.gender ?? 'unknown';
+    voiceOf.set(sp, pools[gender][used[gender]++ % pools[gender].length]);
+  }
+}
 
 const lines = segments.map((s) => ({
   ...s,
@@ -244,7 +262,7 @@ console.table(
 const late = placed.filter((p) => p.offset > 0.5);
 const report = {
   segments: placed.length,
-  speakers: Object.fromEntries(voiceOf),
+  speakers: Object.fromEntries([...voiceOf].map(([sp, voice]) => [sp, { voice, ...genderOf[sp] }])),
   spedUp: placed.filter((p) => p.speed > 1.01).length,
   needShorter: before.length,
   shortened: placed.filter((p) => p.shortened).length,
