@@ -23,6 +23,7 @@ import {
   type RedriveRequest,
   type TransitionRequest,
   type TransitionResponse,
+  VideoDubInputV1,
   VideoFramesInputV1,
   VideoTranscodeInputV1,
 } from '@pdp/contracts';
@@ -58,6 +59,7 @@ const INPUT_SCHEMAS: Partial<Record<JobType, z.ZodType>> = {
   'image.resize': ImageResizeInputV1,
   'video.frames': VideoFramesInputV1,
   'video.transcode': VideoTranscodeInputV1,
+  'video.dub': VideoDubInputV1,
 };
 
 const error = (code: MetadataErrorBody['code'], message: string): MetadataErrorBody => ({

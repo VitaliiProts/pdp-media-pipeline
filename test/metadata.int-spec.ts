@@ -164,6 +164,35 @@ describe('metadata (Postgres + NATS)', () => {
     expect(events.filter((e) => e.payload.jobId === job.id)).toHaveLength(1);
   });
 
+  it('stores a dub with the input its contract fills in', async () => {
+    const sourceKey = `uploads/${userId}/clip.mp4`;
+    await registerUpload(pool, sourceKey);
+    const { job } = await client.createJob({
+      userId,
+      type: 'video.dub',
+      input: { sourceKey, targetLanguage: 'uk' },
+    });
+    expect(job).toMatchObject({
+      type: 'video.dub',
+      status: 'queued',
+      input: { sourceKey, targetLanguage: 'uk', sourceLanguage: 'auto' },
+    });
+  });
+
+  it('rejects a dub into the language the video is already in', async () => {
+    await expect(
+      client.createJob({
+        userId,
+        type: 'video.dub',
+        input: { sourceKey: `uploads/${userId}/a.png`, targetLanguage: 'de', sourceLanguage: 'de' },
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: 'VALIDATION_FAILED',
+      message: expect.stringContaining('already in the dub language') as string,
+    });
+  });
+
   describe('Idempotency-Key', () => {
     const request = (key: string, presets: ['thumb'] | ['medium'] = ['thumb']) => ({
       userId,

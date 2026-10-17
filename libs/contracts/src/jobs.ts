@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-export const MEDIA_JOB_TYPES = ['image.resize', 'video.frames', 'video.transcode'] as const;
+export const MEDIA_JOB_TYPES = [
+  'image.resize',
+  'video.frames',
+  'video.transcode',
+  'video.dub',
+] as const;
 export const JOB_TYPES = [...MEDIA_JOB_TYPES, 'webhook.deliver'] as const;
 export const JobTypeSchema = z.enum(JOB_TYPES);
 export type JobType = z.infer<typeof JobTypeSchema>;
