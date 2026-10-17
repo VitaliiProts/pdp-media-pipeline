@@ -2,3 +2,4 @@ assets/
 out/
 input/
 .env
+__pycache__/
