@@ -41,6 +41,7 @@ const TARGET = env.TARGET ?? 'de';
 const ORIGINAL_TAG = { en: 'eng', de: 'deu', uk: 'ukr', fr: 'fra', es: 'spa' };
 const BACKGROUND = env.BACKGROUND ?? 'separated';
 const SEPARATED = env.SEPARATED ?? 'out/sep/htdemucs/orig/no_vocals.wav';
+// STT_SOURCE=out/sep/htdemucs/orig/vocals.wav recognises the separated voice instead of the mix.
 const OUT = env.OUT ?? `out/dub-${env.STT ?? 'fake'}-${env.TRANSLATOR ?? 'fake'}-${BACKGROUND}`;
 const KEY = env.OPENAI_API_KEY;
 mkdirSync(OUT, { recursive: true });
@@ -67,10 +68,17 @@ function pick(kind, value) {
   };
   if (kind === 'STT') {
     if (value === 'diarize') return openAiDiarizedStt({ key: needKey() });
-    if (value === 'chunked') return openAiChunkedStt({ key: needKey() });
+    if (value === 'chunked') {
+      const silence = {
+        ...(env.NOISE_DB && { noiseDb: Number(env.NOISE_DB) }),
+        ...(env.MIN_SILENCE && { minSilence: Number(env.MIN_SILENCE) }),
+      };
+      return openAiChunkedStt({ key: needKey(), silence });
+    }
     return fakeStt({ srt: 'input/TOS-en.srt', offset: 15, duration: 60, speakers: TOS_SPEAKERS });
   }
-  if (value === 'openai') return openAiTranslator({ key: needKey(), model: env.MODEL });
+  if (value === 'openai')
+    return openAiTranslator({ key: needKey(), model: env.MODEL, reasoning: env.REASONING });
   if (value === 'fixture') return fixtureTranslator({ path: 'fixtures/tos-de-variants.json' });
   return fakeTranslator({ srt: 'input/TOS-de.srt' });
 }
@@ -97,7 +105,7 @@ const tts = await step('load tts', () => createSupertonic({ threads: Number(env.
 
 const duration = await probeDuration(INPUT);
 const speechAudio = join(OUT, 'audio-stt.flac');
-await step('extract', () => extractSpeechAudio(INPUT, speechAudio));
+await step('extract', () => extractSpeechAudio(env.STT_SOURCE ?? INPUT, speechAudio));
 
 const transcript = await step('transcribe', () =>
   cached('transcript', () => stt.transcribe(speechAudio, { duration, workDir: OUT })),
@@ -160,9 +168,11 @@ await step('shorten', async () => {
   for (const i of before) {
     const text = shorter[lines[i].id];
     if (!text) continue;
+    const predicted = await tts.predict(text, TARGET, lines[i].voice);
+    if (predicted >= natural[i]) continue;
     lines[i].translated = text;
     lines[i].shortened = true;
-    natural[i] = await tts.predict(text, TARGET, lines[i].voice);
+    natural[i] = predicted;
   }
 });
 

@@ -54,11 +54,11 @@ export function openAiDiarizedStt({ key }) {
 }
 
 /** No timestamps from the model: the speech intervals between pauses become the segments. */
-export function openAiChunkedStt({ key }) {
+export function openAiChunkedStt({ key, silence = {} }) {
   return {
     name: 'gpt-4o-transcribe + silencedetect',
     async transcribe(audioPath, { duration, workDir }) {
-      const intervals = await speechIntervals(audioPath, duration);
+      const intervals = await speechIntervals(audioPath, duration, silence);
       const segments = [];
       for (const [i, interval] of intervals.entries()) {
         const chunk = join(workDir, `chunk-${i}.flac`);
@@ -80,9 +80,16 @@ export function openAiChunkedStt({ key }) {
 const SYSTEM = [
   'You translate speech for dubbing. Each line will be spoken by a synthetic voice in the',
   '`seconds` the original speaker took, so its spoken length should match: `maxChars` is a rough',
-  'limit. For every line give three natural spoken phrasings from the fullest to the shortest;',
-  'the first should already fit, the last keeps only the core meaning. Keep tone and register.',
+  'limit. For every line give three natural spoken phrasings, each clearly shorter than the one',
+  'before: the first is a faithful translation that fits, the last keeps only the core meaning.',
+  'Never change who does what or the meaning. Keep tone and register.',
   'Write numbers, dates, times and units out the way they are spoken. Return every id once.',
+].join(' ');
+
+const SHORTEN_SYSTEM = [
+  'You shorten one dubbing line that is too long to be spoken in its time slot.',
+  'Return a single natural spoken phrasing in the target language within maxChars, keeping the',
+  'core meaning of the original; drop filler first. One phrasing only, no lists or numbering.',
 ].join(' ');
 
 function jsonSchema(name, schema) {
@@ -121,16 +128,22 @@ const SHORTER_SCHEMA = jsonSchema('dub_shorter', {
   properties: { text: { type: 'string' } },
 });
 
-export function openAiTranslator({ key, model = 'gpt-5-mini' }) {
-  const usage = { input: 0, output: 0 };
+export function openAiTranslator({ key, model = 'gpt-5-mini', reasoning }) {
+  const usage = { input: 0, output: 0, reasoning: 0 };
   async function complete(messages, responseFormat) {
     const body = await request(key, '/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, messages, response_format: responseFormat }),
+      body: JSON.stringify({
+        model,
+        messages,
+        response_format: responseFormat,
+        ...(reasoning && { reasoning_effort: reasoning }),
+      }),
     });
     usage.input += body.usage?.prompt_tokens ?? 0;
     usage.output += body.usage?.completion_tokens ?? 0;
+    usage.reasoning += body.usage?.completion_tokens_details?.reasoning_tokens ?? 0;
     return JSON.parse(body.choices[0].message.content);
   }
 
@@ -165,7 +178,7 @@ export function openAiTranslator({ key, model = 'gpt-5-mini' }) {
     async shorten({ text, translated, maxChars }, target) {
       const result = await complete(
         [
-          { role: 'system', content: SYSTEM },
+          { role: 'system', content: SHORTEN_SYSTEM },
           {
             role: 'user',
             content: JSON.stringify({
