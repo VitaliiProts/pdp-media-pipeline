@@ -1,15 +1,30 @@
 // The whole dub of one short video, step by step, with timings and a fit report.
 //
-//   STT=fake|diarize|chunked  TRANSLATOR=fake|openai  node dub.mjs
+//   STT=fake|diarize|chunked  TRANSLATOR=fake|fixture|openai  BACKGROUND=separated|ducked
+//   node dub.mjs
 //
 // Paid steps are cached in OUT as JSON, like the processor's checkpoints; FRESH=1 ignores them.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { extractSpeechAudio, mixDub, muxDub, probeDuration } from './lib/ffmpeg.mjs';
-import { charBudget, MAX_SPEED, placePhrases, tooLong } from './lib/fit.mjs';
+import {
+  extractSpeechAudio,
+  mixDub,
+  mixOverBackground,
+  muxDub,
+  probeDuration,
+} from './lib/ffmpeg.mjs';
+import {
+  charBudget,
+  chooseVariant,
+  MAX_SPEED,
+  placePhrases,
+  slotOf,
+  speechOf,
+  tooLong,
+} from './lib/fit.mjs';
 import { writeWav } from './lib/wav.mjs';
-import { fakeStt, fakeTranslator } from './providers/fake.mjs';
+import { fakeStt, fakeTranslator, fixtureTranslator } from './providers/fake.mjs';
 import { openAiChunkedStt, openAiDiarizedStt, openAiTranslator } from './providers/openai.mjs';
 import { createSupertonic } from './providers/supertonic.mjs';
 
@@ -24,7 +39,9 @@ const env = process.env;
 const INPUT = env.INPUT ?? 'input/tos-1min.mp4';
 const TARGET = env.TARGET ?? 'de';
 const ORIGINAL_TAG = { en: 'eng', de: 'deu', uk: 'ukr', fr: 'fra', es: 'spa' };
-const OUT = env.OUT ?? `out/dub-${env.STT ?? 'fake'}-${env.TRANSLATOR ?? 'fake'}`;
+const BACKGROUND = env.BACKGROUND ?? 'separated';
+const SEPARATED = env.SEPARATED ?? 'out/sep/htdemucs/orig/no_vocals.wav';
+const OUT = env.OUT ?? `out/dub-${env.STT ?? 'fake'}-${env.TRANSLATOR ?? 'fake'}-${BACKGROUND}`;
 const KEY = env.OPENAI_API_KEY;
 mkdirSync(OUT, { recursive: true });
 
@@ -54,6 +71,7 @@ function pick(kind, value) {
     return fakeStt({ srt: 'input/TOS-en.srt', offset: 15, duration: 60, speakers: TOS_SPEAKERS });
   }
   if (value === 'openai') return openAiTranslator({ key: needKey(), model: env.MODEL });
+  if (value === 'fixture') return fixtureTranslator({ path: 'fixtures/tos-de-variants.json' });
   return fakeTranslator({ srt: 'input/TOS-de.srt' });
 }
 
@@ -90,13 +108,17 @@ if (segments.length === 0) throw new Error('no speech');
 const translation = await step('translate', () =>
   cached('translation', () =>
     translator.translate(
-      segments.map((s, i) => ({ ...s, maxChars: charBudget(segments, i, duration) })),
+      segments.map((s, i) => ({
+        ...s,
+        seconds: Math.round(speechOf(segments, i, duration) * 10) / 10,
+        maxChars: charBudget(segments, i, duration),
+      })),
       TARGET,
     ),
   ),
 );
 if (translation.sourceLanguage === TARGET) throw new Error(`speech is already ${TARGET}`);
-const german = new Map(translation.segments.map((s) => [s.id, s.text]));
+const variantsOf = new Map(translation.segments.map((s) => [s.id, s.variants ?? [s.text]]));
 
 const voiceList = env.VOICES ? env.VOICES.split(',') : tts.voices;
 const speakers = [...new Set(segments.map((s) => s.speaker))];
@@ -105,12 +127,25 @@ const voiceOf = new Map(speakers.map((sp, i) => [sp, voiceList[i % voiceList.len
 const lines = segments.map((s) => ({
   ...s,
   voice: voiceOf.get(s.speaker),
-  translated: german.get(s.id),
+  variants: variantsOf.get(s.id),
   shortened: false,
 }));
 
-const natural = await step('predict', () =>
-  Promise.all(lines.map((l) => tts.predict(l.translated, TARGET, l.voice))),
+const natural = await step('choose', () =>
+  Promise.all(
+    lines.map(async (line, i) => {
+      const predicted = await Promise.all(
+        line.variants.map((v) => tts.predict(v, TARGET, line.voice)),
+      );
+      line.variant = chooseVariant(
+        predicted,
+        speechOf(lines, i, duration),
+        slotOf(lines, i, duration),
+      );
+      line.translated = line.variants[line.variant];
+      return predicted[line.variant];
+    }),
+  ),
 );
 const before = tooLong(lines, natural, duration);
 await step('shorten', async () => {
@@ -147,7 +182,11 @@ writeWav(voiceWav, voiceTrack, tts.sampleRate);
 
 const dubAudio = join(OUT, 'dub.m4a');
 const output = join(OUT, `dubbed.${TARGET}.mp4`);
-await step('mix', () => mixDub(INPUT, voiceWav, dubAudio));
+await step('mix', () =>
+  BACKGROUND === 'ducked'
+    ? mixDub(INPUT, voiceWav, dubAudio)
+    : mixOverBackground(SEPARATED, voiceWav, dubAudio),
+);
 await step('mux', () =>
   muxDub(INPUT, dubAudio, output, {
     target: ORIGINAL_TAG[TARGET] ?? TARGET,
@@ -176,7 +215,9 @@ console.table(
     id: p.id,
     voice: `${p.speaker}:${p.voice}`,
     start: r2(p.start),
-    slot: r2((placed[i + 1]?.start ?? duration) - p.start),
+    speech: r2(speechOf(placed, i, duration)),
+    slot: r2(slotOf(placed, i, duration)),
+    variant: `${p.variant + 1}/${p.variants.length}`,
     chars: p.translated.length,
     natural: r2(p.natural),
     speed: r2(p.speed),

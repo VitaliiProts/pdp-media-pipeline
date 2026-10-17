@@ -1,0 +1,76 @@
+{
+  "note": "Hand-written German, three variants per line from full to shortest, in the style the LLM is asked for; written without measuring durations.",
+  "sourceLanguage": "en",
+  "segments": [
+    { "id": "1", "variants": ["Du bist ein Idiot, Thom.", "Du Blödmann, Thom.", "Blödmann!"] },
+    {
+      "id": "2",
+      "variants": [
+        "Hör zu, Celia, wir müssen unseren Leidenschaften folgen;",
+        "Celia, wir müssen unseren Träumen folgen;",
+        "Wir folgen unseren Träumen;"
+      ]
+    },
+    {
+      "id": "3",
+      "variants": [
+        "du hast deine Robotik, und ich will einfach im Weltall großartig sein.",
+        "du hast deine Roboter, ich will ins All.",
+        "du deine Roboter, ich das All."
+      ]
+    },
+    {
+      "id": "4",
+      "variants": [
+        "Gib doch einfach zu, dass dir meine Roboterhand Angst macht.",
+        "Gib zu, meine Roboterhand macht dir Angst.",
+        "Meine Roboterhand macht dir Angst!"
+      ]
+    },
+    {
+      "id": "5",
+      "variants": [
+        "Sie macht mir keine Angst, es ist nur...",
+        "Ich hab keine Angst, es ist...",
+        "Keine Angst, es..."
+      ]
+    },
+    { "id": "6", "variants": ["...na gut! Schön!", "...gut! Schön!", "Gut!"] },
+    {
+      "id": "7",
+      "variants": [
+        "Ich hab Angst! Ich habe Albträume, in denen ich verfolgt werde...",
+        "Ja, Angst! Ich träume, dass man mich jagt...",
+        "Ja! Ich träume, man jagt mich..."
+      ]
+    },
+    {
+      "id": "8",
+      "variants": [
+        "...von riesigen Roboter-Todesklauen...",
+        "...von Roboterklauen des Todes...",
+        "...von Todesklauen..."
+      ]
+    },
+    {
+      "id": "9",
+      "variants": [
+        "Wie auch immer, Thom. Es ist aus zwischen uns.",
+        "Egal, Thom. Es ist aus.",
+        "Egal. Schluss."
+      ]
+    },
+    {
+      "id": "10",
+      "variants": [
+        "Speicher des Roboters synchronisiert und gesperrt!",
+        "Roboterspeicher synchronisiert und gesperrt!",
+        "Speicher synchronisiert!"
+      ]
+    },
+    {
+      "id": "11",
+      "variants": ["Das ist ziemlich unheimlich.", "Ganz schön unheimlich.", "Unheimlich."]
+    }
+  ]
+}

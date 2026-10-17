@@ -78,10 +78,11 @@ export function openAiChunkedStt({ key }) {
 }
 
 const SYSTEM = [
-  'You translate speech for dubbing. Each line will be spoken by a synthetic voice in the time',
-  'the original speaker took, so keep every line within its character limit: prefer a shorter,',
-  'natural spoken phrasing over a literal one. Keep the meaning, tone and register. Write',
-  'numbers, dates, times and units out the way they are spoken. Return every id exactly once.',
+  'You translate speech for dubbing. Each line will be spoken by a synthetic voice in the',
+  '`seconds` the original speaker took, so its spoken length should match: `maxChars` is a rough',
+  'limit. For every line give three natural spoken phrasings from the fullest to the shortest;',
+  'the first should already fit, the last keeps only the core meaning. Keep tone and register.',
+  'Write numbers, dates, times and units out the way they are spoken. Return every id once.',
 ].join(' ');
 
 function jsonSchema(name, schema) {
@@ -99,8 +100,15 @@ const TRANSLATION_SCHEMA = jsonSchema('dub_translation', {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['id', 'text'],
-        properties: { id: { type: 'string' }, text: { type: 'string' } },
+        required: ['id', 'variants'],
+        properties: {
+          id: { type: 'string' },
+          variants: {
+            type: 'array',
+            description: 'Three phrasings from the fullest to the shortest',
+            items: { type: 'string' },
+          },
+        },
       },
     },
   },
@@ -137,7 +145,12 @@ export function openAiTranslator({ key, model = 'gpt-5-mini' }) {
             role: 'user',
             content: JSON.stringify({
               targetLanguage: target,
-              segments: segments.map(({ id, text, maxChars }) => ({ id, text, maxChars })),
+              segments: segments.map(({ id, text, seconds, maxChars }) => ({
+                id,
+                text,
+                seconds,
+                maxChars,
+              })),
             }),
           },
         ],

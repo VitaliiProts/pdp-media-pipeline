@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { clipCues, readSrt } from '../lib/srt.mjs';
 
 /**
@@ -31,7 +32,26 @@ export function fakeTranslator({ srt }) {
     async translate(segments) {
       return {
         sourceLanguage: 'en',
-        segments: segments.map((s) => ({ id: s.id, text: german.get(s.id) ?? s.text })),
+        segments: segments.map((s) => ({ id: s.id, variants: [german.get(s.id) ?? s.text] })),
+        usage: null,
+      };
+    },
+    async shorten() {
+      return null;
+    },
+  };
+}
+
+/** Hand-written variants from full to shortest, standing in for the LLM until there is a key. */
+export function fixtureTranslator({ path }) {
+  const fixture = JSON.parse(readFileSync(path, 'utf8'));
+  const byId = new Map(fixture.segments.map((s) => [s.id, s.variants]));
+  return {
+    name: 'fixture (hand-written variants)',
+    async translate(segments) {
+      return {
+        sourceLanguage: fixture.sourceLanguage,
+        segments: segments.map((s) => ({ id: s.id, variants: byId.get(s.id) ?? [s.text] })),
         usage: null,
       };
     },

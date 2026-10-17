@@ -87,6 +87,28 @@ export const mixDub = (source, voiceWav, out) =>
     out,
   ]);
 
+/** A real dub: the voice over music and effects with the original voice taken out. */
+export const mixOverBackground = (background, voiceWav, out) =>
+  ffmpeg([
+    '-i',
+    background,
+    '-i',
+    voiceWav,
+    '-filter_complex',
+    [
+      '[0:a]aformat=sample_rates=48000:channel_layouts=stereo[bg]',
+      '[1:a]aformat=sample_rates=48000:channel_layouts=stereo[voice]',
+      '[bg][voice]amix=inputs=2:normalize=0:duration=first[dub]',
+    ].join(';'),
+    '-map',
+    '[dub]',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '160k',
+    out,
+  ]);
+
 /** Video copied as is; dubbed track first and default, original second. */
 export const muxDub = (source, dubAudio, out, { target, original }) =>
   ffmpeg([
