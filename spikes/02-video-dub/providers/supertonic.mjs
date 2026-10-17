@@ -29,7 +29,7 @@ export async function createSupertonic({ assets = 'assets', threads = 2, steps =
   return {
     name: 'supertonic-3-local',
     sampleRate: tts.sampleRate,
-    voices: ['M1', 'F1', 'M2', 'F2'],
+    voices: ['M1', 'F1', 'M2', 'F2', 'M3', 'F3', 'M4', 'F4', 'M5', 'F5'],
 
     async predict(text, language, voice) {
       const { textIds, textMask } = tts.textProcessor.call([text], [language]);
