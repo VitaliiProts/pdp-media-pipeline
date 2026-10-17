@@ -6,3 +6,6 @@ deploy/helm/**/templates
 apps/*/drizzle
 coverage-int
 .superpowers
+spikes/**/vendor
+spikes/**/assets
+spikes/**/out
