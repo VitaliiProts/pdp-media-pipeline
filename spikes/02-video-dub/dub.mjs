@@ -14,15 +14,7 @@ import {
   muxDub,
   probeDuration,
 } from './lib/ffmpeg.mjs';
-import {
-  charBudget,
-  chooseVariant,
-  MAX_SPEED,
-  placePhrases,
-  slotOf,
-  speechOf,
-  tooLong,
-} from './lib/fit.mjs';
+import { charBudget, chooseVariant, fitError, placePhrases, slotOf, speechOf } from './lib/fit.mjs';
 import { toPhrases } from './lib/phrases.mjs';
 import { writeWav } from './lib/wav.mjs';
 import { fakeStt, fakeTranslator, fixtureTranslator } from './providers/fake.mjs';
@@ -117,11 +109,36 @@ const segments = env.WORDS
   : transcript.segments;
 if (segments.length === 0) throw new Error('no speech');
 
+// GENDER=…/gender.json (separate/gender.py) picks male or female voices and grammatical gender.
+const speakers = [...new Set(segments.map((s) => s.speaker))];
+const genderOf = env.GENDER
+  ? JSON.parse(readFileSync(env.GENDER, 'utf8')).speakers
+  : Object.fromEntries(speakers.map((sp) => [sp, { gender: 'unknown' }]));
+
+/** Whom a line most likely addresses: the nearest turn of another speaker, earlier first. */
+function listenerOf(i) {
+  for (let d = 1; d < segments.length; d++) {
+    for (const j of [i - d, i + d]) {
+      if (segments[j] && segments[j].speaker !== segments[i].speaker) return segments[j].speaker;
+    }
+  }
+  return null;
+}
+const gendersOf = (i) => ({
+  speakerGender: genderOf[segments[i].speaker]?.gender ?? 'unknown',
+  listenerGender: genderOf[listenerOf(i)]?.gender ?? 'unknown',
+});
+
+/** The synthesiser reads every character: control characters from the model would be noise. */
+// eslint-disable-next-line no-control-regex
+const spoken = (text) => text.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+
 const translation = await step('translate', () =>
   cached('translation', () =>
     translator.translate(
       segments.map((s, i) => ({
         ...s,
+        ...gendersOf(i),
         seconds: Math.round(speechOf(segments, i, duration) * 10) / 10,
         maxChars: charBudget(segments, i, duration),
       })),
@@ -130,13 +147,10 @@ const translation = await step('translate', () =>
   ),
 );
 if (translation.sourceLanguage === TARGET) throw new Error(`speech is already ${TARGET}`);
-const variantsOf = new Map(translation.segments.map((s) => [s.id, s.variants ?? [s.text]]));
+const variantsOf = new Map(
+  translation.segments.map((s) => [s.id, (s.variants ?? [s.text]).map(spoken)]),
+);
 
-// GENDER=…/gender.json (separate/gender.py) picks male or female voices; VOICES overrides.
-const speakers = [...new Set(segments.map((s) => s.speaker))];
-const genderOf = env.GENDER
-  ? JSON.parse(readFileSync(env.GENDER, 'utf8')).speakers
-  : Object.fromEntries(speakers.map((sp) => [sp, { gender: 'unknown' }]));
 const voiceOf = new Map();
 if (env.VOICES) {
   const list = env.VOICES.split(',');
@@ -154,12 +168,17 @@ if (env.VOICES) {
   }
 }
 
-const lines = segments.map((s) => ({
+const lines = segments.map((s, i) => ({
   ...s,
   voice: voiceOf.get(s.speaker),
+  ...gendersOf(i),
   variants: variantsOf.get(s.id),
-  shortened: false,
+  refitted: false,
 }));
+
+/** Ask for a phrasing of the right length when the best one still misses by more than this. */
+const REFIT_ABOVE = 0.5;
+const wordCount = (text) => text.split(/\s+/).filter(Boolean).length;
 
 const natural = await step('choose', () =>
   Promise.all(
@@ -173,28 +192,41 @@ const natural = await step('choose', () =>
         slotOf(lines, i, duration),
       );
       line.translated = line.variants[line.variant];
+      line.wordsPerSecond = wordCount(line.variants[0]) / predicted[0];
       return predicted[line.variant];
     }),
   ),
 );
-const before = tooLong(lines, natural, duration);
-await step('shorten', async () => {
-  const shorter = await cached('shorter', async () => {
-    const result = {};
-    for (const i of before) {
-      const maxChars = charBudget(lines, i, duration, MAX_SPEED * 0.95);
-      result[lines[i].id] = await translator.shorten({ ...lines[i], maxChars }, TARGET);
-    }
-    return result;
+const errorOf = (i, p) => fitError(p, speechOf(lines, i, duration), slotOf(lines, i, duration));
+const misfits = lines.flatMap((_, i) => (errorOf(i, natural[i]) > REFIT_ABOVE ? [i] : []));
+const sameTurn = (i, j) => lines[j]?.turn !== undefined && lines[j].turn === lines[i].turn;
+await step('refit', async () => {
+  const refits = await cached('refit', async () => {
+    const results = await Promise.all(
+      misfits.map((i) => {
+        const target = Math.min(speechOf(lines, i, duration), slotOf(lines, i, duration) * 1.15);
+        return translator.refit(
+          {
+            ...lines[i],
+            fullest: lines[i].variants[0],
+            words: Math.max(1, Math.round(lines[i].wordsPerSecond * target)),
+            before: sameTurn(i, i - 1) ? lines[i - 1].translated : null,
+            after: sameTurn(i, i + 1) ? lines[i + 1].translated : null,
+          },
+          TARGET,
+        );
+      }),
+    );
+    return Object.fromEntries(misfits.map((i, k) => [lines[i].id, results[k]]));
   });
-  for (const i of before) {
-    const text = shorter[lines[i].id];
-    if (!text) continue;
-    const predicted = await tts.predict(text, TARGET, lines[i].voice);
-    if (predicted >= natural[i]) continue;
-    lines[i].translated = text;
-    lines[i].shortened = true;
-    natural[i] = predicted;
+  for (const i of misfits) {
+    for (const candidate of (refits[lines[i].id] ?? []).map(spoken).filter(Boolean)) {
+      const predicted = await tts.predict(candidate, TARGET, lines[i].voice);
+      if (errorOf(i, predicted) >= errorOf(i, natural[i])) continue;
+      lines[i].translated = candidate;
+      lines[i].refitted = true;
+      natural[i] = predicted;
+    }
   }
 });
 
@@ -255,7 +287,7 @@ console.table(
     speed: r2(p.speed),
     offset: r2(p.offset),
     overflow: r2(p.overflow),
-    short: p.shortened ? 'yes' : '',
+    refit: p.refitted ? 'yes' : '',
     predErr: r2(p.actual - p.length),
   })),
 );
@@ -264,8 +296,8 @@ const report = {
   segments: placed.length,
   speakers: Object.fromEntries([...voiceOf].map(([sp, voice]) => [sp, { voice, ...genderOf[sp] }])),
   spedUp: placed.filter((p) => p.speed > 1.01).length,
-  needShorter: before.length,
-  shortened: placed.filter((p) => p.shortened).length,
+  needRefit: misfits.length,
+  refitted: placed.filter((p) => p.refitted).length,
   overflowing: placed.filter((p) => p.overflow > 0.01).length,
   startsLaterThan05s: late.length,
   maxOffset: r2(Math.max(...placed.map((p) => p.offset))),

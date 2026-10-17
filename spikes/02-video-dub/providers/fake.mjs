@@ -23,7 +23,7 @@ export function fakeStt({ srt, offset, duration, speakers }) {
 
 /**
  * The film's German subtitles: a human translation written for reading, not for dubbing, so it
- * runs longer than the speech. It cannot shorten a line on request.
+ * runs longer than the speech. It cannot refit a line on request.
  */
 export function fakeTranslator({ srt }) {
   const german = new Map(readSrt(srt).map((c) => [String(c.id), c.text]));
@@ -36,7 +36,7 @@ export function fakeTranslator({ srt }) {
         usage: null,
       };
     },
-    async shorten() {
+    async refit() {
       return null;
     },
   };
@@ -55,7 +55,7 @@ export function fixtureTranslator({ path }) {
         usage: null,
       };
     },
-    async shorten() {
+    async refit() {
       return null;
     },
   };

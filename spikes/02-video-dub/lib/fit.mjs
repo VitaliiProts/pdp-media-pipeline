@@ -35,6 +35,13 @@ export function chooseVariant(predicted, speech, slot) {
   return predicted.reduce((best, p, k) => (cost(p, k) < cost(predicted[best], best) ? k : best), 0);
 }
 
+/**
+ * Seconds by which a phrasing of natural length `p` misses the original after the speed
+ * change: how far it runs past its slot at MAX_SPEED, or else how far its end is off.
+ */
+export const fitError = (p, speech, slot) =>
+  p / MAX_SPEED > slot ? p / MAX_SPEED - slot : Math.abs(p / speedFor(p, speech) - speech);
+
 export const speechOf = (segments, i, videoEnd) =>
   Math.min(segments[i].end - segments[i].start, slotOf(segments, i, videoEnd));
 export { slotOf };

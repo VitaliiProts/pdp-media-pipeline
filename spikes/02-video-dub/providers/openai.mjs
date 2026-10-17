@@ -77,22 +77,42 @@ export function openAiChunkedStt({ key, silence = {} }) {
   };
 }
 
+const GENDER_RULE = [
+  'Where the target grammar marks gender (past tense, adjectives, participles), speak about',
+  'oneself in `speakerGender` and say "you" in `listenerGender` (the nearest other speaker,',
+  'whom the line most likely addresses) unless the text clearly addresses someone else; this',
+  'includes forms of address, nicknames and terms of endearment.',
+  'With `unknown`, prefer gender-neutral wording.',
+].join(' ');
+
+const SPOKEN_ONLY = [
+  'Every phrasing is read aloud by a speech synthesiser as is: only the words to be spoken, no',
+  'notes, glosses, brackets, quotation marks around names or explanations of puns.',
+].join(' ');
+
 const SYSTEM = [
   'You translate speech for dubbing. Each line will be spoken by a synthetic voice in the',
   '`seconds` the original speaker took, so its spoken length should match: `maxChars` is a rough',
   'limit. For every line give three natural spoken phrasings, each clearly shorter than the one',
   'before: the first is a faithful translation that fits, the last keeps only the core meaning.',
-  'Never change who does what or the meaning. Keep tone and register.',
+  'Never change who does what or the meaning. Keep tone and register; insults, threats and',
+  'slang stay as strong as in the original, never softened.',
   'Lines with the same `turn` are consecutive parts of one utterance split at the pauses of the',
   'speaker: each part is spoken in its own time, so keep the content of each part in that part',
   'as far as the target grammar allows, and let the parts read as one utterance.',
   'Write numbers, dates, times and units out the way they are spoken. Return every id once.',
+  GENDER_RULE,
+  SPOKEN_ONLY,
 ].join(' ');
 
-const SHORTEN_SYSTEM = [
-  'You shorten one dubbing line that is too long to be spoken in its time slot.',
-  'Return a single natural spoken phrasing in the target language within maxChars, keeping the',
-  'core meaning of the original; drop filler first. One phrasing only, no lists or numbering.',
+const REFIT_SYSTEM = [
+  'You fit one dubbing line to its time: rephrase the translation `fullest` of `original` to',
+  'about `words` words. Give three phrasings: a little shorter than that, about that, a little',
+  'longer. Drop filler before meaning; same meaning, tone and strength as the original.',
+  '`before` and `after` are the neighbouring parts of the same utterance: the phrasing continues',
+  'them and agrees with them grammatically.',
+  GENDER_RULE,
+  SPOKEN_ONLY,
 ].join(' ');
 
 function jsonSchema(name, schema) {
@@ -124,11 +144,11 @@ const TRANSLATION_SCHEMA = jsonSchema('dub_translation', {
   },
 });
 
-const SHORTER_SCHEMA = jsonSchema('dub_shorter', {
+const REFIT_SCHEMA = jsonSchema('dub_refit', {
   type: 'object',
   additionalProperties: false,
-  required: ['text'],
-  properties: { text: { type: 'string' } },
+  required: ['variants'],
+  properties: { variants: { type: 'array', items: { type: 'string' } } },
 });
 
 export function openAiTranslator({ key, model = 'gpt-5-mini', reasoning }) {
@@ -161,12 +181,27 @@ export function openAiTranslator({ key, model = 'gpt-5-mini', reasoning }) {
             role: 'user',
             content: JSON.stringify({
               targetLanguage: target,
-              segments: segments.map(({ id, text, seconds, maxChars }) => ({
-                id,
-                text,
-                seconds,
-                maxChars,
-              })),
+              segments: segments.map(
+                ({
+                  id,
+                  turn,
+                  speaker,
+                  speakerGender,
+                  listenerGender,
+                  text,
+                  seconds,
+                  maxChars,
+                }) => ({
+                  id,
+                  turn: turn ?? id,
+                  speaker,
+                  speakerGender,
+                  listenerGender,
+                  text,
+                  seconds,
+                  maxChars,
+                }),
+              ),
             }),
           },
         ],
@@ -178,24 +213,27 @@ export function openAiTranslator({ key, model = 'gpt-5-mini', reasoning }) {
       }
       return { ...result, usage };
     },
-    async shorten({ text, translated, maxChars }, target) {
+    async refit({ text, fullest, words, before, after, speakerGender, listenerGender }, target) {
       const result = await complete(
         [
-          { role: 'system', content: SHORTEN_SYSTEM },
+          { role: 'system', content: REFIT_SYSTEM },
           {
             role: 'user',
             content: JSON.stringify({
               targetLanguage: target,
               original: text,
-              tooLong: translated,
-              maxChars,
-              instruction: 'Rephrase tooLong so it fits maxChars; drop filler before meaning.',
+              fullest,
+              words,
+              before,
+              after,
+              speakerGender,
+              listenerGender,
             }),
           },
         ],
-        SHORTER_SCHEMA,
+        REFIT_SCHEMA,
       );
-      return result.text;
+      return result.variants;
     },
   };
 }
