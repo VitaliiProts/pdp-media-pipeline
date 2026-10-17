@@ -1,12 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { apiKeyCleared } from '../../features/api-key';
-import { useGetMeQuery, useLogoutMutation } from '../../features/session';
+import { signedOut, useGetMeQuery, useLogoutMutation } from '../../features/auth';
+import { LanguageSwitch } from '../../features/language';
 import { useAppDispatch } from '../../shared/lib/redux';
 import { Button } from '../../shared/ui/button/Button';
 import { useToast } from '../../shared/ui/toast/toast-context';
-import { LanguageSwitch } from './LanguageSwitch';
 import styles from './UserMenu.module.css';
 
 /**
@@ -53,16 +52,13 @@ export function UserMenu() {
   const displayName = me.email ?? me.name;
 
   const signOut = async () => {
-    if (me.authMethod === 'session') {
-      try {
-        await logout().unwrap();
-      } catch {
-        toast({ tone: 'danger', message: t('menu.signOutFailed') });
-        return;
-      }
+    try {
+      await logout().unwrap();
+    } catch {
+      toast({ tone: 'danger', message: t('menu.signOutFailed') });
+      return;
     }
-    // Also resets the API cache, so the next user starts clean.
-    dispatch(apiKeyCleared());
+    dispatch(signedOut());
     void navigate('/login');
   };
 

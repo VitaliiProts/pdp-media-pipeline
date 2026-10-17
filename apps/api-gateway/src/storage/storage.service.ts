@@ -11,6 +11,9 @@ import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type Env } from '../config';
 
+/** Polling clients get the same GET links for this long, so browsers reuse what they cached. */
+export const PRESIGN_BUCKET_S = 300;
+
 @Injectable()
 export class StorageService implements OnApplicationShutdown {
   readonly bucket: string;
@@ -53,9 +56,27 @@ export class StorageService implements OnApplicationShutdown {
     );
   }
 
-  presignGet(key: string, expiresIn: number): Promise<string> {
-    return getSignedUrl(this.signer, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
-      expiresIn,
+  /**
+   * With `downloadName`, browsers save the file under that name instead of opening it.
+   * Signed as of the start of the current `PRESIGN_BUCKET_S` bucket, so the link stays valid
+   * for at least `expiresIn` seconds and repeats until the bucket ends.
+   */
+  presignGet(
+    key: string,
+    expiresIn: number,
+    { downloadName }: { downloadName?: string } = {},
+  ): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ...(downloadName !== undefined && {
+        ResponseContentDisposition: `attachment; filename*=UTF-8''${rfc5987(downloadName)}`,
+      }),
+    });
+    const bucketMs = PRESIGN_BUCKET_S * 1000;
+    return getSignedUrl(this.signer, command, {
+      signingDate: new Date(Math.floor(Date.now() / bucketMs) * bucketMs),
+      expiresIn: expiresIn + PRESIGN_BUCKET_S,
     });
   }
 
@@ -80,4 +101,12 @@ export class StorageService implements OnApplicationShutdown {
     this.internal.destroy();
     this.signer.destroy();
   }
+}
+
+/** `encodeURIComponent` leaves `'()*` as they are, which the header grammar does not allow. */
+function rfc5987(value: string): string {
+  return encodeURIComponent(value).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }

@@ -179,19 +179,19 @@ docker compose ps      # усі сервіси healthy, metadata-migrate і mini
 > Не плутайте з `pnpm up`: це вбудована команда pnpm (`pnpm update`), вона оновить залежності
 > замість запуску Docker.
 
-Два способи увійти. Для скриптів і Web UI до екранів входу (5c.4) — API-ключ:
+Два способи увійти. Для браузера — email і пароль: зареєструватися на
+http://localhost:18090/register або створити дев-акаунт командою й увійти на `/login`:
+
+```bash
+docker compose exec -T metadata node dist/seed-user.js --name me \
+  --email me@example.com --password 'correct horse battery' | jq -c '{userId, email}'
+```
+
+Для скриптів — API-ключ: `seed-user` без `--email` (користувач без пароля) або
+«Налаштування → API-ключі» у Web UI. Ключ іде в заголовку `X-API-Key`; Web UI його не приймає.
 
 ```bash
 KEY=$(docker compose exec -T metadata node dist/seed-user.js --name me | jq -r .apiKey)
-echo "$KEY"            # цей ключ вставляється у Web UI
-```
-
-Для браузера — реєстрація (відповідь ставить cookie `pdp_session`):
-
-```bash
-curl -s -c - -H 'origin: http://localhost:18090' -H 'content-type: application/json' \
-  -d '{"email":"me@example.com","password":"correct horse battery"}' \
-  http://localhost:18090/v1/auth/register | jq -c '{id, email}'
 ```
 
 | Що                              | Адреса                                                      |
@@ -222,6 +222,9 @@ pnpm stack:down
 pnpm k8s:up            # кластер, registry, оператори, платформа, образи, реліз pdp (~4 хв з нуля)
 KEY=$(kubectl -n pdp exec deploy/metadata -- node dist/seed-user.js --name me | jq -r .apiKey)
 ```
+
+Для браузера — реєстрація на http://app.pdp.localhost:19080/register або той самий `seed-user`
+з `--email` і `--password` через `kubectl -n pdp exec deploy/metadata --`.
 
 `pnpm k8s:up` повторюваний: наступний запуск перезбирає образи й оновлює релізи, а
 перезапускаються лише сервіси, у яких змінився образ (тег — ID образу). Тільки застосунок:
@@ -275,7 +278,7 @@ KEY=$(kubectl -n pdp exec deploy/metadata -- node dist/seed-user.js --name me | 
    scripts/e2e-smoke.sh
    ```
    Очікувано: у кінці `OK`.
-2. Через Web UI: http://localhost:18090, вставити `KEY`, перетягнути картинку. Картка проходить
+2. Через Web UI: http://localhost:18090, увійти (див. «Запуск»), перетягнути картинку. Картка проходить
    завантаження → «Queued» → обробку → «Done», з'являються превʼю трьох розмірів.
 3. Статуси через API і перевірка ключа:
    ```bash
@@ -943,11 +946,11 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 
 1. Запустити UI: `pnpm --filter @pdp/web dev` (Vite, http://localhost:5173) або compose
    (http://localhost:18090).
-2. Без ключа відкрити http://localhost:5173/webhooks — адреса стає `/login?next=%2Fwebhooks`;
-   після введення ключа відкриваються «Вебхуки».
+2. Без входу відкрити http://localhost:5173/webhooks — адреса стає `/login?next=%2Fwebhooks`;
+   після входу відкриваються «Вебхуки» (з 5c.4 — email і пароль замість ключа).
 3. Кнопка «Завантажити» в шапці на «Вебхуках» → діалог; після вибору файлу — тост
-   «Завантажуємо 1 файл» з посиланням «Відкрити задачі». Esc закриває діалог, фокус повертається
-   на кнопку.
+   «Завантажуємо 1 файл» з посиланням «Відкрити задачі» (з 5c.4 — перехід у медіатеку й тост
+   без посилання). Esc закриває діалог, фокус повертається на кнопку.
 4. Клавіатура: Tab з початку сторінки — «До вмісту»; меню користувача відкривається Enter і
    закривається Esc; після переходу між розділами фокус на заголовку сторінки.
 5. `http://localhost:5173/nowhere` — «Сторінку не знайдено».
@@ -955,6 +958,93 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
    збірка `pnpm --filter @pdp/web build` дає окремі чанки сторінок.
 7. Документи: [IA і user flows](docs/design/information-architecture.md),
    [дизайн-система](docs/design/design-system.md), [план 5c–5d](docs/plan/stages-5c-5d.md).
+
+### Етап 5c.4. Екрани входу, медіатеки й налаштувань
+
+**Критерій підетапу:** у браузері можна зареєструватися, увійти email і паролем, завантажити фото
+й відео, побачити їх у медіатеці з живими статусами, відкрити файл, переглянути й завантажити
+версії, видалити файл; створити й відкликати API-ключ. API-ключ більше не зберігається в браузері.
+
+Що з'явилося:
+
+- Вхід і реєстрація (`/login`, `/register`) з клієнтською перевіркою, помилками сервера (`401`,
+  `409 EMAIL_TAKEN`, `429` з відліком `Retry-After`) і виходом через меню; сесія — cookie,
+  стан — `GET /v1/me`. Фічі `api-key` і `session` замінила `features/auth`.
+- Медіатека `/library`: сітка прев'ю, фільтри `?kind=image|video&status=processing|ready|failed&q=…`
+  в URL (переживають перезавантаження), нескінченна прокрутка за курсором і кнопка «Показати ще»,
+  живі статуси (опитування раз на 3 с, поки є що оновлювати). Файли, що ще завантажуються, — першими,
+  з прогресом, відліком і причиною помилки на плитці.
+- Діалог завантаження після старту веде в медіатеку; тост помилки — лише там, де плитки не видно.
+- Сторінка файлу `/library/:id`: оригінал (картинка або плеєр з перемикачем 720p / 480p), факти,
+  «Завантажити оригінал», вкладки «Версії» (кожна з «Завантажити») і «Задачі» з посиланням на
+  трейс; видалення з підтвердженням.
+- Налаштування `/settings`: профіль, мова, API-ключі (створити — ключ показується один раз,
+  список з «востаннє використано», відкликати).
+
+API: `GET /v1/assets?status=&q=` (статус останньої задачі, пошук за назвою без урахування
+регістру), `originalDownloadUrl` і `downloadUrl` кожної версії в `GET /v1/assets/:id` — presigned
+GET з `Content-Disposition: attachment`; посилання стабільні в межах 5-хвилинного вікна, тож
+опитування не перезавантажує картинки. `seed-user --email --password` створює акаунт для входу.
+
+1. Зареєструватися на http://localhost:18090/register — після реєстрації відкривається порожня
+   медіатека з кнопкою «Завантажити файл».
+2. «Завантажити» в шапці → вибрати картинку (`perf/k6/fixtures/source.png`) і відео
+   (`perf/k6/fixtures/video.mp4`, режим «Транскодинг»). Діалог закривається, у медіатеці —
+   плитки з прогресом, далі серверні плитки; статус змінюється на «Готово» без перезавантаження.
+3. Тип «Відео» і пошук за частиною назви → адреса `?kind=video&q=…`; після перезавантаження
+   фільтри лишаються. Tab проходить перемикач, список статусів, пошук і плитки.
+4. Відкрити відео: плеєр грає 720p, перемикач «480p» міняє джерело; вкладка «Версії» має
+   «Завантажити» для кожної версії, браузер зберігає файл з іменем `<назва>-480p.mp4`.
+5. «Видалити» → підтвердити → повернення в медіатеку, тост «Файл видалено».
+6. «Налаштування → API-ключі» → створити ключ, скопіювати з діалогу й викликати API:
+   ```bash
+   KEY=pdp_…   # ключ з діалогу
+   curl -s -o /dev/null -w '%{http_code}\n' -H "X-API-Key: $KEY" http://localhost:18090/v1/jobs  # 200
+   ```
+   «Відкликати» → той самий `curl` дає `401`, найпізніше за хвилину: gateway кешує перевірені
+   ключі на `API_KEY_CACHE_TTL_MS` (60 с).
+7. Меню користувача → «Вийти» → `/login`; вхід тими самими даними повертає в медіатеку.
+8. Тести: `pnpm test:web` (вхід, реєстрація, медіатека, сторінка файлу, налаштування, діалог);
+   бекенд — `test/assets.int-spec.ts` (фільтри, `downloadUrl`), `test/auth.int-spec.ts`
+   (`seed-user` з паролем), `apps/api-gateway/src/jobs/job-presenter.spec.ts` (імена файлів).
+9. Документи: [специфікація 5c.4](docs/superpowers/specs/2026-10-15-stage-5c4-screens-design.md),
+   [IA і user flows](docs/design/information-architecture.md),
+   [дизайн-система](docs/design/design-system.md), [план 5c–5d](docs/plan/stages-5c-5d.md).
+
+### Етап 5c.5. Пререндер публічних сторінок (SSG)
+
+**Критерій підетапу:** HTML сторінок `/`, `/login` і `/register` уже містить розмітку, гідрація
+проходить без попереджень і без мигання форми; решта маршрутів — SPA, як і раніше.
+
+Що з'явилося:
+
+- Збірка вебу пререндерить опис сервісу, вхід і реєстрацію англійською
+  (`src/entry-server.tsx`, `scripts/prerender.mjs`): `dist/index.html`, `dist/login/index.html`,
+  `dist/register/index.html`, а порожня оболонка SPA — `dist/app.html`. У `<head>` кожної
+  сторінки — її CSS і `modulepreload` чанків.
+- Клієнт гідрує пререндерену сторінку (`hydrateRoot`), решту рендерить з нуля. Мова за
+  замовчуванням — англійська; збережений вибір вмикається після гідрації, `?next=` теж читається
+  після неї. Форма входу не підміняється скелетом, поки перевіряється сесія.
+- nginx: `try_files $uri $uri/index.html /app.html`.
+- k6-сценарій входу `perf/k6/login.js` (argon2id під навантаженням), compose передає ліміти
+  входу `AUTH_*` у gateway.
+
+1. Зібрати й підняти веб: `docker compose up -d --build --wait web`.
+2. Розмітка вже в HTML, без JS:
+   ```bash
+   curl -s http://localhost:18090/login | grep -o '<h1[^>]*>[^<]*</h1>\|<input[^>]*type="[a-z]*"'
+   curl -s http://localhost:18090/library | grep -o '<div id="root"></div>'   # SPA-оболонка
+   ```
+3. Відкрити http://localhost:18090/login?next=%2Fjobs з відкритою консоллю: попереджень про
+   гідрацію немає, посилання «Create one» веде на `/register?next=%2Fjobs`. Після вибору «UA» і
+   перезавантаження сторінка гідрується англійською й одразу перемикається на українську.
+4. Тести: `pnpm test:web` — проєкт `ssr` (`src/entry-server.ssr.test.tsx`, Node без браузерних
+   глобалів) і `src/app/hydration.test.tsx` (гідрація зібраної розмітки падає на будь-якому
+   `console.error` React).
+5. Вхід під навантаженням: `scripts/perf.sh login` (20 входів/с) і
+   `LOGIN_RATE=60 LOGIN_DURATION=30s scripts/perf.sh login`; ліміти входу на час прогону підняті.
+   Результати — [звіт 5c](perf/reports/stage-5c.md).
+6. Документи: [ADR-015](docs/adr/0015-frontend-prerender.md), [план 5c–5d](docs/plan/stages-5c-5d.md).
 
 ## Конфігурація Етапу 2
 
@@ -1054,4 +1144,5 @@ hook() { curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
 - Плани етапів: [Етап 1](docs/plan/stage-1.md), [Етап 2](docs/plan/stage-2.md), [Етап 3](docs/plan/stage-3.md), [Етап 4](docs/plan/stage-4.md), [Етап 5](docs/plan/stage-5.md), [Етапи 5c–5d](docs/plan/stages-5c-5d.md)
 - ADR: [docs/adr](docs/adr/README.md)
 - Спайк JetStream проти BullMQ: [docs/spikes](docs/spikes/01-jetstream-vs-bullmq.md)
-- Звіти навантаження: [Етап 2](perf/reports/stage-2.md), [Етап 5](perf/reports/stage-5.md)
+- Звіти навантаження: [Етап 2](perf/reports/stage-2.md), [Етап 5](perf/reports/stage-5.md),
+  [Етап 5c](perf/reports/stage-5c.md)

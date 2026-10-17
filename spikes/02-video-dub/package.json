@@ -1,0 +1,11 @@
+{
+  "name": "spike-video-dub",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tts:bench": "node tts-bench.mjs"
+  },
+  "dependencies": {
+    "onnxruntime-node": "^1.22.0"
+  }
+}

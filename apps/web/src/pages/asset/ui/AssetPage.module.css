@@ -1,0 +1,183 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--graphite);
+}
+
+.crumbs li + li::before {
+  content: '/';
+  margin-right: var(--space-2);
+}
+
+.crumbs a {
+  color: inherit;
+  text-underline-offset: 0.2em;
+}
+
+.crumbs a:hover {
+  color: var(--ink);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+/* A flex item stretches across the column; the image keeps its own width and ratio instead. */
+.original {
+  display: block;
+  align-self: flex-start;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: var(--radius-mount);
+  background: var(--film);
+}
+
+.player,
+.unplayable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.quality {
+  flex-direction: row;
+  gap: var(--space-3);
+}
+
+.versionsPanel,
+.jobsPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.versions,
+.jobs,
+.frames {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.version {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(8rem, 1fr) repeat(3, auto) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+@media (max-width: 40rem) {
+  .version {
+    grid-template-columns: 3.5rem 1fr auto;
+  }
+}
+
+.thumb,
+.thumbPlaceholder {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-control);
+  object-fit: cover;
+  background: var(--film);
+}
+
+.thumbPlaceholder {
+  display: grid;
+  place-items: center;
+  color: var(--graphite);
+}
+
+.versionName {
+  font-weight: var(--weight-semibold);
+}
+
+.subheading {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base);
+}
+
+.frames {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: var(--space-2);
+}
+
+.frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: inherit;
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.frame img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-control);
+}
+
+.job {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.jobType {
+  font-weight: var(--weight-semibold);
+}
+
+.jobError {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--graphite);
+}
+
+.quiet {
+  margin: 0;
+  color: var(--graphite);
+}

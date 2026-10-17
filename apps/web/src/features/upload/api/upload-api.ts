@@ -1,13 +1,17 @@
 import { http, storageHttp } from '../../../shared/api/http';
 import { type ImagePreset, type VideoMode } from '../model/presets';
 
+// Mirrors ASSET_NAME_MAX_LENGTH in @pdp/contracts.
+const UPLOAD_NAME_MAX_LENGTH = 255;
+
 type UploadTicket = { uploadUrl: string; sourceKey: string };
 type CreatedJob = { jobId: string };
 
+/** `name` is what the library shows and searches; the gateway rejects longer ones. */
 export async function requestUpload(file: File, signal: AbortSignal): Promise<UploadTicket> {
   const { data } = await http.post<UploadTicket>(
     '/v1/uploads',
-    { contentType: file.type, size: file.size },
+    { contentType: file.type, size: file.size, name: file.name.slice(0, UPLOAD_NAME_MAX_LENGTH) },
     { signal },
   );
   return data;

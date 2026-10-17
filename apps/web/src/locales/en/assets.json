@@ -1,0 +1,97 @@
+{
+  "library": {
+    "title": "Library",
+    "kind": { "legend": "Type", "all": "All", "image": "Photos", "video": "Videos" },
+    "status": {
+      "label": "Status",
+      "any": "Any status",
+      "processing": "Processing",
+      "ready": "Ready",
+      "failed": "Failed"
+    },
+    "search": "Search by name",
+    "loading": "Loading files…",
+    "errorTitle": "Could not load the library",
+    "error": "The gateway did not answer. Try again in a moment.",
+    "tooManyRequests_one": "Too many requests. Try again in {{count}} second.",
+    "tooManyRequests_other": "Too many requests. Try again in {{count}} seconds.",
+    "emptyTitle": "Your files will live here",
+    "emptyBody": "Upload a photo or a video: it lands here together with every processed version.",
+    "upload": "Upload a file",
+    "noMatchesTitle": "Nothing found",
+    "noMatchesBody": "No file matches these filters.",
+    "resetFilters": "Reset filters",
+    "more": {
+      "label": "Show more",
+      "failed": "Could not load more files.",
+      "added_one": "Added {{count}} more file.",
+      "added_other": "Added {{count}} more files."
+    }
+  },
+  "tile": {
+    "untitled": "Untitled file",
+    "video": "Video",
+    "videoWithDuration": "Video · {{duration}}",
+    "progress": "Processing progress"
+  },
+  "upload": {
+    "remove": "Remove"
+  },
+  "asset": {
+    "title": "File",
+    "breadcrumbs": "Breadcrumbs",
+    "loading": "Loading the file…",
+    "notFoundTitle": "File not found",
+    "notFoundBody": "It may have been deleted, or the link is wrong.",
+    "toLibrary": "Back to the library",
+    "errorTitle": "Could not load the file",
+    "error": "The gateway did not answer. Try again in a moment.",
+    "dimensions": "Size in pixels",
+    "dimensionsValue": "{{width}} × {{height}}",
+    "duration": "Duration",
+    "size": "File size",
+    "type": "Type",
+    "uploaded": "Uploaded",
+    "downloadOriginal": "Download original",
+    "tabs": "File details"
+  },
+  "delete": {
+    "open": "Delete",
+    "openLabel": "Delete {{name}}",
+    "title": "Delete {{name}}?",
+    "body": "The original and every version will be gone for good.",
+    "confirm": "Delete",
+    "cancel": "Cancel",
+    "close": "Close",
+    "busy": "This file is still being processed. Try again when its job finishes.",
+    "failed": "Could not delete the file.",
+    "done": "File deleted."
+  },
+  "player": {
+    "label": "Play {{name}}",
+    "quality": "Quality",
+    "unsupported": "This browser cannot play this format. Transcode it to 480p or 720p.",
+    "failed": "This video could not be played."
+  },
+  "versions": {
+    "tab": "Versions",
+    "none": "Versions will appear once processing is done.",
+    "imageLabel": "{{name}} · {{width}} px",
+    "preview": "Preview frame",
+    "dimensions": "{{width}} × {{height}}",
+    "download": "Download",
+    "downloadLabel": "Download {{name}}",
+    "frames": "Frames",
+    "frameLabel": "Download the frame at {{time}}"
+  },
+  "jobs": {
+    "tab": "Jobs",
+    "none": "No jobs on this file yet.",
+    "newestOnly": "Showing the {{count}} newest jobs.",
+    "type": {
+      "resize": "Resize",
+      "frames": "Frames",
+      "transcode": "Transcode"
+    }
+  }
+}

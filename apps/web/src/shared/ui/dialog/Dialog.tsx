@@ -20,6 +20,13 @@ type DialogProps = Omit<
   title: ReactNode;
   closeLabel: string;
   children: ReactNode;
+  /**
+   * `false` while something in it must finish: Escape, the backdrop and × do nothing,
+   * and a close the browser forces anyway (Chrome, on a repeated Escape) opens it again.
+   */
+  dismissible?: boolean;
+  /** `false` where a stray click must not lose what it shows; Escape and × still close it. */
+  closeOnBackdrop?: boolean;
   ref?: never;
   onCancel?: never;
   onClick?: never;
@@ -38,6 +45,8 @@ export function Dialog({
   title,
   closeLabel,
   children,
+  dismissible = true,
+  closeOnBackdrop = true,
   className,
   ...rest
 }: DialogProps) {
@@ -66,10 +75,13 @@ export function Dialog({
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        if (dismissible) onClose();
       }}
-      onClose={() => {
-        if (open) onClose();
+      onClose={(event) => {
+        if (!open) return;
+        const dialog = event.currentTarget;
+        if (dismissible) onClose();
+        else if (dialog.isConnected) dialog.showModal();
       }}
       onPointerDown={(event) => {
         pressedBackdrop.current = event.target === event.currentTarget;
@@ -78,7 +90,7 @@ export function Dialog({
         // A press that starts inside and is released over the backdrop also targets the dialog.
         const onBackdrop = pressedBackdrop.current && event.target === event.currentTarget;
         pressedBackdrop.current = false;
-        if (onBackdrop) onClose();
+        if (onBackdrop && dismissible && closeOnBackdrop) onClose();
       }}
     >
       {open && (
@@ -87,7 +99,13 @@ export function Dialog({
             <h2 id={titleId} className={styles.title}>
               {title}
             </h2>
-            <Button variant="quiet" size="sm" aria-label={closeLabel} onClick={onClose}>
+            <Button
+              variant="quiet"
+              size="sm"
+              aria-label={closeLabel}
+              isBusy={!dismissible}
+              onClick={onClose}
+            >
               <span aria-hidden="true">×</span>
             </Button>
           </header>

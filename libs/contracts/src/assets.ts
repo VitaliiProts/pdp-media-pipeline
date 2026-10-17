@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ImageResizeOutputV1 } from './image-resize';
 import { type JobType, JobStatusSchema, JobTypeSchema } from './jobs';
+import { JobProgressSchema } from './metadata-api';
 import { VideoFramesOutputV1 } from './video-frames';
 import { VideoTranscodeOutputV1 } from './video-transcode';
 
@@ -13,6 +14,13 @@ export type UploadContentType = z.infer<typeof UploadContentTypeSchema>;
 export const ASSET_KINDS = ['image', 'video'] as const;
 export const AssetKindSchema = z.enum(ASSET_KINDS);
 export type AssetKind = z.infer<typeof AssetKindSchema>;
+
+/** What the latest job on a file says about it; see the Metadata list query. */
+export const ASSET_STATUSES = ['processing', 'ready', 'failed'] as const;
+export const AssetStatusSchema = z.enum(ASSET_STATUSES);
+export type AssetStatus = z.infer<typeof AssetStatusSchema>;
+
+export const ASSET_SEARCH_MAX_LENGTH = 100;
 
 export const assetKindOf = (contentType: UploadContentType): AssetKind =>
   (VIDEO_CONTENT_TYPES as readonly string[]).includes(contentType) ? 'video' : 'image';
@@ -53,7 +61,15 @@ export type AssetPreview = z.infer<typeof AssetPreview>;
 export const AssetSummaryDto = AssetDto.extend({
   /** From the newest succeeded job that produced a small image of the file. */
   preview: AssetPreview.nullable(),
-  latestJob: z.object({ id: z.uuid(), type: JobTypeSchema, status: JobStatusSchema }).nullable(),
+  latestJob: z
+    .object({
+      id: z.uuid(),
+      type: JobTypeSchema,
+      status: JobStatusSchema,
+      /** Percent while `running`, for job types that report it; null otherwise. */
+      progress: JobProgressSchema.nullable(),
+    })
+    .nullable(),
 });
 export type AssetSummaryDto = z.infer<typeof AssetSummaryDto>;
 
@@ -69,6 +85,13 @@ export type CreateAssetRequest = z.infer<typeof CreateAssetRequest>;
 export const ListAssetsQuery = z.object({
   userId: z.uuid(),
   kind: AssetKindSchema.optional(),
+  status: AssetStatusSchema.optional(),
+  q: z
+    .string()
+    .trim()
+    .max(ASSET_SEARCH_MAX_LENGTH)
+    .transform((value) => value || undefined)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
 });

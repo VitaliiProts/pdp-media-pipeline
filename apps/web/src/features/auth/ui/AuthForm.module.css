@@ -1,0 +1,19 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 28rem;
+  padding: var(--space-5);
+  border-radius: var(--radius-mount);
+  background: var(--mount);
+  box-shadow: var(--shadow-mount);
+}
+
+.failure {
+  margin: 0;
+  color: var(--red);
+}
+
+.submit {
+  align-self: flex-start;
+}

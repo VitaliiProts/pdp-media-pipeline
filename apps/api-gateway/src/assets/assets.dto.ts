@@ -1,13 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ASSET_KINDS,
+  ASSET_SEARCH_MAX_LENGTH,
+  ASSET_STATUSES,
   type AssetKind,
+  type AssetStatus,
   JOB_STATUSES,
   type JobStatus,
   UPLOAD_CONTENT_TYPES,
   type UploadContentType,
 } from '@pdp/contracts';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { JobResponseDto } from '../jobs/jobs.dto';
 
@@ -16,6 +19,24 @@ export class ListAssetsQueryDto {
   @IsOptional()
   @IsIn(ASSET_KINDS)
   kind?: AssetKind;
+
+  @ApiPropertyOptional({
+    enum: ASSET_STATUSES,
+    description: 'What the latest job says: processing, ready or failed.',
+  })
+  @IsOptional()
+  @IsIn(ASSET_STATUSES)
+  status?: AssetStatus;
+
+  @ApiPropertyOptional({
+    maxLength: ASSET_SEARCH_MAX_LENGTH,
+    description: 'Part of the file name, case-insensitive.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(ASSET_SEARCH_MAX_LENGTH)
+  q?: string;
 
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
   @IsOptional()
@@ -33,7 +54,7 @@ export class ListAssetsQueryDto {
 }
 
 export class AssetPreviewDto {
-  @ApiProperty({ description: 'Presigned GET URL, valid for one hour.' })
+  @ApiProperty({ description: 'Presigned GET URL, valid for at least one hour.' })
   url!: string;
 
   @ApiProperty()
@@ -52,6 +73,15 @@ export class AssetLatestJobDto {
 
   @ApiProperty({ enum: JOB_STATUSES })
   status!: JobStatus;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: 100,
+    description: 'Percent done while running, for job types that report it (video.transcode).',
+  })
+  progress!: number | null;
 }
 
 export class AssetDto {
@@ -111,8 +141,14 @@ export class ListAssetsResponseDto {
 }
 
 export class AssetDetailsDto extends AssetDto {
-  @ApiProperty({ description: 'Presigned GET URL of the original, valid for one hour.' })
+  @ApiProperty({ description: 'Presigned GET URL of the original, valid for at least one hour.' })
   originalUrl!: string;
+
+  @ApiProperty({
+    description:
+      'Presigned GET URL that saves the original under its uploaded name, valid for at least one hour.',
+  })
+  originalDownloadUrl!: string;
 
   @ApiProperty({
     type: [JobResponseDto],

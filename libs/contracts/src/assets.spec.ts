@@ -1,4 +1,4 @@
-import { assetKindOf, previewOf, sourceFactsOf } from './assets';
+import { assetKindOf, ListAssetsQuery, previewOf, sourceFactsOf } from './assets';
 
 const frame = (key: string, width = 640, height = 360) => ({
   key,
@@ -78,5 +78,25 @@ describe('sourceFactsOf', () => {
       height: 720,
       durationSeconds: 12.5,
     });
+  });
+});
+
+describe('ListAssetsQuery filters', () => {
+  const base = { userId: '00000000-0000-4000-8000-000000000001' };
+
+  it('accepts a status and a trimmed search', () => {
+    expect(ListAssetsQuery.parse({ ...base, status: 'failed', q: '  harbour ' })).toMatchObject({
+      status: 'failed',
+      q: 'harbour',
+    });
+  });
+
+  it('treats a blank search as no search', () => {
+    expect(ListAssetsQuery.parse({ ...base, q: '   ' }).q).toBeUndefined();
+  });
+
+  it('rejects an unknown status and a search over 100 characters', () => {
+    expect(ListAssetsQuery.safeParse({ ...base, status: 'done' }).success).toBe(false);
+    expect(ListAssetsQuery.safeParse({ ...base, q: 'x'.repeat(101) }).success).toBe(false);
   });
 });

@@ -1,0 +1,33 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+/* The fieldset is a flex column by default; the legend is not a flex item, so it stays on top. */
+.kinds {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Radios in a row read as one segmented control; the dot stays for clarity. */
+.segment {
+  padding: 0 var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+}
+
+.segment:has(input:checked) {
+  border-color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.status {
+  min-width: 12rem;
+}
+
+.search {
+  flex: 1 1 16rem;
+}

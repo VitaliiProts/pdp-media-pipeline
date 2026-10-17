@@ -87,6 +87,8 @@ export class MetadataClient {
   listAssets(query: ListAssetsQuery): Promise<ListAssetsResponse> {
     const params = new URLSearchParams({ userId: query.userId });
     if (query.kind) params.set('kind', query.kind);
+    if (query.status) params.set('status', query.status);
+    if (query.q) params.set('q', query.q);
     if (query.limit !== undefined) params.set('limit', String(query.limit));
     if (query.cursor) params.set('cursor', query.cursor);
     return this.request('GET', `/internal/assets?${params.toString()}`, ListAssetsResponse);

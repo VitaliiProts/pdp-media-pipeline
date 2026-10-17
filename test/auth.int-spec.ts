@@ -1,6 +1,7 @@
 import { API_KEY_MAX_PER_USER } from '@pdp/contracts';
 import { randomUUID } from 'node:crypto';
 import { type Pool } from 'pg';
+import { seedUser } from '../apps/metadata/src/seed-user';
 import { createApps, type RunningApps } from './support/apps';
 import { prepareDatabase } from './support/helpers';
 import { type Infra, startInfra } from './support/infra';
@@ -115,6 +116,14 @@ describe('accounts and sessions at the gateway', () => {
     expect(unknown.status).toBe(401);
     expect(await wrong.json()).toEqual(await unknown.json());
     expect(wrong.headers.getSetCookie()).toEqual([]);
+  });
+
+  it('signs in a user seeded with an email and a password', async () => {
+    const email = newEmail();
+    await seedUser(infra.databaseUrl, 'seeded', { email: email.toUpperCase(), password: PASSWORD });
+
+    const res = await call('POST', '/v1/auth/login', { body: { email, password: PASSWORD } });
+    expect(res.status).toBe(200);
   });
 
   it('logs in with a fresh session and drops the one sent along', async () => {

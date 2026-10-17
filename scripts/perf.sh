@@ -6,6 +6,8 @@
 #   scripts/perf.sh rate-limit spike      # some of them
 #   scripts/perf.sh autocannon            # GET /v1/jobs/:id with autocannon
 #   scripts/perf.sh slo-burn              # Stage 4 demo: dashboards and a burn-rate alert
+#   scripts/perf.sh login                 # Stage 5c: sign-in P95 and Metadata CPU (argon2id)
+#   LOGIN_RATE=60 scripts/perf.sh login   # the same at 60 logins/s
 #
 # Raw output lands in perf/reports/raw/ (git-ignored); numbers go to perf/reports/stage-N.md.
 set -euo pipefail
@@ -34,7 +36,7 @@ seed_users() {
       for (let n = 1; n <= $USERS; n++) {
         const id = String(n).padStart(2, '0');
         try {
-          await seedUser(process.env.DATABASE_URL, 'perf-' + id, 'pdp_perf_' + id + '_local');
+          await seedUser(process.env.DATABASE_URL, 'perf-' + id, { apiKey: 'pdp_perf_' + id + '_local' });
         } catch (err) {
           if (err.cause?.code !== '23505' && err.code !== '23505') throw err;
         }
@@ -92,6 +94,56 @@ autocannon() {
     tee "$RAW/autocannon-limited.txt"
 }
 
+LOGIN_USERS="${LOGIN_USERS:-20}"
+LOGIN_PASSWORD="${LOGIN_PASSWORD:-perf-login-password}"
+
+# login-01@perf.test, ... with a password: what perf/k6/login.js signs in as.
+seed_login_users() {
+  echo "seeding $LOGIN_USERS sign-in users"
+  docker compose exec -T -e LOGIN_PASSWORD="$LOGIN_PASSWORD" metadata node -e "
+    const { seedUser } = require('./dist/seed-user.js');
+    (async () => {
+      for (let n = 1; n <= $LOGIN_USERS; n++) {
+        const id = String(n).padStart(2, '0');
+        try {
+          await seedUser(process.env.DATABASE_URL, 'login-' + id, {
+            email: 'login-' + id + '@perf.test',
+            password: process.env.LOGIN_PASSWORD,
+          });
+        } catch (err) {
+          if (err.cause?.code !== '23505' && err.code !== '23505') throw err;
+        }
+      }
+    })().catch((err) => { console.error(err); process.exit(1); });
+  "
+}
+
+# argon2id runs in Metadata: its CPU next to the gateway's, every 2 s while k6 runs.
+sample_cpu() {
+  local containers
+  containers="$(docker compose ps -q metadata api-gateway)"
+  while :; do
+    # shellcheck disable=SC2086
+    docker stats --no-stream --format '{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}' $containers
+    sleep 2
+  done
+}
+
+login() {
+  seed_login_users
+  restart_gateway AUTH_IP_RATE_PER_MIN=1000000 AUTH_IP_BURST=1000000 \
+    AUTH_EMAIL_RATE_PER_MIN=1000000 AUTH_EMAIL_BURST=1000000
+  sample_cpu >"$RAW/login-cpu.txt" 2>&1 &
+  local sampler=$! status=0
+  # Not a RETURN trap: a failed threshold makes `set -e` leave the script without returning,
+  # and the sampler would outlive it.
+  k6 login -e LOGIN_USERS="$LOGIN_USERS" -e LOGIN_PASSWORD="$LOGIN_PASSWORD" \
+    -e RATE="${LOGIN_RATE:-20}" -e DURATION="${LOGIN_DURATION:-60s}" || status=$?
+  kill "$sampler" 2>/dev/null || true
+  restart_gateway
+  return "$status"
+}
+
 scenarios=("$@")
 [[ ${#scenarios[@]} -gt 0 ]] || scenarios=(api-baseline rate-limit spike backpressure)
 
@@ -100,6 +152,7 @@ for scenario in "${scenarios[@]}"; do
   case "$scenario" in
     backpressure) backpressure ;;
     autocannon) autocannon ;;
+    login) login ;;
     *) k6 "$scenario" ;;
   esac
 done

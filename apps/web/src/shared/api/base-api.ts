@@ -17,6 +17,6 @@ const axiosBaseQuery: BaseQueryFn<HttpArgs, unknown, AppError> = async (args, { 
 export const baseApi = createApi({
   reducerPath: 'api',
   baseQuery: axiosBaseQuery,
-  tagTypes: ['Job', 'Webhook', 'Me'],
+  tagTypes: ['Job', 'Webhook', 'Me', 'Asset', 'ApiKey'],
   endpoints: () => ({}),
 });

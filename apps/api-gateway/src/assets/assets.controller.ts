@@ -26,8 +26,9 @@ import {
 import { MetadataClient } from '@pdp/metadata-client';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserId } from '../auth/user';
-import { JobPresenter } from '../jobs/job-presenter';
+import { JobPresenter, originalNameOf, RESULT_URL_TTL_S } from '../jobs/job-presenter';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { StorageService } from '../storage/storage.service';
 import {
   AssetDetailsDto,
   type AssetDto,
@@ -61,6 +62,7 @@ export class AssetsController {
   constructor(
     @Inject(MetadataClient) private readonly metadata: MetadataClient,
     private readonly presenter: JobPresenter,
+    private readonly storage: StorageService,
   ) {}
 
   @Get()
@@ -93,10 +95,16 @@ export class AssetsController {
         limit: ASSET_DETAIL_JOBS,
       }),
     ]);
+    const original = originalNameOf(asset);
     return {
       ...toDto(asset),
       originalUrl: await this.presenter.presign(asset.key),
-      jobs: await Promise.all(jobs.items.map((job) => this.presenter.toResponse(job))),
+      originalDownloadUrl: await this.storage.presignGet(asset.key, RESULT_URL_TTL_S, {
+        downloadName: original,
+      }),
+      jobs: await Promise.all(
+        jobs.items.map((job) => this.presenter.toResponse(job, { downloadBase: original })),
+      ),
       jobsNextCursor: jobs.nextCursor,
     };
   }

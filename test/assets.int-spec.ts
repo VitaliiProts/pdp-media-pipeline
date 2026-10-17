@@ -19,11 +19,16 @@ interface Summary {
   height: number | null;
   sourceKey: string;
   preview: { url: string; width: number; height: number } | null;
-  latestJob: { id: string; status: string } | null;
+  latestJob: { id: string; status: string; progress: number | null } | null;
 }
 interface Details extends Omit<Summary, 'preview' | 'latestJob'> {
   originalUrl: string;
-  jobs: { id: string; status: string; results?: { url: string }[] }[];
+  originalDownloadUrl: string;
+  jobs: {
+    id: string;
+    status: string;
+    results?: { preset: string; url: string; downloadUrl?: string }[];
+  }[];
   jobsNextCursor: string | null;
 }
 
@@ -148,7 +153,7 @@ describe('media library', () => {
       width: 1200,
       height: 800,
       sourceKey: asset.sourceKey,
-      latestJob: { id: jobId, status: 'succeeded' },
+      latestJob: { id: jobId, status: 'succeeded', progress: null },
       preview: { width: 200, height: 133 },
     });
     expect(item?.size).toBeGreaterThan(0);
@@ -183,6 +188,36 @@ describe('media library', () => {
     ]);
   });
 
+  it('offers downloads named after the original', async () => {
+    const key = await newUser();
+    const { assetId } = await processedImage(key, 'Harbour at dawn.png');
+    const { body } = await api<Details>(key, `/v1/assets/${assetId}`);
+
+    const original = await fetch(body.originalDownloadUrl);
+    expect(original.status).toBe(200);
+    expect(original.headers.get('content-disposition')).toBe(
+      `attachment; filename*=UTF-8''Harbour%20at%20dawn.png`,
+    );
+
+    const thumb = body.jobs[0]?.results?.find((r) => r.preset === 'thumb');
+    expect(thumb?.downloadUrl).toBeDefined();
+    const version = await fetch(thumb?.downloadUrl ?? '');
+    expect(version.headers.get('content-disposition')).toBe(
+      `attachment; filename*=UTF-8''Harbour%20at%20dawn-thumb.webp`,
+    );
+  });
+
+  it('keeps job listings free of download links', async () => {
+    const key = await newUser();
+    await processedImage(key);
+    const { body } = await api<{ items: { results?: { downloadUrl?: string }[] }[] }>(
+      key,
+      '/v1/jobs',
+    );
+    expect(body.items[0]?.results?.[0]).toBeDefined();
+    expect(body.items[0]?.results?.[0]?.downloadUrl).toBeUndefined();
+  });
+
   it('filters photos from videos and pages with a cursor', async () => {
     const key = await newUser();
     const images: string[] = [];
@@ -213,6 +248,149 @@ describe('media library', () => {
       cursor = page.body.nextCursor;
     } while (cursor);
     expect(seen).toEqual([video.assetId, ...images.reverse()]);
+  });
+
+  /** A job attaches the upload to the library; these tests do not wait for it to finish. */
+  async function attached(key: string, name: string) {
+    const asset = await upload(key, await pngImage(40, 30), { name });
+    await resize(key, asset.sourceKey);
+    return asset;
+  }
+
+  it('narrows the library by what the latest job says', async () => {
+    const key = await newUser();
+    const ready = await processedImage(key, 'ready.png');
+    const failed = await processedImage(key, 'failed.png');
+    await pool.query(`UPDATE jobs SET status = 'dead', dead_reason = 'permanent' WHERE id = $1`, [
+      failed.jobId,
+    ]);
+    // No video worker runs here: the job stays queued.
+    const video = await upload(key, Buffer.from('waits for a video worker'), {
+      contentType: 'video/mp4',
+      name: 'clip.mp4',
+    });
+    await createJob(key, { type: 'video.frames', sourceKey: video.sourceKey });
+
+    const idsWith = async (status: string) =>
+      (await api<{ items: Summary[] }>(key, `/v1/assets?status=${status}`)).body.items.map(
+        (a) => a.id,
+      );
+    expect(await idsWith('ready')).toEqual([ready.assetId]);
+    expect(await idsWith('failed')).toEqual([failed.assetId]);
+    expect(await idsWith('processing')).toEqual([video.assetId]);
+  });
+
+  it('reports the progress of the latest job only while it runs', async () => {
+    const key = await newUser();
+    // No video worker runs here: the job is moved along by hand.
+    const video = await upload(key, Buffer.from('waits for a video worker'), {
+      contentType: 'video/mp4',
+    });
+    const jobId = await createJob(key, { type: 'video.transcode', sourceKey: video.sourceKey });
+    const latestJob = async () =>
+      (await api<{ items: Summary[] }>(key, '/v1/assets')).body.items[0]?.latestJob;
+
+    await pool.query(`UPDATE jobs SET status = 'running', progress = 42 WHERE id = $1`, [jobId]);
+    expect(await latestJob()).toMatchObject({ status: 'running', progress: 42 });
+
+    await pool.query(`UPDATE jobs SET status = 'scheduled' WHERE id = $1`, [jobId]);
+    expect(await latestJob()).toMatchObject({ status: 'scheduled', progress: null });
+  });
+
+  it('judges a file by its latest job, not an earlier one that succeeded', async () => {
+    const key = await newUser();
+    const { assetId, sourceKey, jobId: older } = await processedImage(key);
+    const newer = await resize(key, sourceKey);
+    await succeeded(key, newer);
+    await pool.query(`UPDATE jobs SET status = 'dead', dead_reason = 'permanent' WHERE id = $1`, [
+      newer,
+    ]);
+    await pool.query(
+      `UPDATE jobs SET created_at = CASE id
+         WHEN $1::uuid THEN now() - interval '2 minutes'
+         WHEN $2::uuid THEN now() - interval '1 minute' END
+       WHERE id IN ($1, $2)`,
+      [older, newer],
+    );
+
+    const idsWith = async (status: string) =>
+      (await api<{ items: Summary[] }>(key, `/v1/assets?status=${status}`)).body.items.map(
+        (a) => a.id,
+      );
+    expect(await idsWith('failed')).toEqual([assetId]);
+    expect(await idsWith('ready')).toEqual([]);
+  });
+
+  it('combines kind, status and name across pages', async () => {
+    const key = await newUser();
+    const matching: string[] = [];
+    matching.push((await processedImage(key, 'trip-1.png')).assetId);
+    // Differs in kind only: no video worker runs here, so the job is marked succeeded by hand.
+    const video = await upload(key, Buffer.from('a video in name only'), {
+      contentType: 'video/mp4',
+      name: 'trip-clip.mp4',
+    });
+    const videoJob = await createJob(key, { type: 'video.frames', sourceKey: video.sourceKey });
+    await pool.query(`UPDATE jobs SET status = 'succeeded' WHERE id = $1`, [videoJob]);
+    matching.push((await processedImage(key, 'trip-2.png')).assetId);
+    // Differs in status only.
+    const broken = await processedImage(key, 'trip-broken.png');
+    await pool.query(`UPDATE jobs SET status = 'dead', dead_reason = 'permanent' WHERE id = $1`, [
+      broken.jobId,
+    ]);
+    matching.push((await processedImage(key, 'trip-3.png')).assetId);
+    // Differs in name only.
+    await processedImage(key, 'harbour.png');
+
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const after: string = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
+      const page = await api<{ items: Summary[]; nextCursor: string | null }>(
+        key,
+        `/v1/assets?kind=image&status=ready&q=trip&limit=2${after}`,
+      );
+      expect(page.status).toBe(200);
+      expect(page.body.items.length).toBeLessThanOrEqual(2);
+      seen.push(...page.body.items.map((a) => a.id));
+      cursor = page.body.nextCursor;
+    } while (cursor);
+    expect(seen).toEqual(matching.reverse());
+  });
+
+  it('finds files by part of the name, taking % and _ literally', async () => {
+    const key = await newUser();
+    await attached(key, 'Harbour at dawn.png');
+    await attached(key, 'cliffs_100%.png');
+    await attached(key, 'cliffsX100Y.png');
+
+    const namesFor = async (q: string) =>
+      (
+        await api<{ items: Summary[] }>(key, `/v1/assets?q=${encodeURIComponent(q)}`)
+      ).body.items.map((a) => a.name);
+    expect(await namesFor('HARBOUR')).toEqual(['Harbour at dawn.png']);
+    expect(await namesFor('_100%')).toEqual(['cliffs_100%.png']);
+    expect(await namesFor('nothing like it')).toEqual([]);
+  });
+
+  it('takes a backslash in the search literally', async () => {
+    const key = await newUser();
+    await attached(key, 'a\\b.png');
+    await attached(key, 'ab.png');
+
+    const { body } = await api<{ items: Summary[] }>(
+      key,
+      `/v1/assets?q=${encodeURIComponent('\\')}`,
+    );
+    expect(body.items.map((a) => a.name)).toEqual(['a\\b.png']);
+  });
+
+  it('rejects an unknown status and an overlong search', async () => {
+    const key = await newUser();
+    expect((await api(key, '/v1/assets?status=done')).status).toBe(400);
+    expect((await api(key, `/v1/assets?q=${'x'.repeat(101)}`)).status).toBe(400);
+    const padded = encodeURIComponent(`  ${'x'.repeat(100)}  `);
+    expect((await api(key, `/v1/assets?q=${padded}`)).status).toBe(200);
   });
 
   it("keeps another user's files and jobs out of reach", async () => {

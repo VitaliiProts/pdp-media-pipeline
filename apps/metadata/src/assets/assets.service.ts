@@ -10,15 +10,17 @@ import {
   AssetDeletedV1,
   type AssetDto,
   assetKindOf,
+  type AssetStatus,
   type AssetSummaryDto,
   type CreateAssetRequest,
+  type JobStatus,
   type ListAssetsQuery,
   type ListAssetsResponse,
   type MetadataErrorBody,
   previewOf,
   sourceFactsOf,
 } from '@pdp/contracts';
-import { and, desc, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { type Env } from '../config';
 import { PostgresService, type Tx } from '../database/postgres.service';
 import { assets, type AssetRow, auditLog, type JobRow, jobs, users } from '../database/schema';
@@ -32,6 +34,17 @@ const error = (code: MetadataErrorBody['code'], message: string): MetadataErrorB
 
 const ACTIVE_STATUSES = ['queued', 'scheduled', 'running'] as const;
 export const JANITOR_BATCH = 100;
+
+const JOB_STATUSES_OF: Record<AssetStatus, JobStatus[]> = {
+  processing: [...ACTIVE_STATUSES],
+  ready: ['succeeded'],
+  failed: ['failed', 'dead'],
+};
+
+/** `%`, `_` and `\` match themselves; `\` is Postgres' default LIKE escape. */
+function containing(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
 
 export const toAssetDto = (row: AssetRow): AssetDto => ({
   id: row.id,
@@ -121,6 +134,16 @@ export class AssetsService {
       isNotNull(assets.attachedAt),
     ];
     if (query.kind) filters.push(eq(assets.kind, query.kind));
+    if (query.status) {
+      const latestJobStatus = sql`(
+        SELECT ${jobs.status} FROM ${jobs}
+        WHERE ${jobs.assetId} = ${assets.id}
+        ORDER BY ${jobs.createdAt} DESC, ${jobs.id} DESC
+        LIMIT 1
+      )`;
+      filters.push(inArray(latestJobStatus, JOB_STATUSES_OF[query.status]));
+    }
+    if (query.q) filters.push(ilike(assets.name, containing(query.q)));
     if (query.cursor) {
       const cursor = decodeCursor(query.cursor);
       if (!cursor) throw new BadRequestException(error('VALIDATION_FAILED', 'invalid cursor'));
@@ -152,6 +175,7 @@ export class AssetsService {
           id: jobs.id,
           type: jobs.type,
           status: jobs.status,
+          progress: jobs.progress,
         })
         .from(jobs)
         .where(inArray(jobs.assetId, ids))
@@ -166,7 +190,13 @@ export class AssetsService {
         .where(and(inArray(jobs.assetId, ids), eq(jobs.status, 'succeeded')))
         .orderBy(jobs.assetId, desc(jobs.createdAt), desc(jobs.id)),
     ]);
-    const latestBy = new Map(latest.map(({ assetId, ...job }) => [assetId, job]));
+    // The last value of an earlier attempt would be stale once the job left `running`.
+    const latestBy = new Map(
+      latest.map(({ assetId, progress, ...job }) => [
+        assetId,
+        { ...job, progress: job.status === 'running' ? progress : null },
+      ]),
+    );
     const previewBy = new Map(succeeded.map((j) => [j.assetId, previewOf(j.type, j.output)]));
     return page.map((row) => ({
       ...toAssetDto(row),

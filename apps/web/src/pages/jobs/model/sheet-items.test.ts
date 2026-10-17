@@ -2,7 +2,7 @@ import { type Job } from '../../../features/jobs';
 import { type Upload } from '../../../features/upload';
 import { buildSheetItems } from './sheet-items';
 
-const base = { fileName: 'cat.png', previewUrl: 'blob:cat', createdAt: 1 };
+const base = { fileName: 'cat.png', kind: 'image', previewUrl: 'blob:cat', createdAt: 1 } as const;
 
 const job = (overrides: Partial<Job> = {}): Job => ({
   id: 'job-1',

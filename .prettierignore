@@ -1,6 +1,11 @@
 pnpm-lock.yaml
 dist
+dist-ssr
 coverage
 deploy/helm/**/templates
 apps/*/drizzle
 coverage-int
+.superpowers
+spikes/**/vendor
+spikes/**/assets
+spikes/**/out

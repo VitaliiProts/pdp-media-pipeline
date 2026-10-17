@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, Outlet } from 'react-router';
+import { LanguageSwitch } from '../../features/language';
 import { buttonClass } from '../../shared/ui/button/Button';
-import { LanguageSwitch } from './LanguageSwitch';
 import styles from './PublicLayout.module.css';
 
 export function PublicLayout() {

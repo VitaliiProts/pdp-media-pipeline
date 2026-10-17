@@ -1,0 +1,30 @@
+.heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+}
+
+.heading:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.lead {
+  margin: 0 0 var(--space-4);
+  color: var(--graphite);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
