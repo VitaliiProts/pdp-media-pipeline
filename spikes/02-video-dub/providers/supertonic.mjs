@@ -1,9 +1,17 @@
 import * as ort from 'onnxruntime-node';
+import { trimSilence } from '../lib/wav.mjs';
 import { loadTextToSpeech, loadVoiceStyle } from '../vendor/supertonic-helper.js';
 
 /**
+ * Silence the model puts around every clip at speed 1 (≈0.5 s before, ≈0.7 s after) and counts
+ * in its predicted duration; it shrinks with speed like the speech does.
+ */
+const PADDING = 1.25;
+
+/**
  * Supertonic 3 on CPU. `predict` runs only the duration predictor (milliseconds), so the
- * speed for a slot is known before the expensive diffusion steps.
+ * speed for a slot is known before the expensive diffusion steps. Both work with the spoken
+ * part only: `predict` leaves out the padding and `synthesize` trims it.
  */
 export async function createSupertonic({ assets = 'assets', threads = 2, steps = 8 } = {}) {
   const tts = await loadTextToSpeech(`${assets}/onnx`, false, {
@@ -37,12 +45,12 @@ export async function createSupertonic({ assets = 'assets', threads = 2, steps =
           textMask[0][0].length,
         ]),
       });
-      return result.duration.data[0];
+      return Math.max(0.2, result.duration.data[0] - PADDING);
     },
 
     async synthesize(text, language, voice, speed) {
       const { wav } = await tts.call(text, language, style(voice), steps, speed);
-      return Float32Array.from(wav);
+      return trimSilence(Float32Array.from(wav), tts.sampleRate);
     },
   };
 }
