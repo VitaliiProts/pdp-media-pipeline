@@ -9,7 +9,8 @@ module.exports = {
   testTimeout: 180_000,
   maxWorkers: 1,
   // Libs are loaded from their dist, so only app sources are attributed here.
-  collectCoverageFrom: ['apps/*/src/**/*.ts', '!**/*.spec.ts', '!**/main.ts'],
+  // The web app is covered by Vitest, not by these tests.
+  collectCoverageFrom: ['apps/*/src/**/*.ts', '!**/*.spec.ts', '!**/main.ts', '!apps/web/**'],
   coverageDirectory: '<rootDir>/coverage-int',
   coverageReporters: ['text-summary', 'json-summary', 'lcov'],
 };
