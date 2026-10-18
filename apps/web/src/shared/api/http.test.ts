@@ -68,4 +68,33 @@ describe('toAppError', () => {
     expect(errorCodeOf(error)).toBeNull();
     expect(errorCodeOf({ kind: 'network' })).toBeNull();
   });
+
+  it('tells a used-up limit from a refusal about timing', async () => {
+    server.use(
+      mock.post('/v1/jobs', () =>
+        HttpResponse.json(
+          { statusCode: 429, code: 'DUB_QUOTA_EXCEEDED', message: 'quota' },
+          { status: 429 },
+        ),
+      ),
+      mock.get('/v1/jobs', () =>
+        HttpResponse.json(
+          { statusCode: 429, code: 'RATE_LIMITED', message: 'slow down' },
+          { status: 429, headers: { 'Retry-After': '2' } },
+        ),
+      ),
+    );
+
+    expect(await http.post('/v1/jobs', {}).then(() => null, toAppError)).toEqual({
+      kind: 'http',
+      status: 429,
+      message: 'quota',
+      code: 'DUB_QUOTA_EXCEEDED',
+    });
+    expect(await http.get('/v1/jobs').then(() => null, toAppError)).toEqual({
+      kind: 'retryLater',
+      status: 429,
+      retryAfterS: 2,
+    });
+  });
 });

@@ -4,6 +4,7 @@ import { type AppError, toAppError } from '../../../shared/api/http';
 import { createAppAsyncThunk } from '../../../shared/lib/redux';
 import { createJob, type JobSpec, putToStorage, requestUpload } from '../api/upload-api';
 import { checkFile, mediaKindOf } from '../lib/validate-file';
+import { DEFAULT_DUB_SETTINGS, type DubSettings } from './dub';
 import { type ImagePreset, type VideoMode } from './presets';
 import {
   selectUploads,
@@ -26,12 +27,29 @@ export const MAX_RETRY_LATER = 5;
 /** Spreads retries of parallel uploads, so they do not come back in the same millisecond. */
 const RETRY_JITTER_MS = 500;
 
-/** `presets` apply to images, `videoMode` to videos. */
+/** `presets` apply to images, `videoMode` to videos; `dub` is what `videoMode: 'dub'` makes. */
 type UploadFilesArgs = {
   files: readonly File[];
   presets: readonly ImagePreset[];
   videoMode: VideoMode;
+  dub?: DubSettings;
 };
+
+/**
+ * Jobs for one file, in order; the upload follows the last. A dub comes after frames, which
+ * give the library its preview and the duration the dub quota counts next time.
+ */
+function specsOf(
+  file: File,
+  { presets, videoMode, dub }: Omit<UploadFilesArgs, 'files'>,
+): JobSpec[] {
+  if (mediaKindOf(file.type) !== 'video') return [{ kind: 'image', presets }];
+  if (videoMode !== 'dub') return [{ kind: 'video', mode: videoMode }];
+  return [
+    { kind: 'video', mode: 'frames' },
+    { kind: 'dub', dub: dub ?? DEFAULT_DUB_SETTINGS },
+  ];
+}
 
 const reasonOf = (error: Extract<AppError, { kind: 'retryLater' }>): WaitReason =>
   error.status === 429 ? 'rateLimited' : 'queueFull';
@@ -43,9 +61,10 @@ function problemOf(error: AppError): { problem: UploadProblem; detail: string | 
     case 'retryLater':
       return { problem: reasonOf(error), detail: null };
     case 'http':
-      return error.code === 'STORAGE_QUOTA_EXCEEDED'
-        ? { problem: 'quotaExceeded', detail: null }
-        : { problem: 'rejected', detail: error.message };
+      if (error.code === 'STORAGE_QUOTA_EXCEEDED')
+        return { problem: 'quotaExceeded', detail: null };
+      if (error.code === 'DUB_QUOTA_EXCEEDED') return { problem: 'dubQuotaExceeded', detail: null };
+      return { problem: 'rejected', detail: error.message };
     default:
       return { problem: 'network', detail: null };
   }
@@ -83,7 +102,7 @@ async function honouringRetryAfter<T>(
 
 export const uploadFiles = createAppAsyncThunk(
   'uploads/uploadFiles',
-  async ({ files, presets, videoMode }: UploadFilesArgs, { dispatch, signal: own, extra }) => {
+  async ({ files, ...options }: UploadFilesArgs, { dispatch, signal: own, extra }) => {
     const signal = AbortSignal.any([own, extra.sessionSignal()]);
     const queue = files.map((file) => ({ file, id: crypto.randomUUID() }));
 
@@ -103,10 +122,6 @@ export const uploadFiles = createAppAsyncThunk(
 
     const pending = queue.filter(({ file }) => checkFile(file) === null);
     const uploadOne = async ({ file, id }: (typeof queue)[number]) => {
-      const spec: JobSpec =
-        mediaKindOf(file.type) === 'video'
-          ? { kind: 'video', mode: videoMode }
-          : { kind: 'image', presets };
       const onWait = (reason: WaitReason, retryAt: number) =>
         dispatch(uploadWaiting({ id, reason, retryAt }));
       try {
@@ -122,13 +137,16 @@ export const uploadFiles = createAppAsyncThunk(
           signal,
         );
         dispatch(uploadStored(id));
-        const { jobId } = await honouringRetryAfter(
-          () => createJob(ticket.sourceKey, spec, id, signal),
-          { onWait, onResume: () => dispatch(uploadStored(id)) },
-          signal,
-        );
+        let jobId = '';
+        for (const [i, spec] of specsOf(file, options).entries()) {
+          ({ jobId } = await honouringRetryAfter(
+            () => createJob(ticket.sourceKey, spec, i === 0 ? id : `${id}:${spec.kind}`, signal),
+            { onWait, onResume: () => dispatch(uploadStored(id)) },
+            signal,
+          ));
+        }
         dispatch(uploadSubmitted({ id, jobId }));
-        dispatch(baseApi.util.invalidateTags(['Job', 'Asset']));
+        dispatch(baseApi.util.invalidateTags(['Job', 'Asset', 'DubQuota']));
       } catch (error) {
         dispatch(uploadFailed({ id, ...problemOf(toAppError(error)) }));
       }

@@ -8,7 +8,9 @@ export type UploadProblem =
   | 'rejected'
   | 'rateLimited'
   | 'queueFull'
-  | 'quotaExceeded';
+  | 'quotaExceeded'
+  /** The file is uploaded, but the month's dub seconds do not cover it. */
+  | 'dubQuotaExceeded';
 
 export type WaitReason = 'rateLimited' | 'queueFull';
 

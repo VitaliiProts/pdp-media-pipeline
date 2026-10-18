@@ -1,9 +1,13 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { delay, http, HttpResponse } from 'msw';
 import { type Job } from '../features/jobs';
+import { videoDurationOf } from '../features/upload/lib/video-duration';
 import { TEST_EMAIL, TEST_PASSWORD, testAsset } from '../test/fixtures';
 import { renderApp } from '../test/render-app';
 import { server, STORAGE_ORIGIN } from '../test/server';
+
+// jsdom reads no media metadata.
+vi.mock('../features/upload/lib/video-duration', () => ({ videoDurationOf: vi.fn() }));
 
 const CORS = {
   'Access-Control-Allow-Origin': window.location.origin,
@@ -262,6 +266,164 @@ describe('upload dialog', () => {
     expect(await screen.findByText('The file is empty.')).toBeInTheDocument();
     expect(router.state.location.search).toBe('');
     expect(screen.queryByText('empty.png was not uploaded.')).not.toBeInTheDocument();
+  });
+
+  describe('translating videos', () => {
+    const QUOTA = {
+      usedSeconds: 600,
+      limitSeconds: 1800,
+      remainingSeconds: 1200,
+      maxVideoSeconds: 60,
+      resetsAt: '2026-11-01T00:00:00.000Z',
+    };
+
+    function dubHandlers(remainingSeconds = QUOTA.remainingSeconds) {
+      const jobs: { body: unknown; key: string | null }[] = [];
+      server.use(
+        http.get('/v1/webhooks', () => HttpResponse.json({ items: [] })),
+        http.get('/v1/assets', () => HttpResponse.json({ items: [], nextCursor: null })),
+        http.get('/v1/dub-quota', () => HttpResponse.json({ ...QUOTA, remainingSeconds })),
+        http.post('/v1/uploads', () =>
+          HttpResponse.json({
+            uploadUrl: `${STORAGE_ORIGIN}/sources/9.mp4?sig=x`,
+            sourceKey: 'sources/9.mp4',
+          }),
+        ),
+        http.options(
+          `${STORAGE_ORIGIN}/sources/9.mp4`,
+          () => new HttpResponse(null, { status: 204, headers: CORS }),
+        ),
+        http.put(
+          `${STORAGE_ORIGIN}/sources/9.mp4`,
+          () => new HttpResponse(null, { status: 200, headers: CORS }),
+        ),
+        http.post('/v1/jobs', async ({ request }) => {
+          jobs.push({ body: await request.json(), key: request.headers.get('Idempotency-Key') });
+          return HttpResponse.json({ jobId: `job-${jobs.length}` }, { status: 202 });
+        }),
+      );
+      return { jobs };
+    }
+
+    async function chooseTranslation() {
+      const view = renderApp({ signedIn: true, route: '/webhooks' });
+      await view.user.click(await screen.findByRole('button', { name: 'Upload' }));
+      const dialog = screen.getByRole('dialog', { name: 'Upload files' });
+      await view.user.click(within(dialog).getByRole('radio', { name: /Translate/ }));
+      return { ...view, dialog };
+    }
+
+    const clip = () => new File([new Uint8Array(64)], 'clip.mp4', { type: 'video/mp4' });
+
+    it('confirms the length and the time left, then uploads with frames and a dub', async () => {
+      vi.mocked(videoDurationOf).mockResolvedValue(12.4);
+      const { jobs } = dubHandlers();
+      const { user, dialog, router } = await chooseTranslation();
+
+      expect(
+        await within(dialog).findByText(
+          'Translation time left this month: 20:00 of 30:00, renewed on November 1.',
+        ),
+      ).toBeInTheDocument();
+      await user.selectOptions(within(dialog).getByLabelText('Translate into'), 'German');
+      await user.upload(
+        within(dialog).getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+        clip(),
+      );
+
+      expect(
+        within(dialog).getByRole('heading', { name: 'Translate 1 video' }),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByText('Translation: German. Original: detected automatically.'),
+      ).toBeInTheDocument();
+      expect(await within(dialog).findByText('0:12')).toBeInTheDocument();
+      expect(
+        within(dialog).getByText(
+          'The sound and its text are sent to OpenAI for recognition and translation.',
+        ),
+      ).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Upload and translate' }));
+
+      await waitFor(() => expect(router.state.location.pathname).toBe('/library'));
+      await waitFor(() => expect(jobs).toHaveLength(2));
+      expect(jobs[0]?.body).toEqual({ type: 'video.frames', sourceKey: 'sources/9.mp4' });
+      expect(jobs[1]?.body).toEqual({
+        type: 'video.dub',
+        sourceKey: 'sources/9.mp4',
+        targetLanguage: 'de',
+        sourceLanguage: 'auto',
+      });
+      expect(jobs[1]?.key).toBe(`${jobs[0]?.key}:dub`);
+    });
+
+    it('refuses a video too long to translate and goes back to the choice', async () => {
+      vi.mocked(videoDurationOf).mockResolvedValue(75);
+      const { jobs } = dubHandlers();
+      const { user, dialog } = await chooseTranslation();
+      await user.upload(
+        within(dialog).getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+        clip(),
+      );
+
+      expect(
+        await within(dialog).findByText('Longer than 1:00: too long to translate.'),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: 'Upload and translate' })).toBeDisabled();
+      await user.click(within(dialog).getByRole('button', { name: 'Back' }));
+      expect(within(dialog).getByRole('radio', { name: /Translate/ })).toBeChecked();
+      expect(jobs).toHaveLength(0);
+    });
+
+    it('holds a full minute for a new video when little time is left', async () => {
+      vi.mocked(videoDurationOf).mockResolvedValue(10);
+      dubHandlers(45);
+      const { user, dialog } = await chooseTranslation();
+      await user.upload(
+        within(dialog).getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+        clip(),
+      );
+
+      expect(
+        await within(dialog).findByText('Not enough translation time left this month.'),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: 'Upload and translate' })).toBeDisabled();
+    });
+
+    it('refuses a dub into the language the video is in', async () => {
+      dubHandlers();
+      const { user, dialog } = await chooseTranslation();
+      await user.selectOptions(within(dialog).getByLabelText('Spoken language'), 'Ukrainian');
+      expect(within(dialog).getByText('The video is already in this language.')).toBeVisible();
+    });
+
+    it('shows on the tile when the month’s translation time ran out meanwhile', async () => {
+      vi.mocked(videoDurationOf).mockResolvedValue(10);
+      dubHandlers();
+      server.use(
+        http.post('/v1/jobs', async ({ request }) => {
+          const body = (await request.json()) as { type: string };
+          return body.type === 'video.dub'
+            ? HttpResponse.json(
+                { statusCode: 429, code: 'DUB_QUOTA_EXCEEDED', message: 'quota' },
+                { status: 429 },
+              )
+            : HttpResponse.json({ jobId: 'frames' }, { status: 202 });
+        }),
+      );
+      const { user, dialog } = await chooseTranslation();
+      await user.upload(
+        within(dialog).getByLabelText(/Drop images or videos here/, { selector: 'input' }),
+        clip(),
+      );
+      await user.click(await within(dialog).findByRole('button', { name: 'Upload and translate' }));
+
+      expect(
+        await screen.findByText(
+          "The file is uploaded, but this month's translation time is used up.",
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
   it('shows on the tile when storage is full', async () => {

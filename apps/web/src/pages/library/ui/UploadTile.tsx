@@ -24,6 +24,7 @@ const PROBLEM_KEY = {
   rateLimited: 'problem.rateLimited',
   queueFull: 'problem.queueFull',
   quotaExceeded: 'problem.quotaExceeded',
+  dubQuotaExceeded: 'problem.dubQuotaExceeded',
 } as const satisfies Record<UploadProblem, string>;
 
 const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
