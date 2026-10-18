@@ -286,7 +286,9 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       transient (ADR-007); `4xx` — `provider_rejected`; таймаут на кожен виклик; circuit breaker
       на провайдера (5 збоїв підряд — відкритий на 30 с). Фолбеку на іншу модель розпізнавання
       немає: вичерпані спроби — `dead` з `stt_unavailable`. `PermanentError` отримує `code`,
-      `lastError` — `code: message`.
+      `lastError` — `code: message` (зроблено: `PermanentError(message, code)`; `too_long` і
+      `no_audio` з ffprobe, `ProviderError` з адаптерів — лишились ретраї, breaker і коди
+      `provider_rejected` / `*_unavailable`).
 - [ ] Deployment `video-dub` (`VIDEO_JOB_TYPES=video.dub`, консюмери `video-dub-priority` і
       `video-dub-cpu`, один слот) з KEDA за лагом; Debian-образ з вагами Supertonic (407 МБ),
       requests `1 CPU / 1Gi`. Секрет `OPENAI_API_KEY`; NetworkPolicy: сервіси кластера і `443`
