@@ -96,6 +96,7 @@ export class JobsService {
     if (!input.success) {
       throw new BadRequestException(error('VALIDATION_FAILED', z.prettifyError(input.error)));
     }
+    if (req.type === 'video.dub') await this.checkReuse(req.userId, input.data as VideoDubInputV1);
 
     const created = await this.pg.db.transaction(async (tx) => {
       if (req.idempotency) {
@@ -127,6 +128,26 @@ export class JobsService {
     });
     if (!created.replayed) jobMetrics.created(created.job.type);
     return created;
+  }
+
+  /**
+   * The worker copies the recognised speech and audio of `reuseOf`, so it must be a dub of the
+   * same file by the same user. Any state will do: a dub that failed on `same_language` has them.
+   * A job of another user is answered like a missing one.
+   */
+  private async checkReuse(userId: string, input: VideoDubInputV1): Promise<void> {
+    if (!input.reuseOf) return;
+    const [previous] = await this.pg.db
+      .select({ input: jobs.input })
+      .from(jobs)
+      .where(and(eq(jobs.id, input.reuseOf), eq(jobs.userId, userId), eq(jobs.type, 'video.dub')))
+      .limit(1);
+    const previousKey = (previous?.input as { sourceKey?: string } | undefined)?.sourceKey;
+    if (previousKey !== input.sourceKey) {
+      throw new BadRequestException(
+        error('VALIDATION_FAILED', 'reuseOf must name a dub of the same file'),
+      );
+    }
   }
 
   /**

@@ -44,6 +44,9 @@ importers:
       '@pdp/observability':
         specifier: workspace:^
         version: link:libs/observability
+      '@pdp/worker-kit':
+        specifier: workspace:^
+        version: link:libs/worker-kit
       '@testcontainers/postgresql':
         specifier: ^12.2.0
         version: 12.2.0

@@ -1,11 +1,14 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   type GetObjectCommandOutput,
   HeadBucketCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   NoSuchKey,
+  NotFound,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -87,6 +90,28 @@ export class ObjectStorage implements OnApplicationShutdown {
       }),
     );
     return size;
+  }
+
+  /** A missing key is an answer here, not a failure: checkpoints ask before computing. */
+  async exists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return true;
+    } catch (err) {
+      if (err instanceof NotFound || err instanceof NoSuchKey) return false;
+      throw err;
+    }
+  }
+
+  /** Inside the bucket, without the bytes passing through the worker. */
+  async copyObject(source: string, target: string): Promise<void> {
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.bucket,
+        Key: target,
+        CopySource: `${this.bucket}/${source.split('/').map(encodeURIComponent).join('/')}`,
+      }),
+    );
   }
 
   /** Succeeds for a key that is already gone, so a repeated purge is harmless. */

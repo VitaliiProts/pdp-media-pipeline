@@ -87,6 +87,24 @@ describe('ProgressReporter', () => {
     ]);
   });
 
+  it('sends a step that changed during an update once that update is answered', async () => {
+    let resolve: () => void = () => undefined;
+    const send = jest.fn(
+      (_percent: number, _step?: string) => new Promise<void>((r) => (resolve = r)),
+    );
+    const { report } = setup(send);
+    report(90, 'voice');
+    report(92, 'mix');
+    report(93, 'mix');
+    expect(send).toHaveBeenCalledTimes(1);
+    resolve();
+    await flush();
+    expect(send.mock.calls).toEqual([
+      [90, 'voice'],
+      [93, 'mix'],
+    ]);
+  });
+
   it('keeps the percent from going back when the step changes', async () => {
     const { send, report, at } = setup();
     report(50, 'translate');

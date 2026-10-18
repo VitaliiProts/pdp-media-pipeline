@@ -6,13 +6,19 @@ import {
   s3EnvSchema,
   workerShutdownEnvSchema,
 } from '@pdp/config';
-import { TRANSCODE_MAX_DURATION_SECONDS, VIDEO_MAX_DURATION_SECONDS } from '@pdp/contracts';
+import {
+  DUB_MAX_DURATION_SECONDS,
+  TRANSCODE_MAX_DURATION_SECONDS,
+  VIDEO_MAX_DURATION_SECONDS,
+} from '@pdp/contracts';
 import os from 'node:os';
 import { z } from 'zod';
 import { dubEnvSchema } from './dub/dub-providers';
 
-export const VIDEO_JOB_TYPES = ['video.frames', 'video.transcode'] as const;
+export const VIDEO_JOB_TYPES = ['video.frames', 'video.transcode', 'video.dub'] as const;
 export type VideoJobType = (typeof VIDEO_JOB_TYPES)[number];
+/** `video.dub` needs a key and a model, so it runs only where it is asked for. */
+const DEFAULT_VIDEO_JOB_TYPES: readonly VideoJobType[] = ['video.frames', 'video.transcode'];
 
 export const envSchema = baseEnvSchema.extend({
   ...natsEnvSchema.shape,
@@ -51,7 +57,7 @@ export const envSchema = baseEnvSchema.extend({
    */
   VIDEO_JOB_TYPES: z
     .string()
-    .default(VIDEO_JOB_TYPES.join(','))
+    .default(DEFAULT_VIDEO_JOB_TYPES.join(','))
     .transform((s) => s.split(',').map((t) => t.trim()))
     .pipe(
       z
@@ -66,6 +72,11 @@ export const envSchema = baseEnvSchema.extend({
     .positive()
     .max(TRANSCODE_MAX_DURATION_SECONDS)
     .default(TRANSCODE_MAX_DURATION_SECONDS),
+  DUB_MAX_DURATION_SECONDS: z.coerce
+    .number()
+    .positive()
+    .max(DUB_MAX_DURATION_SECONDS)
+    .default(DUB_MAX_DURATION_SECONDS),
   /** Minimum time between two progress updates of one job. */
   JOB_PROGRESS_INTERVAL_MS: z.coerce.number().int().min(100).default(3000),
   /** Scratch space for downloads and frames; defaults to the OS temp dir. */

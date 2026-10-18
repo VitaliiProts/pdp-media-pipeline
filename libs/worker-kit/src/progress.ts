@@ -19,6 +19,9 @@ export class ProgressReporter {
   private lastStep: string | undefined;
   private lastAt = Number.NEGATIVE_INFINITY;
   private inFlight = false;
+  private sendingStep: string | undefined;
+  /** The latest report of a step other than the one in flight; sent when that one is answered. */
+  private pending: [percent: number, step: string | undefined] | undefined;
   private stopped = false;
 
   constructor(
@@ -34,15 +37,20 @@ export class ProgressReporter {
    * user sees; the percent still never goes back.
    */
   readonly report = (percent: number, step?: string): void => {
+    if (this.stopped) return;
+    if (this.inFlight) {
+      if (step !== this.sendingStep) this.pending = [percent, step];
+      return;
+    }
     const newStep = step !== this.lastStep;
     const value = Math.max(this.lastSent, Math.min(100, Math.max(0, Math.floor(percent))));
     const now = this.now();
-    if (this.stopped || this.inFlight) return;
     if (!newStep && (value <= this.lastSent || now - this.lastAt < this.options.intervalMs)) {
       return;
     }
 
     this.inFlight = true;
+    this.sendingStep = step;
     this.lastAt = now;
     this.send(value, step)
       .then(
@@ -57,6 +65,9 @@ export class ProgressReporter {
       )
       .finally(() => {
         this.inFlight = false;
+        const next = this.pending;
+        this.pending = undefined;
+        if (next) this.report(...next);
       });
   };
 }

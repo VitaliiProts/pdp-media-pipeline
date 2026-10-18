@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { type AudioSeparate, AudioSeparateClient } from './audio-separate/audio-separate.client';
+import { FakeAudioSeparate } from './audio-separate/fake-audio-separate';
+import { type DubStorage } from './checkpoints';
 import { FakeSpeechToText, FakeTextToSpeech, FakeTranslator } from './providers/fake';
 import { OPENAI_BASE_URL, OpenAiSpeechToText, OpenAiTranslator } from './providers/openai';
 import { Supertonic } from './providers/supertonic';
@@ -23,6 +25,8 @@ export const dubEnvSchema = z.object({
   /** The CPU limit of the pod. */
   SUPERTONIC_THREADS: z.coerce.number().int().min(1).default(2),
   SUPERTONIC_STEPS: z.coerce.number().int().min(1).max(32).default(8),
+  /** `fake` makes the whole track both voice and background, for tests, k6 and k3d. */
+  DUB_AUDIO_SEPARATE: z.enum(['http', 'fake']).default('http'),
   AUDIO_SEPARATE_URL: z.url().default('http://audio-separate:8000'),
   /** For one call, waiting for a busy pod included. */
   AUDIO_SEPARATE_TIMEOUT_MS: ms(300_000),
@@ -37,7 +41,10 @@ export interface DubProviders {
 }
 
 /** Called once at start: a missing key or model stops the pod, not the first job. */
-export async function createDubProviders(env: DubEnv): Promise<DubProviders> {
+export async function createDubProviders(
+  env: DubEnv,
+  storage: Pick<DubStorage, 'copyObject' | 'putObject'>,
+): Promise<DubProviders> {
   let stt: SpeechToText = new FakeSpeechToText();
   let translator: Translator = new FakeTranslator();
   if (env.DUB_PROVIDERS === 'openai') {
@@ -61,9 +68,12 @@ export async function createDubProviders(env: DubEnv): Promise<DubProviders> {
           threads: env.SUPERTONIC_THREADS,
           steps: env.SUPERTONIC_STEPS,
         });
-  const audioSeparate = new AudioSeparateClient({
-    baseUrl: env.AUDIO_SEPARATE_URL,
-    timeoutMs: env.AUDIO_SEPARATE_TIMEOUT_MS,
-  });
+  const audioSeparate =
+    env.DUB_AUDIO_SEPARATE === 'fake'
+      ? new FakeAudioSeparate(storage)
+      : new AudioSeparateClient({
+          baseUrl: env.AUDIO_SEPARATE_URL,
+          timeoutMs: env.AUDIO_SEPARATE_TIMEOUT_MS,
+        });
   return { stt, translator, tts, audioSeparate };
 }

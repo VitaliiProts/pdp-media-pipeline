@@ -1,4 +1,5 @@
 import { AudioSeparateClient } from './audio-separate/audio-separate.client';
+import { FakeAudioSeparate } from './audio-separate/fake-audio-separate';
 import { createDubProviders, type DubEnv, dubEnvSchema } from './dub-providers';
 import { FakeSpeechToText, FakeTextToSpeech, FakeTranslator } from './providers/fake';
 import { OpenAiSpeechToText, OpenAiTranslator } from './providers/openai';
@@ -20,28 +21,52 @@ describe('dub settings', () => {
   });
 });
 
+const storage = {
+  copyObject: () => Promise.resolve(),
+  putObject: () => Promise.resolve(),
+};
+
 describe('createDubProviders', () => {
   it('runs without a key or a model on fakes', async () => {
-    const providers = await createDubProviders(env({ DUB_PROVIDERS: 'fake', DUB_TTS: 'fake' }));
+    const providers = await createDubProviders(
+      env({ DUB_PROVIDERS: 'fake', DUB_TTS: 'fake' }),
+      storage,
+    );
     expect(providers.stt).toBeInstanceOf(FakeSpeechToText);
     expect(providers.translator).toBeInstanceOf(FakeTranslator);
     expect(providers.tts).toBeInstanceOf(FakeTextToSpeech);
     expect(providers.audioSeparate).toBeInstanceOf(AudioSeparateClient);
   });
 
+  it('stands in for audio-separate when told to', async () => {
+    const providers = await createDubProviders(
+      env({ DUB_PROVIDERS: 'fake', DUB_TTS: 'fake', DUB_AUDIO_SEPARATE: 'fake' }),
+      storage,
+    );
+    expect(providers.audioSeparate).toBeInstanceOf(FakeAudioSeparate);
+  });
+
   it('refuses to start on OpenAI without a key', async () => {
-    await expect(createDubProviders(env({ DUB_TTS: 'fake' }))).rejects.toThrow('OPENAI_API_KEY');
+    await expect(createDubProviders(env({ DUB_TTS: 'fake' }), storage)).rejects.toThrow(
+      'OPENAI_API_KEY',
+    );
   });
 
   it('uses OpenAI with a key', async () => {
-    const providers = await createDubProviders(env({ DUB_TTS: 'fake', OPENAI_API_KEY: 'sk-test' }));
+    const providers = await createDubProviders(
+      env({ DUB_TTS: 'fake', OPENAI_API_KEY: 'sk-test' }),
+      storage,
+    );
     expect(providers.stt).toBeInstanceOf(OpenAiSpeechToText);
     expect(providers.translator).toBeInstanceOf(OpenAiTranslator);
   });
 
   it('fails at start when the Supertonic model is missing', async () => {
     await expect(
-      createDubProviders(env({ DUB_PROVIDERS: 'fake', SUPERTONIC_ASSETS_DIR: '/nonexistent' })),
+      createDubProviders(
+        env({ DUB_PROVIDERS: 'fake', SUPERTONIC_ASSETS_DIR: '/nonexistent' }),
+        storage,
+      ),
     ).rejects.toThrow('/nonexistent');
   });
 });

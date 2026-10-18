@@ -41,6 +41,7 @@
     "@pdp/contracts": "workspace:^",
     "@pdp/metadata-client": "workspace:^",
     "@pdp/observability": "workspace:^",
+    "@pdp/worker-kit": "workspace:^",
     "@testcontainers/postgresql": "^12.2.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22",
