@@ -113,6 +113,54 @@ describe('JobPresenter', () => {
     expect(response.video?.frames[0]).not.toHaveProperty('downloadUrl');
   });
 
+  it('links the dubbed video and subtitles, without the provider usage', async () => {
+    const response = await presenter.toResponse(
+      job('video.dub', {
+        durationSeconds: 8,
+        sourceLanguage: 'en',
+        targetLanguage: 'uk',
+        video: { key: 'results/j/dubbed.mp4', bytes: 1000 },
+        subtitles: { key: 'results/j/dubbed.vtt' },
+        speakers: [{ id: 'A', gender: 'male', maleProbability: 0.9, voice: 'M1', seconds: 2 }],
+        phrases: [
+          {
+            id: '1',
+            turn: '1',
+            speaker: 'A',
+            start: 0.5,
+            end: 3,
+            source: 'Hi.',
+            target: 'Привіт.',
+            placedStart: 0.5,
+            placedEnd: 3,
+            speed: 1.1,
+            refitted: false,
+          },
+        ],
+        unrecognized: [{ start: 7, end: 8 }],
+        stats: { phrases: 1, sped: 1, refitted: 0, overflowed: 0, meanEndErrorSeconds: 0 },
+        usage: { audioSeconds: 8, inputTokens: 10, outputTokens: 5, estimatedCostUsd: 0.01 },
+      }),
+      { downloadBase: 'clip.mp4' },
+    );
+
+    expect(response.dub).toMatchObject({
+      sourceLanguage: 'en',
+      video: { bytes: 1000 },
+      phrases: [{ target: 'Привіт.' }],
+      unrecognized: [{ start: 7, end: 8 }],
+    });
+    expect(response.dub).not.toHaveProperty('usage');
+    expect(response.dub?.video).not.toHaveProperty('key');
+    expect(new URL(response.dub?.video.url ?? '').pathname).toBe('/media/results/j/dubbed.mp4');
+    expect(savedAs(response.dub?.video.downloadUrl)).toBe(
+      "attachment; filename*=UTF-8''clip-dub-uk.mp4",
+    );
+    expect(savedAs(response.dub?.subtitles.downloadUrl)).toBe(
+      "attachment; filename*=UTF-8''clip-dub-uk.vtt",
+    );
+  });
+
   it('shows the step only while the job runs', async () => {
     const stored = { ...job('video.dub', {}), progress: 45, progressStep: 'align' };
     await expect(

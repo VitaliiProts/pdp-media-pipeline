@@ -298,6 +298,133 @@ export class TranscodeResultDto {
   skipped!: Rendition[];
 }
 
+export class DubFileDto {
+  @ApiProperty({ description: 'Presigned GET URL, valid for at least one hour.' })
+  url!: string;
+
+  @ApiPropertyOptional({
+    description: 'Presigned GET URL that saves the file under a readable name. Asset details only.',
+  })
+  downloadUrl?: string;
+}
+
+export class DubVideoDto extends DubFileDto {
+  @ApiProperty()
+  bytes!: number;
+}
+
+export class DubSpeakerDto {
+  @ApiProperty({ example: 'A' })
+  id!: string;
+
+  @ApiProperty({ enum: ['male', 'female'] })
+  gender!: 'male' | 'female';
+
+  @ApiProperty({ minimum: 0, maximum: 1, description: 'Of the classifier, on the speaker voice.' })
+  maleProbability!: number;
+
+  @ApiProperty({ enum: DUB_VOICES })
+  voice!: string;
+
+  @ApiProperty({ description: 'Speech of the speaker in the original.' })
+  seconds!: number;
+}
+
+export class DubPhraseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ description: 'Phrases of one turn are parts of one utterance of one speaker.' })
+  turn!: string;
+
+  @ApiProperty()
+  speaker!: string;
+
+  @ApiProperty({ description: 'First word of the original, in seconds.' })
+  start!: number;
+
+  @ApiProperty({ description: 'Last word of the original, in seconds.' })
+  end!: number;
+
+  @ApiProperty()
+  source!: string;
+
+  @ApiProperty()
+  target!: string;
+
+  @ApiProperty({ description: 'Where the dubbed phrase plays.' })
+  placedStart!: number;
+
+  @ApiProperty()
+  placedEnd!: number;
+
+  @ApiProperty({ description: 'Of the synthesiser; above 1 the phrase was sped up.' })
+  speed!: number;
+
+  @ApiProperty({ description: 'Rewritten to a word count because no variant fitted its time.' })
+  refitted!: boolean;
+}
+
+export class DubIntervalDto {
+  @ApiProperty()
+  start!: number;
+
+  @ApiProperty()
+  end!: number;
+}
+
+export class DubStatsDto {
+  @ApiProperty()
+  phrases!: number;
+
+  @ApiProperty()
+  sped!: number;
+
+  @ApiProperty()
+  refitted!: number;
+
+  @ApiProperty({ description: 'Ran past their slot even at the highest speed.' })
+  overflowed!: number;
+
+  @ApiProperty()
+  meanEndErrorSeconds!: number;
+}
+
+export class DubResultDto {
+  @ApiProperty()
+  durationSeconds!: number;
+
+  @ApiProperty({ example: 'en', description: 'Detected, unless the job named it.' })
+  sourceLanguage!: string;
+
+  @ApiProperty({ enum: DUB_TARGET_LANGUAGES })
+  targetLanguage!: DubTargetLanguage;
+
+  @ApiProperty({
+    type: DubVideoDto,
+    description: 'MP4 with the dub as the default audio track and the original second.',
+  })
+  video!: DubVideoDto;
+
+  @ApiProperty({ type: DubFileDto, description: 'WebVTT at the dubbed positions of the phrases.' })
+  subtitles!: DubFileDto;
+
+  @ApiProperty({ type: [DubSpeakerDto] })
+  speakers!: DubSpeakerDto[];
+
+  @ApiProperty({ type: [DubPhraseDto] })
+  phrases!: DubPhraseDto[];
+
+  @ApiProperty({
+    type: [DubIntervalDto],
+    description: 'Voice that no recognised word covers: shown, never dubbed.',
+  })
+  unrecognized!: DubIntervalDto[];
+
+  @ApiProperty({ type: DubStatsDto })
+  stats!: DubStatsDto;
+}
+
 export class JobResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -343,6 +470,9 @@ export class JobResponseDto {
 
   @ApiProperty({ type: TranscodeResultDto, required: false, description: 'video.transcode' })
   transcode?: TranscodeResultDto;
+
+  @ApiProperty({ type: DubResultDto, required: false, description: 'video.dub' })
+  dub?: DubResultDto;
 
   @ApiProperty({
     type: Number,

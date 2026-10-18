@@ -246,7 +246,9 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       `mix`), скидається разом із `progress` на старті спроби; `progressStep` у `GET /v1/jobs/:id`
       лише поки задача `running`; `JobContext.progress(percent, step)` надсилає новий крок одразу,
       без інтервалу. Транскрипт — `phrases` і `unrecognized` у виході задачі через
-      `GET /v1/jobs/:id`, без окремого ендпоінту.
+      `GET /v1/jobs/:id`, без окремого ендпоінту: поле `dub` відповіді (мови, мовці, фрази,
+      статистика, presigned `video` і `subtitles`, на сторінці файлу — `downloadUrl` з іменем
+      `{оригінал}-dub-{мова}`); `usage` лишається внутрішнім, для метрики вартості.
 - [x] Інтерфейси `SpeechToText`, `Translator`, `TextToSpeech` і клієнт `audio-separate`;
       адаптери OpenAI, Supertonic і фейкові для тестів, k6 і k3d без ключа. `SpeechToText`
       повертає сегменти з мовцями незалежно від того, хто їх розмітив: діаризаційну модель
