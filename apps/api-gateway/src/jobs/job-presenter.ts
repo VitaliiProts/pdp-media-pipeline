@@ -70,6 +70,7 @@ export class JobPresenter {
       traceId: job.traceId,
       // The last value of an earlier attempt would be stale once the job left `running`.
       progress: job.status === 'running' ? job.progress : null,
+      progressStep: job.status === 'running' ? job.progressStep : null,
     };
     if (job.status !== 'succeeded') return response;
 

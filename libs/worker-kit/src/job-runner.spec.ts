@@ -254,4 +254,28 @@ describe('JobRunner', () => {
 
     expect(progress).toHaveBeenCalledWith(job.jobId, { attempt: 5, progress: 42 });
   });
+
+  it('reports the step a job is in along with the percent', async () => {
+    const progress = jest.fn(() => Promise.resolve());
+    const runner = new JobRunner(
+      { transition: asRequested, progress },
+      { workerId: 'w1', retry },
+    ).register({
+      type: 'image.resize',
+      inputSchema,
+      process: (job) => {
+        job.progress(10, 'separate');
+        return Promise.resolve({});
+      },
+    });
+    const job = dispatch({ attemptBase: 0 });
+
+    await runner.handle({ data: encode(job), deliveryCount: 1, consumer: 'worker-cpu' });
+
+    expect(progress).toHaveBeenCalledWith(job.jobId, {
+      attempt: 1,
+      progress: 10,
+      step: 'separate',
+    });
+  });
 });

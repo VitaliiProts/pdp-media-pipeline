@@ -94,9 +94,20 @@ describe('metadata (Postgres + NATS)', () => {
     await client.transition(job.id, { to: 'running', attempt: 1, actor: 'worker:a' });
     await client.reportProgress(job.id, { attempt: 1, progress: 42 });
     await expect(client.getJob(job.id)).resolves.toMatchObject({ progress: 42 });
+    await client.reportProgress(job.id, { attempt: 1, progress: 45, step: 'align' });
+    await expect(client.getJob(job.id)).resolves.toMatchObject({
+      progress: 45,
+      progressStep: 'align',
+    });
 
     await client.transition(job.id, { to: 'running', attempt: 2, actor: 'worker:b' });
-    await expect(client.getJob(job.id)).resolves.toMatchObject({ progress: null });
+    await expect(client.getJob(job.id)).resolves.toMatchObject({
+      progress: null,
+      progressStep: null,
+    });
+    await client.reportProgress(job.id, { attempt: 2, progress: 5, step: 'extract' });
+    await client.reportProgress(job.id, { attempt: 2, progress: 6 });
+    await expect(client.getJob(job.id)).resolves.toMatchObject({ progressStep: null });
     await expect(client.reportProgress(job.id, { attempt: 1, progress: 80 })).rejects.toMatchObject(
       { status: 409, code: 'STALE_ATTEMPT' },
     );

@@ -18,7 +18,7 @@ describe('download names', () => {
   });
 });
 
-describe('JobPresenter download links', () => {
+describe('JobPresenter', () => {
   const storage = new StorageService(
     new ConfigService<Env, true>({
       S3_BUCKET: 'media',
@@ -52,6 +52,7 @@ describe('JobPresenter download links', () => {
     finishedAt: '2026-10-15T00:00:00.000Z',
     traceId: null,
     progress: null,
+    progressStep: null,
     assetId: null,
   });
   const video = { durationSeconds: 3, width: 320, height: 240, codec: 'h264' };
@@ -110,5 +111,16 @@ describe('JobPresenter download links', () => {
     expect(response.video?.preview.url).toBeDefined();
     expect(response.video?.preview).not.toHaveProperty('downloadUrl');
     expect(response.video?.frames[0]).not.toHaveProperty('downloadUrl');
+  });
+
+  it('shows the step only while the job runs', async () => {
+    const stored = { ...job('video.dub', {}), progress: 45, progressStep: 'align' };
+    await expect(
+      presenter.toResponse({ ...stored, status: 'running', finishedAt: null }),
+    ).resolves.toMatchObject({ progress: 45, progressStep: 'align' });
+    await expect(presenter.toResponse({ ...stored, status: 'dead' })).resolves.toMatchObject({
+      progress: null,
+      progressStep: null,
+    });
   });
 });

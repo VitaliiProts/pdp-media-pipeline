@@ -16,30 +16,39 @@ export class ProgressReporter {
   private readonly logger = new Logger(ProgressReporter.name);
   private readonly now: () => number;
   private lastSent = -1;
+  private lastStep: string | undefined;
   private lastAt = Number.NEGATIVE_INFINITY;
   private inFlight = false;
   private stopped = false;
 
   constructor(
-    private readonly send: (percent: number) => Promise<void>,
+    private readonly send: (percent: number, step?: string) => Promise<void>,
     private readonly options: ProgressReporterOptions,
   ) {
     this.now = options.now ?? Date.now;
   }
 
-  /** Whole percent, clamped to 0..100; lower or equal values are dropped. */
-  readonly report = (percent: number): void => {
-    const value = Math.min(100, Math.max(0, Math.floor(percent)));
+  /**
+   * Whole percent, clamped to 0..100; lower or equal values are dropped. A new step is sent
+   * without waiting for the interval, since a job has only a few and each changes what the
+   * user sees; the percent still never goes back.
+   */
+  readonly report = (percent: number, step?: string): void => {
+    const newStep = step !== this.lastStep;
+    const value = Math.max(this.lastSent, Math.min(100, Math.max(0, Math.floor(percent))));
     const now = this.now();
-    if (this.stopped || this.inFlight || value <= this.lastSent) return;
-    if (now - this.lastAt < this.options.intervalMs) return;
+    if (this.stopped || this.inFlight) return;
+    if (!newStep && (value <= this.lastSent || now - this.lastAt < this.options.intervalMs)) {
+      return;
+    }
 
     this.inFlight = true;
     this.lastAt = now;
-    this.send(value)
+    this.send(value, step)
       .then(
         () => {
           this.lastSent = value;
+          this.lastStep = step;
         },
         (err: unknown) => {
           if (err instanceof MetadataError && !err.retryable) this.stopped = true;

@@ -3,6 +3,10 @@ import { z } from 'zod';
 /** The dub's audio goes to speech recognition in one request (ADR-016). */
 export const DUB_MAX_DURATION_SECONDS = 60;
 
+/** Reported as the progress step, in this order; speech recognition runs during `separate`. */
+export const DUB_STEPS = ['extract', 'separate', 'align', 'translate', 'voice', 'mix'] as const;
+export type DubStep = (typeof DUB_STEPS)[number];
+
 /** Languages every voice of the synthesiser speaks and the pipeline was checked in. */
 export const DUB_TARGET_LANGUAGES = ['uk', 'de', 'en', 'es', 'fr'] as const;
 export const DubTargetLanguageSchema = z.enum(DUB_TARGET_LANGUAGES);

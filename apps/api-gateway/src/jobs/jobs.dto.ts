@@ -307,6 +307,15 @@ export class JobResponseDto {
   })
   progress!: number | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'align',
+    description:
+      'Step of the work while running, for job types made of several (video.dub: extract, separate, align, translate, voice, mix).',
+  })
+  progressStep!: string | null;
+
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
 

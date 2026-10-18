@@ -78,6 +78,13 @@
       "when": 1792277696558,
       "tag": "0010_video_dub",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792333446093,
+      "tag": "0011_progress_step",
+      "breakpoints": true
     }
   ]
 }

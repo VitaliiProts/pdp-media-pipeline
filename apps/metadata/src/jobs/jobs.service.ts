@@ -346,7 +346,7 @@ export class JobsService {
   async progress(id: string, req: ProgressRequest): Promise<void> {
     const updated = await this.pg.db
       .update(jobs)
-      .set({ progress: req.progress })
+      .set({ progress: req.progress, progressStep: req.step ?? null })
       .where(and(eq(jobs.id, id), eq(jobs.status, 'running'), eq(jobs.attempts, req.attempt)))
       .returning({ id: jobs.id });
     if (updated.length > 0) return;
@@ -514,6 +514,7 @@ export class JobsService {
           .onConflictDoNothing();
         patch.attempts = req.attempt;
         patch.progress = null;
+        patch.progressStep = null;
         // The scheduler's own transition is a no-op when the worker overtook it.
         patch.class = job.class ?? req.class ?? null;
         break;

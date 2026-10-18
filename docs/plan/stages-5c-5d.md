@@ -241,9 +241,11 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       `targetLanguage` `uk` | `de` | `en` | `es` | `fr`, `sourceLanguage` за замовчуванням `auto`, необов'язкові
       `speakers` і `reuseOf`), `VideoDubOutputV1` (мова, файли, мовці зі статтю й голосом, фрази з
       оригіналом, перекладом і позиціями, нерозпізнані фрагменти, статистика підгонки, `usage`).
-- [ ] Прогрес з кроком: `step` у `POST /internal/jobs/:id/progress` і колонка
-      `jobs.progress_step` (`extract`, `separate`, `align`, `translate`, `voice`, `mix`); загальний
-      відсоток за вагами кроків. Транскрипт — `phrases` і `unrecognized` у виході задачі через
+- [x] Прогрес з кроком: `step` у `POST /internal/jobs/:id/progress` і колонка
+      `jobs.progress_step` (`DUB_STEPS`: `extract`, `separate`, `align`, `translate`, `voice`,
+      `mix`), скидається разом із `progress` на старті спроби; `progressStep` у `GET /v1/jobs/:id`
+      лише поки задача `running`; `JobContext.progress(percent, step)` надсилає новий крок одразу,
+      без інтервалу. Транскрипт — `phrases` і `unrecognized` у виході задачі через
       `GET /v1/jobs/:id`, без окремого ендпоінту.
 - [ ] Інтерфейси `SpeechToText`, `Translator`, `TextToSpeech` і клієнт `audio-separate`;
       адаптери OpenAI, Supertonic і фейкові для тестів, k6 і k3d без ключа. `SpeechToText`
@@ -254,7 +256,7 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       0.35 с) → переклад з `speakerGender` / `listenerGender` (мова вже цільова —
       `same_language`) → вибір варіантів і підгонка → озвучка → зведення з фоном → монтаж з
       `-c:v copy`, цільова доріжка за замовчуванням, оригінальна другою, мовні теги; VTT за
-      фактичними позиціями фраз.
+      фактичними позиціями фраз. Загальний відсоток — за вагами кроків.
 - [ ] Переклад під тривалість: три варіанти від повного до найкоротшого під `seconds` фрази;
       передбачувач Supertonic оцінює кожен, береться найближчий до кінця оригіналу з найменшою
       зміною швидкості, з перевагою повнішого. Бюджет символів — з темпу обраного голосу цією

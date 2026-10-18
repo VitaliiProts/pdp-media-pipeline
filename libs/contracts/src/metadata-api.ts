@@ -12,6 +12,10 @@ import { WebhookEventSchema } from './webhooks';
 /** Internal REST API of the Metadata service, shared by the server and its clients. */
 
 export const JobProgressSchema = z.number().int().min(0).max(100);
+/** Named by the job type, e.g. `DUB_STEPS`; Metadata stores whatever the worker reports. */
+export const JobProgressStepSchema = z
+  .string()
+  .regex(/^[a-z][a-z_]{0,31}$/, 'a lowercase step name');
 
 export const JobDto = z.object({
   id: z.uuid(),
@@ -34,6 +38,8 @@ export const JobDto = z.object({
   traceId: z.string().nullable().default(null),
   /** Percent of the current attempt, for long jobs that report it; reset when one starts. */
   progress: JobProgressSchema.nullable().default(null),
+  /** The step of the current attempt, for job types made of several; reset with `progress`. */
+  progressStep: JobProgressStepSchema.nullable().default(null),
   /** The uploaded original the job reads; null for URL sources and webhook deliveries. */
   assetId: z.uuid().nullable().default(null),
 });
@@ -123,6 +129,8 @@ export type TransitionResponse = z.infer<typeof TransitionResponse>;
 export const ProgressRequest = z.object({
   attempt: z.number().int().min(1),
   progress: JobProgressSchema,
+  /** Replaces the stored step; leaving it out clears it. */
+  step: JobProgressStepSchema.optional(),
 });
 export type ProgressRequest = z.infer<typeof ProgressRequest>;
 

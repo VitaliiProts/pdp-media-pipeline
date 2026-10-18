@@ -19,6 +19,7 @@ export const toJobDto = (row: JobRow): JobDto => ({
   finishedAt: row.finishedAt?.toISOString() ?? null,
   traceId: row.traceId,
   progress: row.progress,
+  progressStep: row.progressStep,
   assetId: row.assetId,
 });
 

@@ -138,6 +138,8 @@ export const jobs = pgTable(
     traceId: text('trace_id'),
     /** Percent of the current attempt; not a status change, so `updated_at` stays. */
     progress: smallint('progress'),
+    /** Step of the current attempt, for job types made of several; kept and reset with `progress`. */
+    progressStep: text('progress_step'),
     /** Set from `input.sourceKey`; URL sources and webhook deliveries have none. */
     assetId: uuid('asset_id').references(() => assets.id),
     createdAt: ts('created_at').notNull().defaultNow(),
