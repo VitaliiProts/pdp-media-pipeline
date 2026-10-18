@@ -8,22 +8,31 @@ import { buttonClass } from '../../../shared/ui/button/Button';
 import { type DubRequest } from '../model/dub-job';
 import { DubPlayer } from './DubPlayer';
 import styles from './DubPage.module.css';
+import { Speakers } from './Speakers';
+import { Transcript } from './Transcript';
 
 type DubResultProps = {
   asset: AssetDetails;
   name: string;
+  jobId: string;
   dub: AssetDub;
   request: DubRequest;
 };
 
 // Browsers ignore `download` on cross-origin links; the signed URL's Content-Disposition names the file.
-export function DubResult({ asset, name, dub, request }: DubResultProps) {
+export function DubResult({ asset, name, jobId, dub, request }: DubResultProps) {
   const { t, i18n } = useTranslation('dub');
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [, setTime] = useState(0);
+  const [time, setTime] = useState(0);
   const original = playableOf(asset.jobs).renditions[0]?.url ?? asset.originalUrl;
   const sourceName = languageName(dub.sourceLanguage, i18n.language);
   const language = languageName(dub.targetLanguage, i18n.language);
+
+  const seek = (seconds: number) => {
+    const video = videoRef.current;
+    if (video) video.currentTime = seconds;
+    setTime(seconds);
+  };
 
   return (
     <div className={styles.result}>
@@ -72,6 +81,15 @@ export function DubResult({ asset, name, dub, request }: DubResultProps) {
             </dd>
           </div>
         </dl>
+        <Speakers
+          dub={dub}
+          jobId={jobId}
+          request={request}
+          file={{ assetId: asset.id, sourceKey: asset.sourceKey }}
+        />
+      </div>
+      <div className={styles.side}>
+        <Transcript dub={dub} seconds={time} onSeek={seek} />
       </div>
     </div>
   );

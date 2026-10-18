@@ -266,3 +266,148 @@ describe('dub page', () => {
     expect(screen.getByRole('link', { name: 'Download subtitles (VTT)' })).toBeInTheDocument();
   });
 });
+
+describe('dub transcript', () => {
+  const cellsOf = (row: HTMLElement) =>
+    within(row)
+      .getAllByRole('cell')
+      .map((cell) => cell.textContent);
+
+  it('lays the original beside the translation, with what fitting did to each phrase', async () => {
+    serve(dubJob());
+    renderApp({ signedIn: true, route: ROUTE });
+    const table = within(await screen.findByRole('table'));
+
+    expect(table.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+      'Time',
+      'Speaker',
+      'English',
+      'German',
+    ]);
+    const [, ...rows] = table.getAllByRole('row');
+    expect(rows.map(cellsOf)).toEqual([
+      ['0:01', 'Speaker A', 'Where are you going?', 'Wohin gehst du?'],
+      [
+        '0:04',
+        'Speaker B',
+        'Home, before it rains.',
+        'Nach Hause, bevor es regnet.Sped up ×1.3Shortened',
+      ],
+      [
+        '0:06',
+        'Speaker A',
+        'Wait for me.',
+        'Warte auf mich, bitte, ich komme gleich.Sped up ×1.4ShortenedRuns over',
+      ],
+      ['0:08', 'Speech not recognised, until 0:10: not translated'],
+    ]);
+    expect(table.getByText('Runs over')).toHaveAttribute(
+      'title',
+      'Still too long: it runs into the next phrase or past the end of the video.',
+    );
+  });
+
+  it('jumps to a phrase and marks the one being heard', async () => {
+    serve(dubJob());
+    const { user } = renderApp({ signedIn: true, route: ROUTE });
+    const video = await screen.findByLabelText<HTMLVideoElement>('Play cliffs.mp4');
+    Object.defineProperty(video, 'currentTime', { value: 0, writable: true });
+    const rowOf = (text: string) => screen.getByText(text).closest('tr');
+    expect(screen.getByRole('table').querySelector('[aria-current]')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Play from 0:04' }));
+    expect(video.currentTime).toBe(4);
+    expect(rowOf('Home, before it rains.')).toHaveAttribute('aria-current', 'true');
+
+    video.currentTime = 1.2;
+    fireEvent.timeUpdate(video);
+    expect(rowOf('Where are you going?')).toHaveAttribute('aria-current', 'true');
+    expect(rowOf('Home, before it rains.')).not.toHaveAttribute('aria-current');
+  });
+
+  it('says so when nothing was recognised', async () => {
+    serve(dubJob({ dub: { ...TEST_DUB, phrases: [], unrecognized: [], speakers: [] } }));
+    renderApp({ signedIn: true, route: ROUTE });
+    expect(await screen.findByText('No speech was recognised.')).toBeInTheDocument();
+    expect(screen.getByText('No speakers were found.')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+});
+
+describe('dub speakers', () => {
+  const REDUB_ID = 'd0000000-0000-4000-8000-000000000003';
+
+  function serveRedub(reply: () => Response) {
+    const bodies: unknown[] = [];
+    serve(dubJob(), dubJob({ id: REDUB_ID, status: 'queued', attempts: 0, dub: undefined }));
+    server.use(
+      http.post('/v1/jobs', async ({ request }) => {
+        bodies.push(await request.json());
+        return reply();
+      }),
+    );
+    return bodies;
+  }
+
+  it('lists who speaks, and voices again with only the corrections', async () => {
+    const bodies = serveRedub(() => HttpResponse.json({ jobId: REDUB_ID }, { status: 202 }));
+    const { user, router } = renderApp({ signedIn: true, route: ROUTE });
+    const speakers = within(await screen.findByRole('region', { name: 'Speakers' }));
+
+    expect(speakers.getByText('0:07 of speech · Male voice, 81% sure')).toBeInTheDocument();
+    expect(speakers.getByText('0:03 of speech · Female voice, 70% sure')).toBeInTheDocument();
+    expect(speakers.getByLabelText('Voice for Speaker B')).toHaveDisplayValue('Voice 2');
+    const redub = speakers.getByRole('button', { name: 'Voice again' });
+    expect(redub).toBeDisabled();
+
+    await user.selectOptions(speakers.getByLabelText('Voice type for Speaker B'), 'Male voice');
+    expect(speakers.getByLabelText('Voice for Speaker B')).toHaveDisplayValue('Voice 2');
+    expect(redub).toBeEnabled();
+    await user.click(redub);
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(`/library/${DUB_ASSET_ID}/dubs/${REDUB_ID}`),
+    );
+    expect(bodies).toEqual([
+      {
+        type: 'video.dub',
+        sourceKey: 'u/1/cliffs',
+        targetLanguage: 'de',
+        sourceLanguage: 'auto',
+        speakers: { B: { gender: 'male', voice: 'M2' } },
+        reuseOf: DUB_JOB_ID,
+      },
+    ]);
+    expect(await screen.findByText('Waiting for a free worker…')).toBeInTheDocument();
+  });
+
+  it('goes back to nothing to send when a correction is undone', async () => {
+    serveRedub(() => HttpResponse.json({ jobId: REDUB_ID }, { status: 202 }));
+    const { user } = renderApp({ signedIn: true, route: ROUTE });
+    const speakers = within(await screen.findByRole('region', { name: 'Speakers' }));
+    const voice = speakers.getByLabelText('Voice for Speaker A');
+
+    await user.selectOptions(voice, 'Voice 3');
+    expect(speakers.getByRole('button', { name: 'Voice again' })).toBeEnabled();
+    await user.selectOptions(voice, 'Voice 1');
+    expect(speakers.getByRole('button', { name: 'Voice again' })).toBeDisabled();
+  });
+
+  it('says so when the month’s translation time has run out', async () => {
+    serveRedub(() =>
+      HttpResponse.json(
+        { statusCode: 429, code: 'DUB_QUOTA_EXCEEDED', message: 'quota' },
+        { status: 429 },
+      ),
+    );
+    const { user, router } = renderApp({ signedIn: true, route: ROUTE });
+    const speakers = within(await screen.findByRole('region', { name: 'Speakers' }));
+
+    await user.selectOptions(speakers.getByLabelText('Voice for Speaker A'), 'Voice 4');
+    await user.click(speakers.getByRole('button', { name: 'Voice again' }));
+    expect(await speakers.findByRole('alert')).toHaveTextContent(
+      'Not enough translation time left this month.',
+    );
+    expect(router.state.location.pathname).toBe(ROUTE);
+  });
+});

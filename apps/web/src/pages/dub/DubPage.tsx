@@ -93,7 +93,14 @@ function DubView({ asset, job }: { asset: AssetDetails; job: AssetJob }) {
       </nav>
       <PageHeading>{t('heading', { name, language })}</PageHeading>
       {stage.kind === 'done' ? (
-        <DubResult asset={asset} name={name} dub={stage.dub} request={request} />
+        <DubResult
+          key={job.id}
+          asset={asset}
+          name={name}
+          jobId={job.id}
+          dub={stage.dub}
+          request={request}
+        />
       ) : stage.kind === 'failed' ? (
         <DubFailure
           failure={stage.failure}

@@ -58,5 +58,36 @@
     "phrases": "Phrases",
     "phrasesValue_one": "{{count}}: {{sped}} sped up, {{refitted}} shortened, {{overflowed}} ran over",
     "phrasesValue_other": "{{count}}: {{sped}} sped up, {{refitted}} shortened, {{overflowed}} ran over"
+  },
+  "transcript": {
+    "title": "Transcript",
+    "empty": "No speech was recognised.",
+    "time": "Time",
+    "speaker": "Speaker",
+    "speakerName": "Speaker {{id}}",
+    "playFrom": "Play from {{time}}",
+    "sped": "Sped up ×{{speed}}",
+    "spedHint": "Spoken faster to keep to the original timing.",
+    "refitted": "Shortened",
+    "refittedHint": "Rephrased shorter to keep to the original timing.",
+    "overflowed": "Runs over",
+    "overflowedHint": "Still too long: it runs into the next phrase or past the end of the video.",
+    "unrecognized": "Speech not recognised, until {{until}}: not translated"
+  },
+  "speakers": {
+    "title": "Speakers",
+    "empty": "No speakers were found.",
+    "found": "{{length}} of speech · {{gender}}, {{percent}}% sure",
+    "gender": {
+      "male": "Male voice",
+      "female": "Female voice"
+    },
+    "genderOf": "Voice type for {{name}}",
+    "voiceOf": "Voice for {{name}}",
+    "voice": "Voice {{number}}",
+    "note": "Voiced again from this translation’s recognised speech. It counts towards this month’s translation time.",
+    "redub": "Voice again",
+    "failed": "Could not start the translation again.",
+    "overQuota": "Not enough translation time left this month."
   }
 }
