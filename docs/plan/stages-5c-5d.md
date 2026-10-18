@@ -305,13 +305,20 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       `onnxruntime-node` — optional-залежність з бінарниками всіх платформ (287 МБ): Alpine-образ
       frames / transcode збирається без неї (`--no-optional`), Debian-образ лишає тільки
       `linux/x64` чи `arm64`.
-- [ ] Сервіс `audio-separate` (Python, FastAPI): `POST /v1/separate` (Demucs `htdemucs`) і
+- [x] Сервіс `audio-separate` (Python, FastAPI): `POST /v1/separate` (Demucs `htdemucs`) і
       `POST /v1/analyze` (`MMS_FA` на відділеному голосі, `uroman`, класифікатор статі,
       інтервали голосу без слів як нерозпізнані фрагменти). Ключі S3 на вхід і вихід,
       ідемпотентний за вихідним ключем, один запит на под (`503` з `Retry-After`), readiness після
-      завантаження моделей, `traceparent`. Ваги в образі (~4.5 ГБ); KEDA за лагом `video.dub` з
-      `lagThreshold: 1`, `minReplicas: 1`; `2 CPU`, `4Gi` / `5Gi`, `OMP_NUM_THREADS` = ліміт CPU;
-      egress лише до S3 і OTel, вхід лише від `video-dub`.
+      завантаження моделей, `traceparent`. Ваги в образі (~4.5 ГБ). Зроблено:
+      `apps/audio-separate` (порт 3000, OTel через OTLP/HTTP, JSON-логи), pytest з фейковими
+      моделями і S3 на moto, контракт — спільні приклади в `apps/audio-separate/contract/`, які
+      перевіряють і сервіс, і клієнт воркера; job у CI і образ у docker-матриці. Перевірено зі
+      справжніми моделями на кліпі ToS (44.1 кГц стерео, як дає воркер): розділення 20 с,
+      аналіз 7 с, стать мовців та сама, що в спайку (Том 0.63). Образ потребує `libgomp1`;
+      розпакований — 5.9 ГБ, моделі з нього вантажаться за 7 с без мережі.
+      Розгортання (KEDA за лагом `video.dub` з `lagThreshold: 1`, `minReplicas: 1`; `2 CPU`,
+      `4Gi` / `5Gi`, `OMP_NUM_THREADS` = ліміт CPU; egress лише до S3 і OTel, вхід лише від
+      `video-dub`) — у пункті Deployment.
 - [ ] Ліміти й гроші: тривалість до 1 хвилини (gateway — за відомою тривалістю asset, воркер —
       ffprobe до першого платного кроку); квота `DUB_QUOTA_SECONDS` на користувача на місяць з
       резервом 60 с при створенні і `429 DUB_QUOTA_EXCEEDED`; вартість з `usage` відповідей

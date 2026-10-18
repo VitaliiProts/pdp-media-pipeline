@@ -33,7 +33,7 @@ export const dubEnvSchema = z.object({
   SUPERTONIC_STEPS: z.coerce.number().int().min(1).max(32).default(8),
   /** `fake` makes the whole track both voice and background, for tests, k6 and k3d. */
   DUB_AUDIO_SEPARATE: z.enum(['http', 'fake']).default('http'),
-  AUDIO_SEPARATE_URL: z.url().default('http://audio-separate:8000'),
+  AUDIO_SEPARATE_URL: z.url().default('http://audio-separate:3000'),
   /** For one call, waiting for a busy pod included. */
   AUDIO_SEPARATE_TIMEOUT_MS: ms(300_000),
 });

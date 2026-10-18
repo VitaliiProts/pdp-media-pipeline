@@ -49,7 +49,7 @@ export const AnalyzeResponse = z.object({
       id: z.string(),
       gender: SpeakerGenderSchema,
       maleProbability: z.number().min(0).max(1),
-      /** Speech the classifier heard. */
+      /** Speech of the speaker: first to last word of each turn. */
       seconds: z.number(),
     }),
   ),

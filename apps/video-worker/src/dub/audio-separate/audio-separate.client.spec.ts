@@ -21,7 +21,7 @@ function fakeFetch(...responses: Response[]) {
 }
 
 const client = (fetch: typeof globalThis.fetch, timeoutMs = 60_000) =>
-  new AudioSeparateClient({ baseUrl: 'http://audio-separate:8000', timeoutMs, fetch });
+  new AudioSeparateClient({ baseUrl: 'http://audio-separate:3000', timeoutMs, fetch });
 
 const analysis = {
   segments: [
@@ -51,7 +51,7 @@ describe('AudioSeparateClient', () => {
       vocals: keys.vocals,
       background: keys.background,
     });
-    expect(calls).toEqual([{ url: 'http://audio-separate:8000/v1/separate', body: keys }]);
+    expect(calls).toEqual([{ url: 'http://audio-separate:3000/v1/separate', body: keys }]);
   });
 
   it('asks to analyse the voice for the segments of the transcript', async () => {
@@ -63,7 +63,7 @@ describe('AudioSeparateClient', () => {
     const { fetch, calls } = fakeFetch(json(analysis));
 
     await expect(client(fetch).analyze(request)).resolves.toEqual(analysis);
-    expect(calls).toEqual([{ url: 'http://audio-separate:8000/v1/analyze', body: request }]);
+    expect(calls).toEqual([{ url: 'http://audio-separate:3000/v1/analyze', body: request }]);
   });
 
   it('waits for a busy pod and asks again', async () => {

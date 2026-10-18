@@ -1,0 +1,26 @@
+{
+  "segments": [
+    {
+      "id": "1",
+      "speaker": "A",
+      "words": [
+        { "word": "Привіт,", "start": 1, "end": 1.5, "score": 0.9 },
+        { "word": "Селіє.", "start": 1.5, "end": 2, "score": 0.9 }
+      ]
+    },
+    {
+      "id": "2",
+      "speaker": "B",
+      "words": [
+        { "word": "Hi", "start": 2, "end": 2.333, "score": 0.9 },
+        { "word": "there,", "start": 2.333, "end": 2.667, "score": 0.9 },
+        { "word": "Tom!", "start": 2.667, "end": 3, "score": 0.9 }
+      ]
+    }
+  ],
+  "speakers": [
+    { "id": "A", "gender": "male", "maleProbability": 0.9, "seconds": 1 },
+    { "id": "B", "gender": "female", "maleProbability": 0.2, "seconds": 1 }
+  ],
+  "unrecognized": [{ "start": 7, "end": 8 }]
+}
