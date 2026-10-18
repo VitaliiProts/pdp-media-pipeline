@@ -585,6 +585,22 @@ describe('translating a video', () => {
     expect(screen.queryByRole('button', { name: 'Translate' })).not.toBeInTheDocument();
   });
 
+  it('leads to a dub still under way', async () => {
+    server.use(
+      http.get(`/v1/assets/${ID}`, () =>
+        HttpResponse.json(
+          dubAsset([
+            dubJob({ status: 'running', progress: 40, progressStep: 'voice', dub: undefined }),
+          ]),
+        ),
+      ),
+    );
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+    expect(
+      await screen.findByRole('link', { name: 'Translating into German: follow the progress' }),
+    ).toHaveAttribute('href', `/library/${ID}/dubs/${DUB_JOB_ID}`);
+  });
+
   it('lists a finished dub among the versions', async () => {
     server.use(
       http.get(`/v1/assets/${ID}`, () =>
@@ -606,6 +622,8 @@ describe('translating a video', () => {
     expect(
       within(row).getByRole('link', { name: 'Download Translation · German' }),
     ).toHaveAttribute('href', TEST_DUB.video.downloadUrl);
+    // Only the unfinished dub is under way.
+    expect(screen.getAllByRole('link', { name: /follow the progress/ })).toHaveLength(1);
   });
 
   it('links a dub on the jobs tab to its page', async () => {

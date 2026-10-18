@@ -56,6 +56,8 @@
     "uploaded": "Uploaded",
     "downloadOriginal": "Download original",
     "tabs": "File details",
+    "dubUnderway": "Translating into {{language}}: follow the progress",
+    "dubUnderwayAny": "A translation is under way: follow the progress",
     "translate": "Translate"
   },
   "delete": {

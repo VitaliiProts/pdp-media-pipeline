@@ -60,6 +60,8 @@
     "uploaded": "Завантажено",
     "downloadOriginal": "Завантажити оригінал",
     "tabs": "Подробиці файлу",
+    "dubUnderway": "Іде переклад: {{language}}. Стежити за прогресом",
+    "dubUnderwayAny": "Іде переклад. Стежити за прогресом",
     "translate": "Перекласти"
   },
   "delete": {

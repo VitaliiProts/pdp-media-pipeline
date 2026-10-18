@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import {
   type AssetDetails,
   DeleteAssetButton,
+  isActiveJobStatus,
   playableOf,
   useLiveAsset,
 } from '../../features/assets';
@@ -11,6 +12,7 @@ import { TranslateDialog } from '../../features/upload';
 import { httpStatusOf, retryAfterOf } from '../../shared/api/http';
 import { formatBytes } from '../../shared/lib/format-bytes';
 import { formatDuration } from '../../shared/lib/format-duration';
+import { languageName } from '../../shared/lib/language-name';
 import { Button, buttonClass } from '../../shared/ui/button/Button';
 import { PageHeading } from '../../shared/ui/page-heading/PageHeading';
 import { Skeleton } from '../../shared/ui/skeleton/Skeleton';
@@ -92,6 +94,9 @@ function AssetView({ asset }: { asset: AssetDetails }) {
   );
   const { renditions, poster } = playableOf(asset.jobs);
   const [translating, setTranslating] = useState(false);
+  const dubsUnderway = asset.jobs.filter(
+    (job) => job.type === 'video.dub' && isActiveJobStatus(job.status),
+  );
   const isMounted = useRef(false);
   useEffect(() => {
     isMounted.current = true;
@@ -157,6 +162,22 @@ function AssetView({ asset }: { asset: AssetDetails }) {
           <dd>{uploaded}</dd>
         </div>
       </dl>
+      {dubsUnderway.length > 0 && (
+        <ul className={styles.underway}>
+          {dubsUnderway.map((job) => {
+            const target = job.input?.targetLanguage;
+            return (
+              <li key={job.id}>
+                <Link to={`/library/${asset.id}/dubs/${job.id}`}>
+                  {typeof target === 'string'
+                    ? t('asset.dubUnderway', { language: languageName(target, i18n.language) })
+                    : t('asset.dubUnderwayAny')}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       {asset.kind === 'video' ? (
         <VideoPlayer
           name={name}
