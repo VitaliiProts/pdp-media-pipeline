@@ -247,10 +247,14 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       лише поки задача `running`; `JobContext.progress(percent, step)` надсилає новий крок одразу,
       без інтервалу. Транскрипт — `phrases` і `unrecognized` у виході задачі через
       `GET /v1/jobs/:id`, без окремого ендпоінту.
-- [ ] Інтерфейси `SpeechToText`, `Translator`, `TextToSpeech` і клієнт `audio-separate`;
+- [x] Інтерфейси `SpeechToText`, `Translator`, `TextToSpeech` і клієнт `audio-separate`;
       адаптери OpenAI, Supertonic і фейкові для тестів, k6 і k3d без ключа. `SpeechToText`
       повертає сегменти з мовцями незалежно від того, хто їх розмітив: діаризаційну модель
-      вимикають 26 лютого 2027.
+      вимикають 26 лютого 2027. У `apps/video-worker/src/dub/`: `ProviderError` (`permanent` за
+      статусом, `retryAfterMs`), промпти спайку без змін, Supertonic портований на TypeScript
+      (тест з моделлю — коли є `SUPERTONIC_ASSETS_DIR` або ваги спайку), API `audio-separate`
+      zod-схемами (`503` — чекати й повторити), `DUB_PROVIDERS` / `DUB_TTS` = `fake` і
+      `createDubProviders`, що зупиняє под без ключа чи моделі.
 - [ ] Процесор: ffprobe (≤ 60 с, є аудіо) → витяг аудіо → розпізнавання паралельно з розділенням
       (немає мовлення — `no_speech`) → час слів і стать мовців → фрази (кінці речень, паузи від
       0.35 с) → переклад з `speakerGender` / `listenerGender` (мова вже цільова —
@@ -283,6 +287,9 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       `video-dub-cpu`, один слот) з KEDA за лагом; Debian-образ з вагами Supertonic (407 МБ),
       requests `1 CPU / 1Gi`. Секрет `OPENAI_API_KEY`; NetworkPolicy: сервіси кластера і `443`
       назовні без приватних діапазонів (стандартна NetworkPolicy не знає FQDN).
+      `onnxruntime-node` — optional-залежність з бінарниками всіх платформ (287 МБ): Alpine-образ
+      frames / transcode збирається без неї (`--no-optional`), Debian-образ лишає тільки
+      `linux/x64` чи `arm64`.
 - [ ] Сервіс `audio-separate` (Python, FastAPI): `POST /v1/separate` (Demucs `htdemucs`) і
       `POST /v1/analyze` (`MMS_FA` на відділеному голосі, `uroman`, класифікатор статі,
       інтервали голосу без слів як нерозпізнані фрагменти). Ключі S3 на вхід і вихід,

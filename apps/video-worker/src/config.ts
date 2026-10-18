@@ -9,6 +9,7 @@ import {
 import { TRANSCODE_MAX_DURATION_SECONDS, VIDEO_MAX_DURATION_SECONDS } from '@pdp/contracts';
 import os from 'node:os';
 import { z } from 'zod';
+import { dubEnvSchema } from './dub/dub-providers';
 
 export const VIDEO_JOB_TYPES = ['video.frames', 'video.transcode'] as const;
 export type VideoJobType = (typeof VIDEO_JOB_TYPES)[number];
@@ -19,6 +20,7 @@ export const envSchema = baseEnvSchema.extend({
   ...metadataClientEnvSchema.shape,
   ...egressEnvSchema.shape,
   ...workerShutdownEnvSchema.shape,
+  ...dubEnvSchema.shape,
   /** ffmpeg uses several threads per run, so one or two videos at a time per core group. */
   VIDEO_CONCURRENCY: z.coerce.number().int().min(1).default(1),
   WORKER_ID: z.string().min(1).default(os.hostname()),
