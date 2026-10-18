@@ -2,6 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   DEAD_REASONS,
   type DeadReason,
+  DUB_TARGET_LANGUAGES,
+  DUB_VOICES,
+  type DubTargetLanguage,
   IMAGE_PRESET_NAMES,
   type ImagePreset,
   JOB_STATUSES,
@@ -19,6 +22,7 @@ import {
   IsIn,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -28,7 +32,12 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-export const CREATABLE_JOB_TYPES = ['image.resize', 'video.frames', 'video.transcode'] as const;
+export const CREATABLE_JOB_TYPES = [
+  'image.resize',
+  'video.frames',
+  'video.transcode',
+  'video.dub',
+] as const;
 export type CreatableJobType = (typeof CREATABLE_JOB_TYPES)[number];
 
 /** Exactly one of `sourceKey` and `sourceUrl`; the rest depends on `type`. */
@@ -90,6 +99,43 @@ export class CreateJobDto {
   @ArrayUnique()
   @IsIn(RENDITION_NAMES, { each: true })
   renditions?: Rendition[];
+
+  @ApiPropertyOptional({ enum: DUB_TARGET_LANGUAGES, description: 'Required for video.dub.' })
+  @ValidateIf((dto: CreateJobDto) => dto.type === 'video.dub')
+  @IsIn(DUB_TARGET_LANGUAGES)
+  targetLanguage?: DubTargetLanguage;
+
+  @ApiPropertyOptional({
+    default: 'auto',
+    description: 'video.dub: ISO 639-1 code of the speech, or auto to detect it.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4)
+  sourceLanguage?: string;
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: {
+      type: 'object',
+      properties: {
+        gender: { type: 'string', enum: ['male', 'female'] },
+        voice: { type: 'string', enum: [...DUB_VOICES] },
+      },
+    },
+    description: 'video.dub: gender or voice by speaker id of a previous dub (with reuseOf).',
+  })
+  @IsOptional()
+  @IsObject()
+  speakers?: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'video.dub: a previous dub of the same file; its recognition is reused.',
+  })
+  @IsOptional()
+  @IsUUID()
+  reuseOf?: string;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 9, default: 5 })
   @IsOptional()

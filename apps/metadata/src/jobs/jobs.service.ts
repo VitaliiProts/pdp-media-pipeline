@@ -44,6 +44,7 @@ import {
 } from '../database/schema';
 import { enqueueEvent } from '../outbox/outbox';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { assertDubQuota } from './dub-quota';
 import { insertJob } from './insert-job';
 import { decodeCursor, encodeCursor, toJobDto } from './job.mapper';
 import {
@@ -76,6 +77,7 @@ const seconds = (from: Date, to: Date) => Math.max(0, (to.getTime() - from.getTi
 export class JobsService {
   private readonly policy: RetryPolicy;
   private readonly idempotencyTtlHours: number;
+  private readonly dubQuotaSeconds: number;
 
   constructor(
     private readonly pg: PostgresService,
@@ -85,6 +87,7 @@ export class JobsService {
   ) {
     this.policy = { maxAttempts: config.get('JOB_MAX_ATTEMPTS', { infer: true }) };
     this.idempotencyTtlHours = config.get('IDEMPOTENCY_TTL_HOURS', { infer: true });
+    this.dubQuotaSeconds = config.get('DUB_QUOTA_SECONDS', { infer: true });
   }
 
   async create(req: CreateJobRequest): Promise<CreateJobResponse> {
@@ -105,6 +108,9 @@ export class JobsService {
       }
 
       const { sourceKey } = input.data as { sourceKey?: string };
+      if (req.type === 'video.dub' && sourceKey) {
+        await assertDubQuota(tx, req.userId, sourceKey, this.dubQuotaSeconds);
+      }
       const job = await insertJob(tx, {
         userId: req.userId,
         type: req.type,

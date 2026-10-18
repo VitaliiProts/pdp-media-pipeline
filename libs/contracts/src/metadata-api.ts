@@ -186,6 +186,7 @@ export const METADATA_ERROR_CODES = [
   'ASSET_NOT_FOUND',
   'ASSET_BUSY',
   'STORAGE_QUOTA_EXCEEDED',
+  'DUB_QUOTA_EXCEEDED',
 ] as const;
 export type MetadataErrorCode = (typeof METADATA_ERROR_CODES)[number];
 

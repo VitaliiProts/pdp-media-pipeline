@@ -325,10 +325,15 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       Розгортання (KEDA за лагом `video.dub` з `lagThreshold: 1`, `minReplicas: 1`; `2 CPU`,
       `4Gi` / `5Gi`, `OMP_NUM_THREADS` = ліміт CPU; egress лише до S3 і OTel, вхід лише від
       `video-dub`) — у пункті Deployment.
-- [ ] Ліміти й гроші: тривалість до 1 хвилини (gateway — за відомою тривалістю asset, воркер —
+- [x] Ліміти й гроші: тривалість до 1 хвилини (gateway — за відомою тривалістю asset, воркер —
       ffprobe до першого платного кроку); квота `DUB_QUOTA_SECONDS` на користувача на місяць з
       резервом 60 с при створенні і `429 DUB_QUOTA_EXCEEDED`; вартість з `usage` відповідей
-      у вихід задачі й у метрику.
+      у вихід задачі й у метрику. Зроблено: gateway створює `video.dub` (лише `sourceKey`,
+      `targetLanguage`, `sourceLanguage`, `speakers`, `reuseOf`); Metadata в транзакції
+      створення під `FOR NO KEY UPDATE` рядка користувача відкидає відоме відео довше 60 с і
+      рахує місяць UTC: успішний дубляж — за `durationSeconds` виходу, незавершений — за
+      тривалістю asset або 60 с, невдалий — нічого (`test/dub-limits.int-spec.ts`). Вартість
+      у виході задачі; метрика — у пункті Observability.
 - [ ] Observability: span на кожен крок і виклик провайдера, тривалість кроків, частка
       прискорених, підігнаних і тих, що не влізли, фраз, стан circuit breaker, оцінка вартості;
       SLO `video.dub` 95% за 15 хв (межа `900` у `JOB_LATENCY_BUCKETS`); дашборд.
