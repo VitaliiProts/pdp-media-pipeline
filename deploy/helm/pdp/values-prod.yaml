@@ -50,6 +50,12 @@ video-transcode:
     limits: { cpu: '2', memory: 1536Mi }
   autoscaling: { minReplicas: 2, maxReplicas: 10 }
 
+video-dub:
+  autoscaling: { minReplicas: 2, maxReplicas: 6 }
+
+audio-separate:
+  autoscaling: { minReplicas: 2, maxReplicas: 6 }
+
 web:
   replicaCount: 2
   env:

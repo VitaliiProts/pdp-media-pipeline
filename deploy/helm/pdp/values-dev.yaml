@@ -42,6 +42,19 @@ video-frames:
 video-transcode:
   env: *private-receiver
 
+# Without a key and without the 6 GB audio-separate image: fake recognition, translation and
+# separation, real Supertonic. `kubectl create secret generic dub-provider` and the two
+# values below switch to the real thing.
+video-dub:
+  env:
+    DUB_PROVIDERS: fake
+    DUB_AUDIO_SEPARATE: fake
+  secretEnv:
+    OPENAI_API_KEY: null
+
+audio-separate:
+  enabled: false
+
 web:
   env:
     # Opened by the browser, so the ingress host rather than the service name.

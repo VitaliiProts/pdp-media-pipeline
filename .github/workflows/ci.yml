@@ -156,13 +156,19 @@ jobs:
             web,
             audio-separate,
           ]
+        include:
+          # The Debian dub image of the video worker (ADR-016).
+          - app: video-dub
+            dockerfile: video-worker
+            target: dub
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/${{ matrix.app }}/Dockerfile
+          file: apps/${{ matrix.dockerfile || matrix.app }}/Dockerfile
+          target: ${{ matrix.target }}
           push: false
           load: true
           tags: pdp/${{ matrix.app }}:ci

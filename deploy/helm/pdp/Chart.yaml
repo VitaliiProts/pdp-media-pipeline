@@ -27,7 +27,8 @@ dependencies:
     alias: worker-io
     version: 0.2.0
     repository: file://../worker
-  # The video worker image twice: frames and transcoding (VIDEO_JOB_TYPES).
+  # The video worker three times: frames, transcoding and dubbing (VIDEO_JOB_TYPES); the
+  # dub runs the Debian image with Supertonic.
   - name: video-worker
     alias: video-frames
     version: 0.2.0
@@ -36,6 +37,15 @@ dependencies:
     alias: video-transcode
     version: 0.2.0
     repository: file://../video-worker
+  - name: video-worker
+    alias: video-dub
+    version: 0.2.0
+    repository: file://../video-worker
+    condition: video-dub.enabled
+  - name: audio-separate
+    version: 0.1.0
+    repository: file://../audio-separate
+    condition: audio-separate.enabled
   - name: web
     version: 0.2.0
     repository: file://../web

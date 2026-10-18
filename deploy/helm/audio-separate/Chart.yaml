@@ -1,0 +1,10 @@
+apiVersion: v2
+name: audio-separate
+description: 'PDP Media Pipeline — voice separation, word alignment and speaker gender for video.dub'
+type: application
+version: 0.1.0
+appVersion: dev
+dependencies:
+  - name: pdp-lib
+    version: 0.1.0
+    repository: file://../pdp-lib

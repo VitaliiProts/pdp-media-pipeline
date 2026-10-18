@@ -298,13 +298,19 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       `Retry-After` лишається наступній спробі. `JobRunner` бере `retryAfterMs` помилки як
       нижню межу затримки (не більше `WORKER_RETRY_MAX_MS`), тож відкритий breaker повертає
       задачу, коли він закриється.
-- [ ] Deployment `video-dub` (`VIDEO_JOB_TYPES=video.dub`, консюмери `video-dub-priority` і
+- [x] Deployment `video-dub` (`VIDEO_JOB_TYPES=video.dub`, консюмери `video-dub-priority` і
       `video-dub-cpu`, один слот) з KEDA за лагом; Debian-образ з вагами Supertonic (407 МБ),
       requests `1 CPU / 1Gi`. Секрет `OPENAI_API_KEY`; NetworkPolicy: сервіси кластера і `443`
       назовні без приватних діапазонів (стандартна NetworkPolicy не знає FQDN).
       `onnxruntime-node` — optional-залежність з бінарниками всіх платформ (287 МБ): Alpine-образ
       frames / transcode збирається без неї (`--no-optional`), Debian-образ лишає тільки
-      `linux/x64` чи `arm64`.
+      `linux/x64` чи `arm64`. Зроблено: `--target dub` у Dockerfile video-worker (Supertonic
+      з Hugging Face за закріпленою ревізією, 1.9 ГБ; Alpine-образ 536 МБ без onnxruntime),
+      alias `video-dub` і чарт `audio-separate` в umbrella, NetworkPolicy в `pdp-lib`
+      (`networkPolicy.ingressFrom`, `egressPublicHttps`; без metadata-адреси `169.254/16`),
+      секрет `dub-provider`; у k3d фейкові провайдери й розділення без `audio-separate`
+      (null у `secretEnv` прибирає змінну); compose — профілі `dub` і `dub-separate`; обидва
+      образи в docker-матриці CI; README — конфігурація 5d.
 - [x] Сервіс `audio-separate` (Python, FastAPI): `POST /v1/separate` (Demucs `htdemucs`) і
       `POST /v1/analyze` (`MMS_FA` на відділеному голосі, `uroman`, класифікатор статі,
       інтервали голосу без слів як нерозпізнані фрагменти). Ключі S3 на вхід і вихід,

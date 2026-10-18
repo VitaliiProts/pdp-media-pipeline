@@ -19,8 +19,9 @@ REGISTRY=localhost:5001
 INGRESS=http://%s.pdp.localhost:19080
 CNPG_VERSION=0.29.1
 KEDA_VERSION=2.21.0
-APPS=(api-gateway metadata scheduler worker video-worker webhook-receiver web)
-SERVICE_CHARTS=(api-gateway metadata scheduler worker video-worker webhook-receiver web)
+# audio-separate (6 GB) is off in values-dev.yaml, so it is neither built nor pushed.
+APPS=(api-gateway metadata scheduler worker video-worker video-dub webhook-receiver web)
+SERVICE_CHARTS=(api-gateway metadata scheduler worker video-worker audio-separate webhook-receiver web)
 # Deployments built from one image (aliases in deploy/helm/pdp/Chart.yaml).
 releases_of() {
   case "$1" in
@@ -71,7 +72,7 @@ platform() {
 # Prints `--set <app>.image.tag=<id>` arguments for helm.
 images() {
   log "building images" >&2
-  docker compose build metadata-migrate api-gateway scheduler worker video-worker \
+  docker compose build metadata-migrate api-gateway scheduler worker video-worker video-dub \
     webhook-receiver web >&2
   local app id release
   for app in "${APPS[@]}"; do

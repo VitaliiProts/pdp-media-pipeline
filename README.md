@@ -153,6 +153,7 @@ flowchart LR
 | `apps/scheduler`                       | `job.created` → стрім класу                                         |
 | `apps/worker`                          | `image.resize` через sharp і доставка вебхуків `webhook.deliver`    |
 | `apps/video-worker`                    | `video.frames` через ffmpeg, окремий образ                          |
+| `apps/audio-separate`                  | Python: розділення голосу, час слів і стать мовців для `video.dub`  |
 | `apps/webhook-receiver`                | Тестовий «поганий» приймач вебхуків для compose і тестів            |
 | `apps/web`                             | React + Redux Toolkit, завантаження, задачі, вебхуки                |
 | `libs/egress`                          | Безпечні вихідні запити: SSRF-захист, ліміти, ліміт на хост         |
@@ -1138,6 +1139,37 @@ GET з `Content-Disposition: attachment`; посилання стабільні 
 | `ASSET_UNUSED_TTL_S` (metadata)        | 86400 (24 год)    | Скільки живе завантаження, з якого не створили задачу                            |
 | `ASSET_JANITOR_INTERVAL_MS` (metadata) | 600000 (10 хв)    | Як часто janitor шукає такі завантаження                                         |
 | `ASSET_DETAIL_JOBS` (контракт)         | 50                | Скільки задач віддає `GET /v1/assets/:id`; решта — через `GET /v1/jobs?assetId=` |
+
+## Конфігурація Етапу 5d
+
+`video.dub` бере окремий Deployment `video-dub` (Debian-образ `--target dub` з вагами
+Supertonic) з `VIDEO_JOB_TYPES=video.dub`. У compose — `--profile dub`, фейки за замовчуванням;
+`audio-separate` — `--profile dub-separate`.
+
+| Змінна (video-dub)          | За замовчуванням             | Що робить                                                        |
+| --------------------------- | ---------------------------- | ---------------------------------------------------------------- |
+| `DUB_PROVIDERS`             | `openai` (compose: `fake`)   | Розпізнавання й переклад; `fake` не потребує ключа               |
+| `OPENAI_API_KEY`            | —                            | Секрет `dub-provider` / `openaiApiKey`; без нього под не стартує |
+| `DUB_TRANSLATE_MODEL`       | `gpt-5-mini`                 | Модель перекладу й підгонки                                      |
+| `DUB_REASONING_EFFORT`      | `low`                        | `reasoning.effort` перекладу                                     |
+| `DUB_STT_TIMEOUT_MS`        | 60000                        | Одна спроба розпізнавання                                        |
+| `DUB_TRANSLATE_TIMEOUT_MS`  | 60000                        | Одна спроба перекладу                                            |
+| `DUB_REFIT_TIMEOUT_MS`      | 30000                        | Одна спроба підгонки фраз, що не влізли                          |
+| `DUB_TTS`                   | `supertonic`                 | `fake` — без моделі, для тестів                                  |
+| `SUPERTONIC_ASSETS_DIR`     | `/opt/supertonic`            | `onnx/` і `voice_styles/`, вбудовані в образ                     |
+| `SUPERTONIC_THREADS`        | 2                            | Потоки ONNX: ліміт CPU пода                                      |
+| `SUPERTONIC_STEPS`          | 8                            | Кроки дифузії на фразу                                           |
+| `DUB_AUDIO_SEPARATE`        | `http` (compose: `fake`)     | `fake` робить усю доріжку і голосом, і фоном                     |
+| `AUDIO_SEPARATE_URL`        | `http://audio-separate:3000` | Адреса сервісу розділення                                        |
+| `AUDIO_SEPARATE_TIMEOUT_MS` | 300000                       | Один виклик разом з очікуванням зайнятого пода                   |
+| `DUB_MAX_DURATION_SECONDS`  | 60                           | Максимальна тривалість відео для дубляжу                         |
+
+| Змінна (audio-separate)                | За замовчуванням      | Що робить                                                     |
+| -------------------------------------- | --------------------- | ------------------------------------------------------------- |
+| `TORCH_THREADS` / `OMP_NUM_THREADS`    | 2                     | Потоки PyTorch: ліміт CPU, інакше кроки у 2–3 рази повільніші |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_*_KEY` | —                     | Ті самі, що в сервісів на Node                                |
+| `WORK_DIR`                             | `/tmp/audio-separate` | Тимчасові файли запиту                                        |
+| `SHUTDOWN_GRACE_SECONDS`               | 30 (Helm: 120)        | Скільки uvicorn доробляє поточний запит після SIGTERM         |
 
 ## Документація
 
