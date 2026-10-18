@@ -349,14 +349,19 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       `DubProviderCircuitOpen` (відкритий 10 хв і виклики досі відмовляють), обидва в
       `pnpm alerts:test`; дашборд **Dub** і `video.dub` у дашборді SLO. Імена перевірено на
       compose-стеку з VictoriaMetrics після справжнього прогону.
-- [ ] Тести: unit на фрази, вибір варіантів, підгонку, розміщення й аргументи ffmpeg;
+- [x] Тести: unit на фрази, вибір варіантів, підгонку, розміщення й аргументи ffmpeg;
       інтеграційний з фейковими провайдерами і фейковим `audio-separate`; контрактний тест
       клієнта `audio-separate`; «вбити под посеред дубляжу» не дає ні втраченої задачі, ні
       повторного платного виклику. Зроблено: unit на `fit/`, ffmpeg, чекпоінти й процесор
       (ретрай без повторної оплати, `reuseOf`, підгонка, коди помилок);
       `test/video-dub.int-spec.ts` — наскрізь через Metadata, планувальник і воркер на справжньому
       ffmpeg з фейковими провайдерами (дві доріжки `ukr` / `eng`, `no_audio`, перевірка
-      `reuseOf`); `test/object-storage.int-spec.ts` на MinIO.
+      `reuseOf`); `test/object-storage.int-spec.ts` на MinIO; `test/dub-kill.int-spec.ts` —
+      воркер окремим процесом проти фейкових OpenAI і `audio-separate` по HTTP, `SIGKILL`
+      посеред аналізу: другий под бере задачу після AckWait (спроба 1 `abandoned`, 2
+      `succeeded`), розпізнавання й розділення не викликаються вдруге, переклад — один раз.
+      Smoke на Debian-образі `dub` через gateway: справжній Supertonic і ffmpeg 5.1, доріжки
+      `ukr` / `eng`, VTT і presigned-посилання в полі `dub`.
 
 **Кроки (UI перекладу, 5d.2):**
 
