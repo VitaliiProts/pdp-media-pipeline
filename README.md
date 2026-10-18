@@ -112,10 +112,11 @@ flowchart LR
   стріму і backlog консюмерів, `http_server_request_duration_seconds{http_route}`, runtime Node.
 - **SLO.** `image.resize`: 99% задач успішні за 5 хв від створення, `video.frames`: 95%
   ([ADR-008](docs/adr/0008-video-worker.md)), `video.transcode`: 95% за 10 хв
-  ([ADR-011](docs/adr/0011-video-transcode.md)). Бюджет помилок на 30 днів видно на дашборді **SLO**.
+  ([ADR-011](docs/adr/0011-video-transcode.md)), `video.dub`: 95% за 15 хв
+  ([ADR-016](docs/adr/0016-video-dub.md)). Бюджет помилок на 30 днів видно на дашборді **SLO**.
 - **Алерти.** vmalert: burn rate 1 год / 5 хв (`page`) і 6 год / 30 хв (`ticket`), частка DLQ
   понад 1%, ріст черги. Alertmanager шле їх у `webhook-receiver`.
-- **Дашборди як код.** Overview, SLO, Queues, Per-service і Job у
+- **Дашборди як код.** Overview, SLO, Queues, Per-service, Job і Dub у
   `deploy/observability/grafana/dashboards`. З панелей латентності data links ведуть на
   повільні й помилкові трейси в Tempo і на логи у VictoriaLogs (замість exemplars).
 
@@ -1145,6 +1146,13 @@ GET з `Content-Disposition: attachment`; посилання стабільні 
 `video.dub` бере окремий Deployment `video-dub` (Debian-образ `--target dub` з вагами
 Supertonic) з `VIDEO_JOB_TYPES=video.dub`. У compose — `--profile dub`, фейки за замовчуванням;
 `audio-separate` — `--profile dub-separate`.
+
+Результат — поле `dub` у `GET /v1/jobs/:id`: мови, мовці, фрази з таймкодами, статистика
+підгонки, presigned `video` і `subtitles`. Спостережуваність: span `dub.step.*` на кожен крок і
+`dub.transcribe` / `translate` / `refit` / `separate` / `analyze` на виклик провайдера;
+метрики `dub_step_duration_seconds{step}`, `dub_provider_duration_seconds{provider,outcome}`,
+`dub_breaker_state`, `dub_phrases_total`, `dub_phrases_adjusted_total{adjustment}`,
+`dub_cost_usd_total`; SLO 95% за 15 хв; дашборд **Dub**; алерт `DubProviderCircuitOpen`.
 
 | Змінна (video-dub)             | За замовчуванням             | Що робить                                                                       |
 | ------------------------------ | ---------------------------- | ------------------------------------------------------------------------------- |

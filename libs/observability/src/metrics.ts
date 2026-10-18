@@ -3,9 +3,9 @@ import { type Counter, type Histogram, type MeterProvider, metrics } from '@open
 /**
  * Bucket bounds for job latencies, in seconds. The SLI counts the bucket at each type's
  * threshold (the `le` of `job:slo_objective:ratio`): 300 for images and frames (ADR-008),
- * 600 for transcoding (ADR-011). Both have to stay bounds.
+ * 600 for transcoding (ADR-011), 900 for dubbing (ADR-016). All of them have to stay bounds.
  */
-export const JOB_LATENCY_BUCKETS = [1, 2.5, 5, 10, 20, 30, 60, 120, 180, 300, 600, 1800, 3600];
+export const JOB_LATENCY_BUCKETS = [1, 2.5, 5, 10, 20, 30, 60, 120, 180, 300, 600, 900, 1800, 3600];
 
 /** One attempt in a worker: from milliseconds for a thumbnail to ten minutes for a transcode. */
 export const JOB_ATTEMPT_BUCKETS = [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600];

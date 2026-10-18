@@ -16,12 +16,16 @@ export interface DubUsage {
   estimatedCostUsd: number;
 }
 
+export const sttCostUsd = (audioSeconds: number): number =>
+  (audioSeconds / 60) * STT_USD_PER_MINUTE;
+
+export const tokenCostUsd = ({ inputTokens, outputTokens }: TokenUsage): number =>
+  (inputTokens * INPUT_USD_PER_MILLION + outputTokens * OUTPUT_USD_PER_MILLION) / 1e6;
+
 export function dubUsage(audioSeconds: number, tokens: readonly TokenUsage[]): DubUsage {
   const inputTokens = tokens.reduce((sum, t) => sum + t.inputTokens, 0);
   const outputTokens = tokens.reduce((sum, t) => sum + t.outputTokens, 0);
-  const cost =
-    (audioSeconds / 60) * STT_USD_PER_MINUTE +
-    (inputTokens * INPUT_USD_PER_MILLION + outputTokens * OUTPUT_USD_PER_MILLION) / 1e6;
+  const cost = sttCostUsd(audioSeconds) + tokenCostUsd({ inputTokens, outputTokens });
   return {
     audioSeconds,
     inputTokens,

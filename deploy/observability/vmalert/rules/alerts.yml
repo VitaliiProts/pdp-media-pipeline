@@ -50,6 +50,27 @@ groups:
           summary: '{{ $labels.stream }}/{{ $labels.consumer }}: backlog over 100 and growing'
           description: See the Queues dashboard; the gateway starts answering 503 at its backpressure limit.
 
+  - name: dub-alerts
+    interval: 15s
+    rules:
+      # An open breaker fails a call fast and hands the job back for later (ADR-016); open for
+      # 10 minutes means the provider is down, not a burst of 5xx. A breaker only leaves `open`
+      # on the next call, so the calls failing in the window are what keeps it firing.
+      - alert: DubProviderCircuitOpen
+        expr: |
+          max by (provider) (dub_breaker_state) == 2
+          and on (provider)
+          sum by (provider) (
+            increase(dub_provider_duration_seconds_count{outcome="unavailable"}[10m])
+          ) > 0
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: '{{ $labels.provider }}: circuit breaker open for 10 minutes'
+          description: >-
+            Dubs wait for the provider and come back when it answers; recognition that stays
+            down ends as dead with stt_unavailable. See the Dub dashboard and the provider status.
+
   - name: auth-alerts
     interval: 15s
     rules:

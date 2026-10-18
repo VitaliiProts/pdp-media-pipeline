@@ -336,9 +336,19 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       рахує місяць UTC: успішний дубляж — за `durationSeconds` виходу, незавершений — за
       тривалістю asset або 60 с, невдалий — нічого (`test/dub-limits.int-spec.ts`). Вартість
       у виході задачі; метрика — у пункті Observability.
-- [ ] Observability: span на кожен крок і виклик провайдера, тривалість кроків, частка
+- [x] Observability: span на кожен крок і виклик провайдера, тривалість кроків, частка
       прискорених, підігнаних і тих, що не влізли, фраз, стан circuit breaker, оцінка вартості;
-      SLO `video.dub` 95% за 15 хв (межа `900` у `JOB_LATENCY_BUCKETS`); дашборд.
+      SLO `video.dub` 95% за 15 хв (межа `900` у `JOB_LATENCY_BUCKETS`); дашборд. Зроблено:
+      активний span `dub.step.{крок}` (виклики провайдерів і S3 вкладені в нього),
+      `Observed*`-обгортки над провайдерами — span `dub.{операція}` з повторами всередині,
+      `dub_provider_duration_seconds{provider,operation,outcome}` (`ok`, `unavailable`,
+      `rejected`, `cancelled`, `error`) і `dub_cost_usd_total{provider}` у момент відповіді
+      провайдера, тож невдалі спроби теж рахуються; `dub_step_duration_seconds{step,outcome}`,
+      `dub_phrases_total` і `dub_phrases_adjusted_total{adjustment}`, `dub_breaker_state`
+      (0 / 1 / 2) з `onStateChange`. Ціль `video.dub` у `slo.yml`, алерт
+      `DubProviderCircuitOpen` (відкритий 10 хв і виклики досі відмовляють), обидва в
+      `pnpm alerts:test`; дашборд **Dub** і `video.dub` у дашборді SLO. Імена перевірено на
+      compose-стеку з VictoriaMetrics після справжнього прогону.
 - [ ] Тести: unit на фрази, вибір варіантів, підгонку, розміщення й аргументи ffmpeg;
       інтеграційний з фейковими провайдерами і фейковим `audio-separate`; контрактний тест
       клієнта `audio-separate`; «вбити под посеред дубляжу» не дає ні втраченої задачі, ні

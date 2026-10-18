@@ -1,8 +1,7 @@
-import { AudioSeparateClient } from './audio-separate/audio-separate.client';
-import { FakeAudioSeparate } from './audio-separate/fake-audio-separate';
+import { startTestMetrics, type TestMetrics } from '@pdp/observability/testing';
 import { createDubProviders, type DubEnv, dubEnvSchema } from './dub-providers';
 import { FakeTextToSpeech } from './providers/fake';
-import { ResilientSpeechToText, ResilientTranslator } from './providers/resilience';
+import { ObservedSpeechToText, ObservedTranslator } from './providers/observed';
 
 const env = (overrides: Record<string, string> = {}): DubEnv => dubEnvSchema.parse(overrides);
 
@@ -22,30 +21,54 @@ describe('dub settings', () => {
 });
 
 const storage = {
-  copyObject: () => Promise.resolve(),
+  copyObject: jest.fn(() => Promise.resolve()),
   putObject: () => Promise.resolve(),
 };
+const separation = { input: 'in.flac', vocals: 'vocals.flac', background: 'background.flac' };
 
 describe('createDubProviders', () => {
-  it('runs without a key or a model on fakes', async () => {
+  let telemetry: TestMetrics;
+  beforeEach(() => {
+    telemetry = startTestMetrics();
+    storage.copyObject.mockClear();
+  });
+  afterEach(() => telemetry.stop());
+
+  it('runs without a key or a model on fakes, observed and with closed breakers', async () => {
     const providers = await createDubProviders(
       env({ DUB_PROVIDERS: 'fake', DUB_TTS: 'fake' }),
       storage,
     );
-    expect(providers.stt).toBeInstanceOf(ResilientSpeechToText);
+    expect(providers.stt).toBeInstanceOf(ObservedSpeechToText);
     expect(providers.stt.name).toBe('fake-stt');
-    expect(providers.translator).toBeInstanceOf(ResilientTranslator);
+    expect(providers.translator).toBeInstanceOf(ObservedTranslator);
     expect(providers.translator.name).toBe('fake-translator');
     expect(providers.tts).toBeInstanceOf(FakeTextToSpeech);
-    expect(providers.audioSeparate).toBeInstanceOf(AudioSeparateClient);
+    expect(await telemetry.points('dub.breaker.state')).toEqual(
+      expect.arrayContaining([
+        { attributes: { provider: 'fake-stt' }, value: 0 },
+        { attributes: { provider: 'fake-translator' }, value: 0 },
+      ]),
+    );
   });
 
-  it('stands in for audio-separate when told to', async () => {
-    const providers = await createDubProviders(
+  it('calls audio-separate over HTTP unless told to stand in for it', async () => {
+    const fetch = jest.fn(() => Promise.reject(new Error('refused')));
+    jest.spyOn(globalThis, 'fetch').mockImplementation(fetch);
+    const http = await createDubProviders(
+      env({ DUB_PROVIDERS: 'fake', DUB_TTS: 'fake', AUDIO_SEPARATE_TIMEOUT_MS: '10' }),
+      storage,
+    );
+    await expect(http.audioSeparate.separate(separation)).rejects.toThrow();
+    expect(fetch).toHaveBeenCalled();
+    jest.restoreAllMocks();
+
+    const fake = await createDubProviders(
       env({ DUB_PROVIDERS: 'fake', DUB_TTS: 'fake', DUB_AUDIO_SEPARATE: 'fake' }),
       storage,
     );
-    expect(providers.audioSeparate).toBeInstanceOf(FakeAudioSeparate);
+    await fake.audioSeparate.separate(separation);
+    expect(storage.copyObject).toHaveBeenCalledWith('in.flac', 'vocals.flac');
   });
 
   it('refuses to start on OpenAI without a key', async () => {

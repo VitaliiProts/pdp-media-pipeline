@@ -2,7 +2,13 @@ import { z } from 'zod';
 import { type AudioSeparate, AudioSeparateClient } from './audio-separate/audio-separate.client';
 import { FakeAudioSeparate } from './audio-separate/fake-audio-separate';
 import { type DubStorage } from './checkpoints';
+import { dubMetrics } from './dub-metrics';
 import { FakeSpeechToText, FakeTextToSpeech, FakeTranslator } from './providers/fake';
+import {
+  ObservedAudioSeparate,
+  ObservedSpeechToText,
+  ObservedTranslator,
+} from './providers/observed';
 import { OPENAI_BASE_URL, OpenAiSpeechToText, OpenAiTranslator } from './providers/openai';
 import {
   DEFAULT_RESILIENCE,
@@ -82,10 +88,18 @@ export async function createDubProviders(
           baseUrl: env.AUDIO_SEPARATE_URL,
           timeoutMs: env.AUDIO_SEPARATE_TIMEOUT_MS,
         });
+  const settings: ResilienceSettings = {
+    ...resilience,
+    onStateChange: (provider, state) => {
+      dubMetrics.breaker(provider, state);
+      resilience.onStateChange?.(provider, state);
+    },
+  };
+  for (const { name } of [stt, translator]) dubMetrics.breaker(name, 'closed');
   return {
-    stt: new ResilientSpeechToText(stt, resilience),
-    translator: new ResilientTranslator(translator, resilience),
+    stt: new ObservedSpeechToText(new ResilientSpeechToText(stt, settings)),
+    translator: new ObservedTranslator(new ResilientTranslator(translator, settings)),
     tts,
-    audioSeparate,
+    audioSeparate: new ObservedAudioSeparate(audioSeparate),
   };
 }

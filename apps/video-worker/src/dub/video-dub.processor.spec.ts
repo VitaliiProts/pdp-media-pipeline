@@ -1,4 +1,5 @@
 import { DUB_STEPS, VideoDubInputV1, VideoDubOutputV1 } from '@pdp/contracts';
+import { startTestMetrics, startTestTracing } from '@pdp/observability/testing';
 import { isPermanentError, PermanentError } from '@pdp/worker-kit';
 import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -150,6 +151,29 @@ describe('VideoDubProcessor', () => {
     const percents = calls.map(([percent]) => percent);
     expect(percents).toEqual([...percents].sort((a, b) => a - b));
     expect(Math.max(...percents)).toBeLessThan(100);
+  });
+
+  it('spans and times every step and counts how the phrases fitted', async () => {
+    const tracing = startTestTracing();
+    const telemetry = startTestMetrics();
+    try {
+      const { processor, job } = await setup();
+      const output = await processor.process(job(), input());
+
+      expect(tracing.spans().filter((s) => s.name.startsWith('dub.step.'))).toHaveLength(6);
+      for (const step of DUB_STEPS) {
+        await expect(telemetry.value('dub.step.duration', { step, outcome: 'ok' })).resolves.toBe(
+          1,
+        );
+      }
+      await expect(telemetry.value('dub.phrases')).resolves.toBe(output.stats.phrases);
+      await expect(telemetry.value('dub.phrases.adjusted', { adjustment: 'sped' })).resolves.toBe(
+        output.stats.sped,
+      );
+    } finally {
+      await telemetry.stop();
+      await tracing.stop();
+    }
   });
 
   it('pays for no finished step again when the job is retried', async () => {

@@ -11,6 +11,7 @@ import {
   type VideoDubOutputV1,
   voiceGender,
 } from '@pdp/contracts';
+import { traced } from '@pdp/observability';
 import {
   type FetchLimits,
   type JobContext,
@@ -20,6 +21,7 @@ import {
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { AnalyzeResponse } from './audio-separate/audio-separate.api';
 import {
   CHECKPOINT,
@@ -30,6 +32,7 @@ import {
   TranscriptCheckpoint,
   TranslationCheckpoint,
 } from './checkpoints';
+import { dubMetrics } from './dub-metrics';
 import { type DubProviders } from './dub-providers';
 import { dubUsage } from './dub-usage';
 import {
@@ -137,68 +140,87 @@ export class VideoDubProcessor implements JobProcessor<VideoDubInputV1> {
       const end = next ? STEP_PERCENT[next] : MAX_REPORTED_PERCENT;
       job.progress(start + (end - start) * within, step);
     };
+    /** Active span per step, so provider calls and storage requests nest under it. */
+    const step = <T>(name: DubStep, fn: () => Promise<T>): Promise<T> => {
+      report(name);
+      const start = performance.now();
+      return traced(`dub.step.${name}`, { attributes: { 'dub.step': name } }, async () => {
+        let outcome: 'ok' | 'error' = 'error';
+        try {
+          const result = await fn();
+          outcome = 'ok';
+          return result;
+        } finally {
+          dubMetrics.step(name, outcome, (performance.now() - start) / 1000);
+        }
+      });
+    };
 
-    report('extract');
     const source = join(dir, 'source');
-    await this.deps.download(mediaSourceOf(input), source, {
-      maxBytes: this.options.maxSourceBytes,
-      timeoutMs: this.options.downloadTimeoutMs,
-    });
-    const { durationSeconds } = await media.probe(source, this.options.maxDurationSeconds, signal);
-    const reusedRecognition =
-      input.reuseOf !== undefined &&
-      (await storage.exists(dubCheckpointKey(input.reuseOf, CHECKPOINT.transcript)));
-    if (input.reuseOf) await checkpoints.copyFrom(input.reuseOf, REUSABLE);
-
     const audio = join(dir, 'audio.flac');
     let extracted: Promise<void> | undefined;
     const extract = () => (extracted ??= media.extractAudio(source, audio, signal));
-    if (!(await checkpoints.has(CHECKPOINT.audio))) {
-      await extract();
-      await storage.uploadFile(checkpoints.key(CHECKPOINT.audio), audio, 'audio/flac');
-    }
+    const { durationSeconds, reusedRecognition } = await step('extract', async () => {
+      await this.deps.download(mediaSourceOf(input), source, {
+        maxBytes: this.options.maxSourceBytes,
+        timeoutMs: this.options.downloadTimeoutMs,
+      });
+      const probed = await media.probe(source, this.options.maxDurationSeconds, signal);
+      const reused =
+        input.reuseOf !== undefined &&
+        (await storage.exists(dubCheckpointKey(input.reuseOf, CHECKPOINT.transcript)));
+      if (input.reuseOf) await checkpoints.copyFrom(input.reuseOf, REUSABLE);
+      if (!(await checkpoints.has(CHECKPOINT.audio))) {
+        await extract();
+        await storage.uploadFile(checkpoints.key(CHECKPOINT.audio), audio, 'audio/flac');
+      }
+      return { durationSeconds: probed.durationSeconds, reusedRecognition: reused };
+    });
 
-    report('separate');
-    const separation = new AbortController();
-    const [transcript] = await Promise.all([
-      checkpoints
-        .json(CHECKPOINT.transcript, TranscriptCheckpoint, async () => {
-          await extract();
-          const speech = join(dir, 'speech.flac');
-          await media.speechAudio(audio, speech, signal);
-          return providers.stt.transcribe({ path: speech, durationSeconds }, signal);
-        })
-        .catch((err: unknown) => {
-          separation.abort();
-          throw err;
-        }),
-      this.separate(checkpoints, AbortSignal.any([signal, separation.signal])),
-    ]);
+    const transcript = await step('separate', async () => {
+      const separation = new AbortController();
+      const [recognised] = await Promise.all([
+        checkpoints
+          .json(CHECKPOINT.transcript, TranscriptCheckpoint, async () => {
+            await extract();
+            const speech = join(dir, 'speech.flac');
+            await media.speechAudio(audio, speech, signal);
+            return providers.stt.transcribe({ path: speech, durationSeconds }, signal);
+          })
+          .catch((err: unknown) => {
+            separation.abort();
+            throw err;
+          }),
+        this.separate(checkpoints, AbortSignal.any([signal, separation.signal])),
+      ]);
+      return recognised;
+    });
     const segments = transcript.segments.filter((s) => s.text.trim());
     if (segments.length === 0) {
       throw new PermanentError('no speech was recognised', 'no_speech');
     }
 
-    report('align');
-    const analysis = await checkpoints.json(
-      CHECKPOINT.analysis,
-      AnalyzeResponse,
-      () =>
-        providers.audioSeparate.analyze(
-          {
-            vocals: checkpoints.key(CHECKPOINT.vocals),
-            segments: segments.map(({ id, speaker, start, end, text }) => ({
-              id,
-              speaker,
-              start,
-              end,
-              text,
-            })),
-            output: checkpoints.key(CHECKPOINT.analysis),
-          },
-          signal,
-        ),
-      { storedByCompute: true },
+    const analysis = await step('align', () =>
+      checkpoints.json(
+        CHECKPOINT.analysis,
+        AnalyzeResponse,
+        () =>
+          providers.audioSeparate.analyze(
+            {
+              vocals: checkpoints.key(CHECKPOINT.vocals),
+              segments: segments.map(({ id, speaker, start, end, text }) => ({
+                id,
+                speaker,
+                start,
+                end,
+                text,
+              })),
+              output: checkpoints.key(CHECKPOINT.analysis),
+            },
+            signal,
+          ),
+        { storedByCompute: true },
+      ),
     );
     const phrases = toPhrases(segments, analysis.segments);
     const speakers = speakersOf(phrases, analysis);
@@ -207,155 +229,179 @@ export class VideoDubProcessor implements JobProcessor<VideoDubInputV1> {
     const genderOf = (speaker: string | null): GenderHint =>
       speaker === null ? 'unknown' : voices.get(speaker)!.gender;
 
-    report('translate');
-    const charsPerSecond = new Map<DubVoice, number>();
-    for (const { voice } of voices.values()) {
-      if (!charsPerSecond.has(voice)) {
-        charsPerSecond.set(voice, (await profiles.profile(target, voice)).charsPerSecond);
-      }
-    }
-    const translation = await checkpoints.json(CHECKPOINT.translation, TranslationCheckpoint, () =>
-      providers.translator.translate(
-        {
-          targetLanguage: target,
-          sourceLanguage: input.sourceLanguage,
-          lines: phrases.map((p, i) => ({
-            id: p.id,
-            turn: p.turn,
-            speaker: p.speaker,
-            speakerGender: genderOf(p.speaker),
-            listenerGender: genderOf(listenerOf(phrases, i)),
-            text: p.text,
-            seconds: round1(speechOf(phrases, i, durationSeconds)),
-            maxChars: charBudget(
-              slotOf(phrases, i, durationSeconds),
-              charsPerSecond.get(voiceOf(p))!,
-            ),
-          })),
-        },
-        signal,
-      ),
-    );
-    const sourceLanguage = sourceLanguageOf(input, translation, target);
-
-    const variantsOf = new Map(
-      translation.lines.map((l) => [l.id, l.variants.map(spoken).filter(Boolean)]),
-    );
-    // A phrase with nothing speakable left is not voiced; its time goes to its neighbours.
-    const dubbed = phrases.filter((p) => (variantsOf.get(p.id)?.length ?? 0) > 0);
-    const speechAt = (i: number) => speechOf(dubbed, i, durationSeconds);
-    const slotAt = (i: number) => slotOf(dubbed, i, durationSeconds);
-    const predict = (text: string, p: Phrase) => profiles.predict(text, target, voiceOf(p));
-    const choices: Choice[] = await Promise.all(
-      dubbed.map(async (p, i) => {
-        const variants = variantsOf.get(p.id)!;
-        const predicted = await Promise.all(variants.map((v) => predict(v, p)));
-        const k = chooseVariant(predicted, speechAt(i), slotAt(i));
-        return {
-          text: variants[k]!,
-          seconds: predicted[k]!,
-          fullest: variants[0]!,
-          fullestSeconds: predicted[0]!,
-          refitted: false,
-        };
-      }),
-    );
-
-    const misfits = dubbed.flatMap((_, i) =>
-      needsRefit(choices[i]!.seconds, speechAt(i), slotAt(i)) ? [i] : [],
-    );
-    const sameTurn = (i: number, j: number) => dubbed[j]?.turn === dubbed[i]!.turn;
-    const refits = (await checkpoints.read(CHECKPOINT.refit, RefitCheckpoint)) ?? {};
-    const missing = misfits.filter((i) => !refits[dubbed[i]!.id]);
-    if (missing.length > 0) {
-      const results = await Promise.all(
-        missing.map((i) => {
-          const p = dubbed[i]!;
-          const choice = choices[i]!;
-          return providers.translator.refit(
-            {
-              targetLanguage: target,
-              original: p.text,
-              fullest: choice.fullest,
-              words: refitWords(
-                wordCount(choice.fullest),
-                choice.fullestSeconds,
-                speechAt(i),
-                slotAt(i),
-              ),
-              before: sameTurn(i, i - 1) ? choices[i - 1]!.text : null,
-              after: sameTurn(i, i + 1) ? choices[i + 1]!.text : null,
-              speakerGender: genderOf(p.speaker),
-              listenerGender: genderOf(listenerOf(dubbed, i)),
-            },
-            signal,
-          );
-        }),
-      );
-      missing.forEach((i, k) => (refits[dubbed[i]!.id] = results[k]!));
-      await checkpoints.write(CHECKPOINT.refit, refits);
-    }
-    for (const i of misfits) {
-      const p = dubbed[i]!;
-      for (const candidate of (refits[p.id]?.variants ?? []).map(spoken).filter(Boolean)) {
-        const predicted = await predict(candidate, p);
-        const current = choices[i]!;
-        if (
-          fitError(predicted, speechAt(i), slotAt(i)) >=
-          fitError(current.seconds, speechAt(i), slotAt(i))
-        ) {
-          continue;
+    const { translation, sourceLanguage, dubbed, choices, refits } = await step(
+      'translate',
+      async () => {
+        const charsPerSecond = new Map<DubVoice, number>();
+        for (const { voice } of voices.values()) {
+          if (!charsPerSecond.has(voice)) {
+            charsPerSecond.set(voice, (await profiles.profile(target, voice)).charsPerSecond);
+          }
         }
-        choices[i] = { ...current, text: candidate, seconds: predicted, refitted: true };
-      }
-    }
+        const translated = await checkpoints.json(
+          CHECKPOINT.translation,
+          TranslationCheckpoint,
+          () =>
+            providers.translator.translate(
+              {
+                targetLanguage: target,
+                sourceLanguage: input.sourceLanguage,
+                lines: phrases.map((p, i) => ({
+                  id: p.id,
+                  turn: p.turn,
+                  speaker: p.speaker,
+                  speakerGender: genderOf(p.speaker),
+                  listenerGender: genderOf(listenerOf(phrases, i)),
+                  text: p.text,
+                  seconds: round1(speechOf(phrases, i, durationSeconds)),
+                  maxChars: charBudget(
+                    slotOf(phrases, i, durationSeconds),
+                    charsPerSecond.get(voiceOf(p))!,
+                  ),
+                })),
+              },
+              signal,
+            ),
+        );
+        const detected = sourceLanguageOf(input, translated, target);
 
-    report('voice');
-    const placements = placePhrases(
-      dubbed,
-      choices.map((c) => c.seconds),
-      durationSeconds,
+        const variantsOf = new Map(
+          translated.lines.map((l) => [l.id, l.variants.map(spoken).filter(Boolean)]),
+        );
+        // A phrase with nothing speakable left is not voiced; its time goes to its neighbours.
+        const voiced = phrases.filter((p) => (variantsOf.get(p.id)?.length ?? 0) > 0);
+        const speechAt = (i: number) => speechOf(voiced, i, durationSeconds);
+        const slotAt = (i: number) => slotOf(voiced, i, durationSeconds);
+        const predict = (text: string, p: Phrase) => profiles.predict(text, target, voiceOf(p));
+        const chosen: Choice[] = await Promise.all(
+          voiced.map(async (p, i) => {
+            const variants = variantsOf.get(p.id)!;
+            const predicted = await Promise.all(variants.map((v) => predict(v, p)));
+            const k = chooseVariant(predicted, speechAt(i), slotAt(i));
+            return {
+              text: variants[k]!,
+              seconds: predicted[k]!,
+              fullest: variants[0]!,
+              fullestSeconds: predicted[0]!,
+              refitted: false,
+            };
+          }),
+        );
+
+        const misfits = voiced.flatMap((_, i) =>
+          needsRefit(chosen[i]!.seconds, speechAt(i), slotAt(i)) ? [i] : [],
+        );
+        const sameTurn = (i: number, j: number) => voiced[j]?.turn === voiced[i]!.turn;
+        const rewritten = (await checkpoints.read(CHECKPOINT.refit, RefitCheckpoint)) ?? {};
+        const missing = misfits.filter((i) => !rewritten[voiced[i]!.id]);
+        if (missing.length > 0) {
+          const results = await Promise.all(
+            missing.map((i) => {
+              const p = voiced[i]!;
+              const choice = chosen[i]!;
+              return providers.translator.refit(
+                {
+                  targetLanguage: target,
+                  original: p.text,
+                  fullest: choice.fullest,
+                  words: refitWords(
+                    wordCount(choice.fullest),
+                    choice.fullestSeconds,
+                    speechAt(i),
+                    slotAt(i),
+                  ),
+                  before: sameTurn(i, i - 1) ? chosen[i - 1]!.text : null,
+                  after: sameTurn(i, i + 1) ? chosen[i + 1]!.text : null,
+                  speakerGender: genderOf(p.speaker),
+                  listenerGender: genderOf(listenerOf(voiced, i)),
+                },
+                signal,
+              );
+            }),
+          );
+          missing.forEach((i, k) => (rewritten[voiced[i]!.id] = results[k]!));
+          await checkpoints.write(CHECKPOINT.refit, rewritten);
+        }
+        for (const i of misfits) {
+          const p = voiced[i]!;
+          for (const candidate of (rewritten[p.id]?.variants ?? []).map(spoken).filter(Boolean)) {
+            const predicted = await predict(candidate, p);
+            const current = chosen[i]!;
+            if (
+              fitError(predicted, speechAt(i), slotAt(i)) >=
+              fitError(current.seconds, speechAt(i), slotAt(i))
+            ) {
+              continue;
+            }
+            chosen[i] = { ...current, text: candidate, seconds: predicted, refitted: true };
+          }
+        }
+        return {
+          translation: translated,
+          sourceLanguage: detected,
+          dubbed: voiced,
+          choices: chosen,
+          refits: rewritten,
+        };
+      },
     );
-    const clips: { startSeconds: number; samples: Float32Array }[] = [];
-    for (const [i, p] of dubbed.entries()) {
-      signal.throwIfAborted();
-      const samples = await providers.tts.synthesize(
-        choices[i]!.text,
-        target,
-        voiceOf(p),
-        placements[i]!.speed,
+
+    const { placements, voiceTrack } = await step('voice', async () => {
+      const placed = placePhrases(
+        dubbed,
+        choices.map((c) => c.seconds),
+        durationSeconds,
       );
-      clips.push({ startSeconds: placements[i]!.placedStart, samples });
-      report('voice', (i + 1) / dubbed.length);
-    }
-    const voiceTrack = join(dir, 'voice.wav');
-    const { sampleRate } = providers.tts;
-    await writeFile(
-      voiceTrack,
-      encodeWav(renderVoiceTrack(clips, durationSeconds, sampleRate), sampleRate),
-    );
+      const clips: { startSeconds: number; samples: Float32Array }[] = [];
+      for (const [i, p] of dubbed.entries()) {
+        signal.throwIfAborted();
+        const samples = await providers.tts.synthesize(
+          choices[i]!.text,
+          target,
+          voiceOf(p),
+          placed[i]!.speed,
+        );
+        clips.push({ startSeconds: placed[i]!.placedStart, samples });
+        report('voice', (i + 1) / dubbed.length);
+      }
+      const track = join(dir, 'voice.wav');
+      const { sampleRate } = providers.tts;
+      await writeFile(
+        track,
+        encodeWav(renderVoiceTrack(clips, durationSeconds, sampleRate), sampleRate),
+      );
+      return { placements: placed, voiceTrack: track };
+    });
 
-    report('mix');
-    const background = join(dir, 'background.flac');
-    await storage.downloadToFile(
-      checkpoints.key(CHECKPOINT.background),
-      background,
-      MAX_AUDIO_BYTES,
-    );
-    const dubAudio = join(dir, 'dub.m4a');
-    await media.mix(background, voiceTrack, dubAudio, signal);
-    const video = join(dir, 'dubbed.mp4');
-    await media.mux(source, dubAudio, video, { target, original: sourceLanguage }, signal);
-    const videoKey = dubVideoKey(job.jobId);
-    const bytes = await storage.uploadFile(videoKey, video, 'video/mp4');
-    const subtitlesKey = dubSubtitlesKey(job.jobId);
-    const cues = placements.map((pl, i) => ({
-      start: pl.placedStart,
-      end: pl.placedEnd,
-      text: choices[i]!.text,
-    }));
-    await storage.putObject(subtitlesKey, Buffer.from(toVtt(cues)), 'text/vtt');
+    const { videoKey, bytes, subtitlesKey } = await step('mix', async () => {
+      const background = join(dir, 'background.flac');
+      await storage.downloadToFile(
+        checkpoints.key(CHECKPOINT.background),
+        background,
+        MAX_AUDIO_BYTES,
+      );
+      const dubAudio = join(dir, 'dub.m4a');
+      await media.mix(background, voiceTrack, dubAudio, signal);
+      const video = join(dir, 'dubbed.mp4');
+      await media.mux(source, dubAudio, video, { target, original: sourceLanguage }, signal);
+      const videoFile = dubVideoKey(job.jobId);
+      const size = await storage.uploadFile(videoFile, video, 'video/mp4');
+      const subtitlesFile = dubSubtitlesKey(job.jobId);
+      const cues = placements.map((pl, i) => ({
+        start: pl.placedStart,
+        end: pl.placedEnd,
+        text: choices[i]!.text,
+      }));
+      await storage.putObject(subtitlesFile, Buffer.from(toVtt(cues)), 'text/vtt');
+      return { videoKey: videoFile, bytes: size, subtitlesKey: subtitlesFile };
+    });
 
+    const stats = fitStats(
+      dubbed,
+      placements,
+      choices.map((c) => c.refitted),
+    );
+    dubMetrics.phrases(stats);
     const tokens = [translation.usage, ...Object.values(refits).map((r) => r.usage)];
     return {
       durationSeconds,
@@ -387,11 +433,7 @@ export class VideoDubProcessor implements JobProcessor<VideoDubInputV1> {
         refitted: choices[i]!.refitted,
       })),
       unrecognized: analysis.unrecognized,
-      stats: fitStats(
-        dubbed,
-        placements,
-        choices.map((c) => c.refitted),
-      ),
+      stats,
       usage: dubUsage(reusedRecognition ? 0 : transcript.billedSeconds, tokens),
     };
   }
