@@ -47,6 +47,11 @@ withModel('Supertonic with the model', () => {
     60_000,
   );
 
+  it('keeps onnxruntime telemetry off', () => {
+    expect(process.env.ORT_DISABLE_TELEMETRY).toBe('1');
+    expect(existsSync(join(process.cwd(), ':memory:.ses'))).toBe(false);
+  });
+
   it('speaks faster at a higher speed', async () => {
     const text = 'We should leave before the storm reaches the harbour.';
     const normal = (await tts.synthesize(text, 'en', 'M2', 1)).length;

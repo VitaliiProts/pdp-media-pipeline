@@ -43,6 +43,9 @@ export class Supertonic implements TextToSpeech {
     await access(join(onnxDir, 'tts.json')).catch(() => {
       throw new Error(`Supertonic model not found in ${options.assetsDir}`);
     });
+    // Read when the native library starts: otherwise it reports to Microsoft over 443, which
+    // the NetworkPolicy allows, and writes `:memory:.ses` into the working directory.
+    process.env.ORT_DISABLE_TELEMETRY = '1';
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ort = require('onnxruntime-node') as OnnxRuntime;
     const engine = await SupertonicEngine.load(ort, onnxDir, {
