@@ -250,11 +250,19 @@ export class JobRunner {
         error: message,
       });
       if (res.job.status === 'dead') return ack();
-      this.logger.log(`job ${jobId} retries in ${retryDelay}ms`);
-      return nak(retryDelay);
+      const delay = this.delayFor(err, retryDelay);
+      this.logger.log(`job ${jobId} retries in ${delay}ms`);
+      return nak(delay);
     } catch (transitionErr) {
       return this.onMetadataError(transitionErr, jobId, retryDelay);
     }
+  }
+
+  /** An error may know better, e.g. a provider's `Retry-After` or an open circuit breaker. */
+  private delayFor(err: unknown, retryDelay: number): number {
+    const hinted = (err as { retryAfterMs?: unknown } | null)?.retryAfterMs;
+    if (typeof hinted !== 'number' || !Number.isFinite(hinted)) return retryDelay;
+    return Math.max(retryDelay, Math.min(hinted, this.options.retry.maxMs));
   }
 
   private async onInterrupted(

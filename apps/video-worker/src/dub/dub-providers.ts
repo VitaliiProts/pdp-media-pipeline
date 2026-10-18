@@ -4,6 +4,12 @@ import { FakeAudioSeparate } from './audio-separate/fake-audio-separate';
 import { type DubStorage } from './checkpoints';
 import { FakeSpeechToText, FakeTextToSpeech, FakeTranslator } from './providers/fake';
 import { OPENAI_BASE_URL, OpenAiSpeechToText, OpenAiTranslator } from './providers/openai';
+import {
+  DEFAULT_RESILIENCE,
+  type ResilienceSettings,
+  ResilientSpeechToText,
+  ResilientTranslator,
+} from './providers/resilience';
 import { Supertonic } from './providers/supertonic';
 import { type SpeechToText, type TextToSpeech, type Translator } from './providers/types';
 
@@ -44,6 +50,7 @@ export interface DubProviders {
 export async function createDubProviders(
   env: DubEnv,
   storage: Pick<DubStorage, 'copyObject' | 'putObject'>,
+  resilience: ResilienceSettings = DEFAULT_RESILIENCE,
 ): Promise<DubProviders> {
   let stt: SpeechToText = new FakeSpeechToText();
   let translator: Translator = new FakeTranslator();
@@ -75,5 +82,10 @@ export async function createDubProviders(
           baseUrl: env.AUDIO_SEPARATE_URL,
           timeoutMs: env.AUDIO_SEPARATE_TIMEOUT_MS,
         });
-  return { stt, translator, tts, audioSeparate };
+  return {
+    stt: new ResilientSpeechToText(stt, resilience),
+    translator: new ResilientTranslator(translator, resilience),
+    tts,
+    audioSeparate,
+  };
 }

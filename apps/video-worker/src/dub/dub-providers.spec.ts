@@ -1,8 +1,8 @@
 import { AudioSeparateClient } from './audio-separate/audio-separate.client';
 import { FakeAudioSeparate } from './audio-separate/fake-audio-separate';
 import { createDubProviders, type DubEnv, dubEnvSchema } from './dub-providers';
-import { FakeSpeechToText, FakeTextToSpeech, FakeTranslator } from './providers/fake';
-import { OpenAiSpeechToText, OpenAiTranslator } from './providers/openai';
+import { FakeTextToSpeech } from './providers/fake';
+import { ResilientSpeechToText, ResilientTranslator } from './providers/resilience';
 
 const env = (overrides: Record<string, string> = {}): DubEnv => dubEnvSchema.parse(overrides);
 
@@ -32,8 +32,10 @@ describe('createDubProviders', () => {
       env({ DUB_PROVIDERS: 'fake', DUB_TTS: 'fake' }),
       storage,
     );
-    expect(providers.stt).toBeInstanceOf(FakeSpeechToText);
-    expect(providers.translator).toBeInstanceOf(FakeTranslator);
+    expect(providers.stt).toBeInstanceOf(ResilientSpeechToText);
+    expect(providers.stt.name).toBe('fake-stt');
+    expect(providers.translator).toBeInstanceOf(ResilientTranslator);
+    expect(providers.translator.name).toBe('fake-translator');
     expect(providers.tts).toBeInstanceOf(FakeTextToSpeech);
     expect(providers.audioSeparate).toBeInstanceOf(AudioSeparateClient);
   });
@@ -57,8 +59,8 @@ describe('createDubProviders', () => {
       env({ DUB_TTS: 'fake', OPENAI_API_KEY: 'sk-test' }),
       storage,
     );
-    expect(providers.stt).toBeInstanceOf(OpenAiSpeechToText);
-    expect(providers.translator).toBeInstanceOf(OpenAiTranslator);
+    expect(providers.stt.name).toBe('gpt-4o-transcribe-diarize');
+    expect(providers.translator.name).toBe('gpt-5-mini');
   });
 
   it('fails at start when the Supertonic model is missing', async () => {

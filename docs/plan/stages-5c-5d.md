@@ -288,13 +288,16 @@ Kubernetes; UI довгих багатокрокових процесів (пр�
       готові артефакти й не платять за завершений крок удруге. `ObjectStorage.exists` і
       `copyObject` (копія всередині бакета); чекпоінт старої схеми рахується заново; `refit`
       зберігається за id фрази, і повтор просить лише відсутні.
-- [ ] Помилки провайдера: `429` і `5xx` — до двох повторів з `Retry-After` у спробі, далі
+- [x] Помилки провайдера: `429` і `5xx` — до двох повторів з `Retry-After` у спробі, далі
       transient (ADR-007); `4xx` — `provider_rejected`; таймаут на кожен виклик; circuit breaker
       на провайдера (5 збоїв підряд — відкритий на 30 с). Фолбеку на іншу модель розпізнавання
       немає: вичерпані спроби — `dead` з `stt_unavailable`. `PermanentError` отримує `code`,
-      `lastError` — `code: message` (зроблено: `PermanentError(message, code)`; `too_long` і
-      `no_audio` з ffprobe, `ProviderError` з адаптерів — лишились ретраї, breaker і коди
-      `provider_rejected` / `*_unavailable`).
+      `lastError` — `code: message`. `providers/resilience.ts`: `callProvider`,
+      `CircuitBreaker`, `ResilientSpeechToText` / `ResilientTranslator` (переклад і підгонка —
+      один breaker); таймаут у спробі не повторюється (він уже забрав свій час), довший за 20 с
+      `Retry-After` лишається наступній спробі. `JobRunner` бере `retryAfterMs` помилки як
+      нижню межу затримки (не більше `WORKER_RETRY_MAX_MS`), тож відкритий breaker повертає
+      задачу, коли він закриється.
 - [ ] Deployment `video-dub` (`VIDEO_JOB_TYPES=video.dub`, консюмери `video-dub-priority` і
       `video-dub-cpu`, один слот) з KEDA за лагом; Debian-образ з вагами Supertonic (407 МБ),
       requests `1 CPU / 1Gi`. Секрет `OPENAI_API_KEY`; NetworkPolicy: сервіси кластера і `443`
