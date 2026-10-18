@@ -1,11 +1,17 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { type AssetDetails, DeleteAssetButton, useLiveAsset } from '../../features/assets';
+import {
+  type AssetDetails,
+  DeleteAssetButton,
+  playableOf,
+  useLiveAsset,
+} from '../../features/assets';
+import { TranslateDialog } from '../../features/upload';
 import { httpStatusOf, retryAfterOf } from '../../shared/api/http';
 import { formatBytes } from '../../shared/lib/format-bytes';
 import { formatDuration } from '../../shared/lib/format-duration';
-import { buttonClass } from '../../shared/ui/button/Button';
+import { Button, buttonClass } from '../../shared/ui/button/Button';
 import { PageHeading } from '../../shared/ui/page-heading/PageHeading';
 import { Skeleton } from '../../shared/ui/skeleton/Skeleton';
 import { EmptyState } from '../../shared/ui/state/EmptyState';
@@ -13,7 +19,6 @@ import { ErrorState } from '../../shared/ui/state/ErrorState';
 import { Tabs } from '../../shared/ui/tabs/Tabs';
 import { useToast } from '../../shared/ui/toast/toast-context';
 import { librarySearchOf } from './lib/library-search';
-import { playableOf } from './model/versions';
 import { AssetJobs } from './ui/AssetJobs';
 import styles from './ui/AssetPage.module.css';
 import { VersionList } from './ui/VersionList';
@@ -86,6 +91,7 @@ function AssetView({ asset }: { asset: AssetDetails }) {
     [i18n.language, asset.createdAt],
   );
   const { renditions, poster } = playableOf(asset.jobs);
+  const [translating, setTranslating] = useState(false);
   const isMounted = useRef(false);
   useEffect(() => {
     isMounted.current = true;
@@ -112,6 +118,11 @@ function AssetView({ asset }: { asset: AssetDetails }) {
       <div className={styles.header}>
         <PageHeading>{name}</PageHeading>
         <div className={styles.actions}>
+          {asset.kind === 'video' && (
+            <Button variant="primary" onClick={() => setTranslating(true)}>
+              {t('asset.translate')}
+            </Button>
+          )}
           <a className={buttonClass()} href={asset.originalDownloadUrl} download>
             {t('asset.downloadOriginal')}
           </a>
@@ -169,10 +180,29 @@ function AssetView({ asset }: { asset: AssetDetails }) {
           {
             id: 'jobs',
             label: t('jobs.tab'),
-            panel: <AssetJobs jobs={asset.jobs} hasMore={asset.jobsNextCursor !== null} />,
+            panel: (
+              <AssetJobs
+                assetId={asset.id}
+                jobs={asset.jobs}
+                hasMore={asset.jobsNextCursor !== null}
+              />
+            ),
           },
         ]}
       />
+      {asset.kind === 'video' && (
+        <TranslateDialog
+          open={translating}
+          onClose={() => setTranslating(false)}
+          file={{
+            assetId: asset.id,
+            sourceKey: asset.sourceKey,
+            name,
+            durationSeconds: asset.durationSeconds,
+          }}
+          onStarted={(jobId) => void navigate(`/library/${asset.id}/dubs/${jobId}`)}
+        />
+      )}
     </div>
   );
 }

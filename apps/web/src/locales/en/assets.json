@@ -53,7 +53,8 @@
     "type": "Type",
     "uploaded": "Uploaded",
     "downloadOriginal": "Download original",
-    "tabs": "File details"
+    "tabs": "File details",
+    "translate": "Translate"
   },
   "delete": {
     "open": "Delete",
@@ -91,7 +92,9 @@
     "type": {
       "resize": "Resize",
       "frames": "Frames",
-      "transcode": "Transcode"
-    }
+      "transcode": "Transcode",
+      "dub": "Translation"
+    },
+    "openDub": "Open the translation"
   }
 }

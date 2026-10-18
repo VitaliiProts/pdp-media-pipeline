@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import enApiKeys from '../locales/en/apiKeys.json';
 import enAssets from '../locales/en/assets.json';
 import enAuth from '../locales/en/auth.json';
+import enDub from '../locales/en/dub.json';
 import enJobs from '../locales/en/jobs.json';
 import enSettings from '../locales/en/settings.json';
 import enShell from '../locales/en/shell.json';
@@ -12,6 +13,7 @@ import enWorkspace from '../locales/en/workspace.json';
 import ukApiKeys from '../locales/uk/apiKeys.json';
 import ukAssets from '../locales/uk/assets.json';
 import ukAuth from '../locales/uk/auth.json';
+import ukDub from '../locales/uk/dub.json';
 import ukJobs from '../locales/uk/jobs.json';
 import ukSettings from '../locales/uk/settings.json';
 import ukShell from '../locales/uk/shell.json';
@@ -25,6 +27,7 @@ export const resources = {
     apiKeys: enApiKeys,
     assets: enAssets,
     auth: enAuth,
+    dub: enDub,
     jobs: enJobs,
     settings: enSettings,
     shell: enShell,
@@ -36,6 +39,7 @@ export const resources = {
     apiKeys: ukApiKeys,
     assets: ukAssets,
     auth: ukAuth,
+    dub: ukDub,
     jobs: ukJobs,
     settings: ukSettings,
     shell: ukShell,
@@ -75,6 +79,7 @@ export function initI18n(language: Language = DEFAULT_LANGUAGE) {
       'webhooks',
       'auth',
       'assets',
+      'dub',
       'settings',
       'apiKeys',
       'shell',

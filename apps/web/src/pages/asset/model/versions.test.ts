@@ -1,5 +1,5 @@
-import { type AssetFrame, type AssetJob } from '../../../features/assets';
-import { formatOf, framesOf, playableOf, versionsOf } from './versions';
+import { type AssetFrame, type AssetJob, playableOf } from '../../../features/assets';
+import { formatOf, framesOf, versionsOf } from './versions';
 
 const frame = (atSeconds: number, name: string): AssetFrame => ({
   atSeconds,

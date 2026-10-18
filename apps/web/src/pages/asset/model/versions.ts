@@ -64,18 +64,6 @@ export function framesOf(jobs: readonly AssetJob[]): AssetFrame[] {
   return succeeded(jobs).find((job) => job.video)?.video?.frames ?? [];
 }
 
-/** The newest transcode's renditions, best first, and a frame to show before playback. */
-export function playableOf(jobs: readonly AssetJob[]): {
-  renditions: AssetRendition[];
-  poster: string | null;
-} {
-  const done = succeeded(jobs);
-  const transcode = done.find((job) => job.transcode)?.transcode;
-  const poster =
-    done.map((job) => job.transcode?.preview ?? job.video?.preview).find(Boolean)?.url ?? null;
-  return { renditions: [...(transcode?.renditions ?? [])].sort(byHeightDesc), poster };
-}
-
 const FORMAT_NAME: Record<string, string> = {
   webp: 'WebP',
   jpg: 'JPEG',
