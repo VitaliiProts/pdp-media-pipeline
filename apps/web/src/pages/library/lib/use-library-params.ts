@@ -11,14 +11,16 @@ export function useLibraryParams(): readonly [AssetFilters, SetFilters] {
   const kindParam = params.get('kind');
   const statusParam = params.get('status');
   const q = params.get('q') ?? '';
+  const dubbed = params.get('dubbed') === 'true';
 
   const filters = useMemo<AssetFilters>(
     () => ({
       kind: ASSET_KINDS.find((kind) => kind === kindParam) ?? null,
       status: ASSET_STATUSES.find((status) => status === statusParam) ?? null,
       q,
+      dubbed,
     }),
-    [kindParam, statusParam, q],
+    [kindParam, statusParam, q, dubbed],
   );
 
   const setFilters = useCallback<SetFilters>(
@@ -27,7 +29,7 @@ export function useLibraryParams(): readonly [AssetFilters, SetFilters] {
         (current) => {
           const next = new URLSearchParams(current);
           for (const [key, value] of Object.entries(patch)) {
-            if (value) next.set(key, value);
+            if (value) next.set(key, String(value));
             else next.delete(key);
           }
           return next;

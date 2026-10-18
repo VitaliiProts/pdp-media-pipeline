@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw';
 import { type InitialEntry } from 'react-router';
 import { type AssetDetails, type AssetJob, assetsApi, LIVE_POLL_MS } from '../../features/assets';
-import { DUB_JOB_ID, DUB_QUOTA, dubAsset, dubJob } from '../../test/dub-fixtures';
+import { DUB_JOB_ID, DUB_QUOTA, dubAsset, dubJob, TEST_DUB } from '../../test/dub-fixtures';
 import { TEST_ASSET, testAsset } from '../../test/fixtures';
 import { renderApp } from '../../test/render-app';
 import { server, STORAGE_ORIGIN } from '../../test/server';
@@ -583,6 +583,29 @@ describe('translating a video', () => {
     renderApp({ signedIn: true, route: `/library/${ID}` });
     await screen.findByRole('heading', { level: 1, name: 'harbour.jpg' });
     expect(screen.queryByRole('button', { name: 'Translate' })).not.toBeInTheDocument();
+  });
+
+  it('lists a finished dub among the versions', async () => {
+    server.use(
+      http.get(`/v1/assets/${ID}`, () =>
+        HttpResponse.json(
+          dubAsset([dubJob({ id: 'd2', status: 'running', dub: undefined }), dubJob()]),
+        ),
+      ),
+    );
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+    const panel = within(await screen.findByRole('tabpanel', { name: 'Versions' }));
+
+    const row = panel.getByRole('listitem');
+    expect(within(row).getByRole('link', { name: 'Translation · German' })).toHaveAttribute(
+      'href',
+      `/library/${ID}/dubs/${DUB_JOB_ID}`,
+    );
+    expect(row).toHaveTextContent('0:13');
+    expect(row).toHaveTextContent('MP4');
+    expect(
+      within(row).getByRole('link', { name: 'Download Translation · German' }),
+    ).toHaveAttribute('href', TEST_DUB.video.downloadUrl);
   });
 
   it('links a dub on the jobs tab to its page', async () => {

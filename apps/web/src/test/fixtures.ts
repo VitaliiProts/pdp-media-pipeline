@@ -32,5 +32,6 @@ export const testAsset = (overrides: Partial<AssetSummary> = {}): AssetSummary =
     type: 'image.resize',
     status: 'succeeded',
   },
+  dubs: [],
   ...overrides,
 });

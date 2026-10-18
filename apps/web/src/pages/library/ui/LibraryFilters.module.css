@@ -28,6 +28,11 @@
   min-width: 12rem;
 }
 
+/* As tall as the select beside it, so the box lines up with its text. */
+.dubbed {
+  min-height: 2.75rem;
+}
+
 .search {
   flex: 1 1 16rem;
 }

@@ -5,6 +5,7 @@ import {
   ASSET_STATUSES,
   type AssetFilters,
 } from '../../../features/assets';
+import { Checkbox } from '../../../shared/ui/choice/Checkbox';
 import { ChoiceGroup } from '../../../shared/ui/choice/ChoiceGroup';
 import { Radio } from '../../../shared/ui/choice/Radio';
 import { Field } from '../../../shared/ui/field/Field';
@@ -72,6 +73,12 @@ export function LibraryFilters({ filters, onChange, searchRef }: LibraryFiltersP
           </Select>
         )}
       </Field>
+      <Checkbox
+        className={styles.dubbed}
+        label={t('library.dubbed')}
+        checked={filters.dubbed}
+        onChange={(event) => onChange({ dubbed: event.target.checked })}
+      />
       <Field label={t('library.search')} className={styles.search}>
         {(control) => (
           <Input

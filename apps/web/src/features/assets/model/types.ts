@@ -35,6 +35,8 @@ export type AssetSummary = Asset & {
     /** Percent, while running; only long job types report it. */
     progress?: number | null;
   } | null;
+  /** Languages of finished dubs, sorted. */
+  dubs: string[];
 };
 
 export type AssetPage = { items: AssetSummary[]; nextCursor: string | null };
@@ -140,4 +142,10 @@ export type AssetDetails = Asset & {
   jobsNextCursor: string | null;
 };
 
-export type AssetFilters = { kind: AssetKind | null; status: AssetStatus | null; q: string };
+export type AssetFilters = {
+  kind: AssetKind | null;
+  status: AssetStatus | null;
+  q: string;
+  /** Only files with a finished translation. */
+  dubbed: boolean;
+};

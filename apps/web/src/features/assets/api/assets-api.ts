@@ -6,13 +6,14 @@ export const ASSETS_PAGE_SIZE = 24;
 /** Tag of every list page; a file's own page is tagged with its id. */
 export const ASSET_LIST_TAG = { type: 'Asset', id: 'LIST' } as const;
 
-function paramsOf({ kind, status, q }: AssetFilters, cursor: string) {
+function paramsOf({ kind, status, q, dubbed }: AssetFilters, cursor: string) {
   const query = q.trim();
   return {
     limit: ASSETS_PAGE_SIZE,
     ...(kind && { kind }),
     ...(status && { status }),
     ...(query && { q: query }),
+    ...(dubbed && { dubbed: true }),
     ...(cursor && { cursor }),
   };
 }

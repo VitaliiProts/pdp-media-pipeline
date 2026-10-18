@@ -176,7 +176,11 @@ function AssetView({ asset }: { asset: AssetDetails }) {
       <Tabs
         label={t('asset.tabs')}
         items={[
-          { id: 'versions', label: t('versions.tab'), panel: <VersionList jobs={asset.jobs} /> },
+          {
+            id: 'versions',
+            label: t('versions.tab'),
+            panel: <VersionList assetId={asset.id} jobs={asset.jobs} />,
+          },
           {
             id: 'jobs',
             label: t('jobs.tab'),

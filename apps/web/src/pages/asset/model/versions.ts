@@ -11,7 +11,15 @@ type Size = { width: number; height: number; bytes: number };
 export type Version =
   | ({ id: string; kind: 'image'; preset: string } & Size & Download)
   | ({ id: string; kind: 'rendition'; rendition: string } & Size & Download)
-  | ({ id: string; kind: 'preview' } & Size & Download);
+  | ({ id: string; kind: 'preview' } & Size & Download)
+  | ({
+      id: string;
+      kind: 'dub';
+      jobId: string;
+      language: string;
+      durationSeconds: number;
+      bytes: number;
+    } & Download);
 
 const succeeded = (jobs: readonly AssetJob[]) => jobs.filter((job) => job.status === 'succeeded');
 const byHeightDesc = (a: AssetRendition, b: AssetRendition) => b.height - a.height;
@@ -53,6 +61,20 @@ export function versionsOf(jobs: readonly AssetJob[]): Version[] {
               bytes: preview.bytes,
               url: preview.url,
               downloadUrl: preview.downloadUrl,
+            },
+          ]
+        : []),
+      ...(job.dub
+        ? [
+            {
+              id: `${job.id}:dub`,
+              kind: 'dub' as const,
+              jobId: job.id,
+              language: job.dub.targetLanguage,
+              durationSeconds: job.dub.durationSeconds,
+              bytes: job.dub.video.bytes,
+              url: job.dub.video.url,
+              downloadUrl: job.dub.video.downloadUrl,
             },
           ]
         : []),

@@ -112,6 +112,45 @@ describe('library', () => {
     expect(requests.filter((r) => r.has('q'))).toHaveLength(1);
   });
 
+  it('says which languages a file is translated into', async () => {
+    listAssets([testAsset(), { ...VIDEO, dubs: ['de', 'uk'] }]);
+    renderApp({ signedIn: true, route: '/library' });
+
+    const tile = (await screen.findByRole('link', { name: /^cliffs\.mp4/ })).closest('li');
+    if (!tile) throw new Error('tile not found');
+    expect(within(tile).getByText('Translated: DE, UK')).toHaveAttribute(
+      'title',
+      'German, Ukrainian',
+    );
+    expect(screen.queryAllByText(/^Translated:/)).toHaveLength(1);
+  });
+
+  it('shows only translated files when asked, and keeps that in the address', async () => {
+    const requests = listAssets();
+    const { user, router } = renderApp({ signedIn: true, route: '/library' });
+    const dubbed = await screen.findByRole('checkbox', { name: 'With a translation' });
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]?.has('dubbed')).toBe(false);
+    await user.click(dubbed);
+    await waitFor(() => expect(requests.at(-1)?.get('dubbed')).toBe('true'));
+    expect(router.state.location.search).toBe('?dubbed=true');
+
+    await user.click(dubbed);
+    await waitFor(() => expect(router.state.location.search).toBe(''));
+    expect(dubbed).not.toBeChecked();
+  });
+
+  it('resets the translation filter with the others', async () => {
+    listAssets();
+    const { user, router } = renderApp({ signedIn: true, route: '/library?dubbed=true' });
+
+    expect(await screen.findByRole('checkbox', { name: 'With a translation' })).toBeChecked();
+    await user.click(await screen.findByRole('button', { name: 'Reset filters' }));
+    await waitFor(() => expect(router.state.location.search).toBe(''));
+    expect(screen.getByRole('checkbox', { name: 'With a translation' })).not.toBeChecked();
+  });
+
   it('ignores filter values it does not know', async () => {
     const requests = listAssets();
     renderApp({ signedIn: true, route: '/library?kind=audio&status=done&q=sea' });

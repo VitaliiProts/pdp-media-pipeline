@@ -9,6 +9,7 @@
       "ready": "Готово",
       "failed": "Помилка"
     },
+    "dubbed": "З перекладом",
     "search": "Пошук за назвою",
     "loading": "Завантажуємо файли…",
     "errorTitle": "Не вдалося завантажити медіатеку",
@@ -36,7 +37,8 @@
     "untitled": "Файл без назви",
     "video": "Відео",
     "videoWithDuration": "Відео · {{duration}}",
-    "progress": "Хід обробки"
+    "progress": "Хід обробки",
+    "dubs": "Є переклад: {{languages}}"
   },
   "upload": {
     "remove": "Прибрати"
@@ -83,6 +85,7 @@
     "none": "Версії з'являться, коли обробка завершиться.",
     "imageLabel": "{{name}} · {{width}} px",
     "preview": "Кадр-прев'ю",
+    "dub": "Переклад · {{language}}",
     "dimensions": "{{width}} × {{height}}",
     "download": "Завантажити",
     "downloadLabel": "Завантажити {{name}}",
