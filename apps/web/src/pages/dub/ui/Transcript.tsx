@@ -34,7 +34,9 @@ export function Transcript({ dub, seconds, onSeek }: TranscriptProps) {
 
   const markLabel = (mark: PhraseMark, speed: number) =>
     mark === 'sped'
-      ? t('transcript.sped', { speed: speed.toLocaleString(i18n.language) })
+      ? t('transcript.sped', {
+          speed: speed.toLocaleString(i18n.language, { maximumFractionDigits: 2 }),
+        })
       : t(`transcript.${mark}`);
 
   return (
