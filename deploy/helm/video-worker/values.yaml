@@ -24,3 +24,6 @@ extraVolumes:
 extraVolumeMounts:
   - name: work
     mountPath: /work
+# See pdp-lib/templates/_network.tpl.
+networkPolicy:
+  enabled: false

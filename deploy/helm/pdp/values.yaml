@@ -3,6 +3,7 @@
 # Secrets are referenced, never stored here:
 #   postgres-app    created by CloudNativePG, key `uri`
 #   s3-credentials  keys `accessKey`, `secretKey`
+#   dub-provider    key `openaiApiKey` (recognition and translation of video.dub)
 
 global:
   image:
@@ -140,6 +141,62 @@ video-transcode:
     scaleDown:
       stabilizationWindowSeconds: 120
       policies: [{ type: Pods, value: 1, periodSeconds: 60 }]
+
+# Dubbing (ADR-016): recognition and translation at OpenAI, Supertonic in the pod, the
+# separation and alignment in audio-separate (about 1.5 min there per minute of video). A
+# handed-back dub goes on from its checkpoints on another pod and pays for nothing twice.
+video-dub:
+  enabled: true
+  image:
+    repository: pdp/video-dub
+  env:
+    <<: *video-env
+    VIDEO_JOB_TYPES: video.dub
+    DUB_PROVIDERS: openai
+    DUB_AUDIO_SEPARATE: http
+    AUDIO_SEPARATE_URL: http://audio-separate:3000
+    SUPERTONIC_THREADS: '2'
+  secretEnv:
+    <<: *s3-credentials
+    OPENAI_API_KEY: { secret: dub-provider, key: openaiApiKey }
+  # Supertonic peaked at 594 MiB in the spike, loaded once per pod.
+  resources:
+    requests: { cpu: '1', memory: 1Gi }
+    limits: { cpu: '2', memory: 2Gi }
+  shutdownGraceSeconds: 60
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    lagThreshold: 1
+    consumers:
+      - { stream: JOBS_PRIORITY, consumer: video-dub-priority }
+      - { stream: JOBS_CPU, consumer: video-dub-cpu }
+  networkPolicy:
+    enabled: true
+    ingressFrom: []
+    # The OpenAI API.
+    egressPublicHttps: true
+
+# One request per pod, so it scales on the same lag as video-dub: a pod per dub in flight.
+# minReplicas 1 keeps the ~6 s model load and the image pull off the first dub.
+audio-separate:
+  enabled: true
+  env:
+    S3_ENDPOINT: http://minio:9000
+    S3_BUCKET: media
+  secretEnv: *s3-credentials
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    lagThreshold: 1
+    consumers:
+      - { stream: JOBS_PRIORITY, consumer: video-dub-priority }
+      - { stream: JOBS_CPU, consumer: video-dub-cpu }
+  networkPolicy:
+    enabled: true
+    ingressFrom: [video-dub]
 
 web:
   enabled: true

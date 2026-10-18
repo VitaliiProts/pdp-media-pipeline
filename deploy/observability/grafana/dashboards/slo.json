@@ -27,7 +27,7 @@
         "name": "type",
         "label": "Job type",
         "type": "custom",
-        "query": "image.resize,video.frames,video.transcode",
+        "query": "image.resize,video.frames,video.transcode,video.dub",
         "current": {
           "text": "image.resize",
           "value": "image.resize"
@@ -46,6 +46,11 @@
           {
             "text": "video.transcode",
             "value": "video.transcode",
+            "selected": false
+          },
+          {
+            "text": "video.dub",
+            "value": "video.dub",
             "selected": false
           }
         ]

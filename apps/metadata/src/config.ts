@@ -26,5 +26,11 @@ export const envSchema = baseEnvSchema.extend({
     .int()
     .min(100)
     .default(10 * 60_000),
+  /** Seconds of video a user may dub per calendar month (UTC); each one is paid to providers. */
+  DUB_QUOTA_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(30 * 60),
 });
 export type Env = z.infer<typeof envSchema>;

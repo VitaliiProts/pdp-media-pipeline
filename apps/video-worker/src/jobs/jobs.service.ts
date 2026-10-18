@@ -17,6 +17,10 @@ import {
 import { MetadataClient } from '@pdp/metadata-client';
 import { JobRunner, ObjectStorage, SourceFetcher } from '@pdp/worker-kit';
 import { type Env, type VideoJobType } from '../config';
+import { createDubProviders, type DubEnv, dubEnvSchema } from '../dub/dub-providers';
+import { VoiceProfiles } from '../dub/fit/voice-profiles';
+import { DubFfmpeg } from '../dub/media/dub-ffmpeg';
+import { VideoDubProcessor } from '../dub/video-dub.processor';
 import { Ffmpeg } from '../ffmpeg/ffmpeg';
 import { type ProbeLimits } from '../ffmpeg/probe';
 import { VideoFramesProcessor } from '../frames/video-frames.processor';
@@ -32,6 +36,7 @@ interface ConsumerSpec {
 const DURABLE_PREFIX: Record<VideoJobType, string> = {
   'video.frames': 'video',
   'video.transcode': 'video-transcode',
+  'video.dub': 'video-dub',
 };
 const VIDEO_CLASSES: readonly JobClass[] = ['priority', 'cpu'];
 
@@ -64,7 +69,7 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
 
   async onApplicationBootstrap(): Promise<void> {
     const types = this.config.get('VIDEO_JOB_TYPES', { infer: true });
-    const runner = this.createRunner(types);
+    const runner = await this.createRunner(types);
 
     const consumers = types.flatMap(consumersOf);
     const jsm = await this.nats.manager();
@@ -104,7 +109,7 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
     await Promise.all(this.workers.map((w) => w.stop(graceMs)));
   }
 
-  private createRunner(types: readonly VideoJobType[]): JobRunner {
+  private async createRunner(types: readonly VideoJobType[]): Promise<JobRunner> {
     const ffmpeg = new Ffmpeg({
       ffmpegPath: this.config.get('FFMPEG_PATH', { infer: true }),
       ffprobePath: this.config.get('FFPROBE_PATH', { infer: true }),
@@ -169,6 +174,34 @@ export class JobsService implements OnApplicationBootstrap, BeforeApplicationShu
             uploadFile: this.storage.uploadFile.bind(this.storage),
           },
           source,
+        ),
+      );
+    }
+    if (types.includes('video.dub')) {
+      const dubEnv = Object.fromEntries(
+        Object.keys(dubEnvSchema.shape).map((key) => [
+          key,
+          this.config.get(key as keyof DubEnv, { infer: true }),
+        ]),
+      ) as DubEnv;
+      const providers = await createDubProviders(dubEnv, this.storage);
+      runner.register(
+        new VideoDubProcessor(
+          {
+            download: shared.download,
+            media: new DubFfmpeg({
+              ffmpegPath: this.config.get('FFMPEG_PATH', { infer: true }),
+              ffprobePath: this.config.get('FFPROBE_PATH', { infer: true }),
+              timeoutMs: this.config.get('FFMPEG_TIMEOUT_MS', { infer: true }),
+            }),
+            storage: this.storage,
+            providers,
+            profiles: new VoiceProfiles(providers.tts),
+          },
+          {
+            ...source,
+            maxDurationSeconds: this.config.get('DUB_MAX_DURATION_SECONDS', { infer: true }),
+          },
         ),
       );
     }

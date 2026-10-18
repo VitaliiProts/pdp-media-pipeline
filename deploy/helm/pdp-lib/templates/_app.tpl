@@ -1,6 +1,6 @@
 {{/*
-Deployment, Service, PodDisruptionBudget, optional autoscaler (_scaling.tpl) and Ingress
-of one service. A service chart only needs `{{ include "pdp-lib.app" . }}` and its values.yaml.
+Deployment, Service, PodDisruptionBudget, optional autoscaler (_scaling.tpl), NetworkPolicy
+(_network.tpl) and Ingress of one service. A service chart only needs `{{ include "pdp-lib.app" . }}` and its values.yaml.
 
 `shutdownGraceSeconds` (workers) sets WORKER_SHUTDOWN_GRACE_MS and a termination grace
 15 s longer: 5 s for aborted jobs to hand themselves back, the rest for NATS and HTTP.
@@ -126,6 +126,7 @@ spec:
       port: {{ .Values.servicePort | default $port }}
       targetPort: http
 {{ include "pdp-lib.scaling" . }}
+{{ include "pdp-lib.networkPolicy" . }}
 {{- with .Values.ingress }}
 {{- if .enabled }}
 ---

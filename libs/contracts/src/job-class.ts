@@ -6,6 +6,7 @@ const CLASS_BY_TYPE: Record<JobType, JobClass> = {
   'image.resize': 'cpu',
   'video.frames': 'cpu',
   'video.transcode': 'cpu',
+  'video.dub': 'cpu',
   'webhook.deliver': 'io',
 };
 

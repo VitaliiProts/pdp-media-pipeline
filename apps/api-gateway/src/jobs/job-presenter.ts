@@ -3,6 +3,7 @@ import {
   ImageResizeOutputV1,
   type JobDto,
   type VideoFrame,
+  VideoDubOutputV1,
   VideoFramesOutputV1,
   VideoTranscodeOutputV1,
 } from '@pdp/contracts';
@@ -70,6 +71,7 @@ export class JobPresenter {
       traceId: job.traceId,
       // The last value of an earlier attempt would be stale once the job left `running`.
       progress: job.status === 'running' ? job.progress : null,
+      progressStep: job.status === 'running' ? job.progressStep : null,
     };
     if (job.status !== 'succeeded') return response;
 
@@ -106,6 +108,24 @@ export class JobPresenter {
             ...(await link(key, rendition.rendition)),
           })),
         ),
+      };
+    }
+    if (job.type === 'video.dub') {
+      const output = VideoDubOutputV1.safeParse(job.output);
+      if (!output.success) return response;
+      // `usage` (provider billing) is for the cost metric, not for the user.
+      const { video, subtitles } = output.data;
+      const suffix = `dub-${output.data.targetLanguage}`;
+      response.dub = {
+        durationSeconds: output.data.durationSeconds,
+        sourceLanguage: output.data.sourceLanguage,
+        targetLanguage: output.data.targetLanguage,
+        video: { bytes: video.bytes, ...(await link(video.key, suffix)) },
+        subtitles: await link(subtitles.key, suffix),
+        speakers: output.data.speakers,
+        phrases: output.data.phrases,
+        unrecognized: output.data.unrecognized,
+        stats: output.data.stats,
       };
     }
     return response;

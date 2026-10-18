@@ -94,9 +94,20 @@ describe('metadata (Postgres + NATS)', () => {
     await client.transition(job.id, { to: 'running', attempt: 1, actor: 'worker:a' });
     await client.reportProgress(job.id, { attempt: 1, progress: 42 });
     await expect(client.getJob(job.id)).resolves.toMatchObject({ progress: 42 });
+    await client.reportProgress(job.id, { attempt: 1, progress: 45, step: 'align' });
+    await expect(client.getJob(job.id)).resolves.toMatchObject({
+      progress: 45,
+      progressStep: 'align',
+    });
 
     await client.transition(job.id, { to: 'running', attempt: 2, actor: 'worker:b' });
-    await expect(client.getJob(job.id)).resolves.toMatchObject({ progress: null });
+    await expect(client.getJob(job.id)).resolves.toMatchObject({
+      progress: null,
+      progressStep: null,
+    });
+    await client.reportProgress(job.id, { attempt: 2, progress: 5, step: 'extract' });
+    await client.reportProgress(job.id, { attempt: 2, progress: 6 });
+    await expect(client.getJob(job.id)).resolves.toMatchObject({ progressStep: null });
     await expect(client.reportProgress(job.id, { attempt: 1, progress: 80 })).rejects.toMatchObject(
       { status: 409, code: 'STALE_ATTEMPT' },
     );
@@ -162,6 +173,35 @@ describe('metadata (Postgres + NATS)', () => {
       JobCreatedV1.parse(e),
     );
     expect(events.filter((e) => e.payload.jobId === job.id)).toHaveLength(1);
+  });
+
+  it('stores a dub with the input its contract fills in', async () => {
+    const sourceKey = `uploads/${userId}/clip.mp4`;
+    await registerUpload(pool, sourceKey);
+    const { job } = await client.createJob({
+      userId,
+      type: 'video.dub',
+      input: { sourceKey, targetLanguage: 'uk' },
+    });
+    expect(job).toMatchObject({
+      type: 'video.dub',
+      status: 'queued',
+      input: { sourceKey, targetLanguage: 'uk', sourceLanguage: 'auto' },
+    });
+  });
+
+  it('rejects a dub into the language the video is already in', async () => {
+    await expect(
+      client.createJob({
+        userId,
+        type: 'video.dub',
+        input: { sourceKey: `uploads/${userId}/a.png`, targetLanguage: 'de', sourceLanguage: 'de' },
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: 'VALIDATION_FAILED',
+      message: expect.stringContaining('already in the dub language') as string,
+    });
   });
 
   describe('Idempotency-Key', () => {

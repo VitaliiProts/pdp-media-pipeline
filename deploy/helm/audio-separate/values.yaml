@@ -1,0 +1,29 @@
+image:
+  repository: pdp/audio-separate
+  tag: ''
+replicaCount: 1
+serviceVersionEnv: true
+# Demucs, MMS_FA and the gender classifier together peaked at 3994 MiB (spike 02); one
+# request at a time per pod, so the CPU limit is the speed of one dub.
+resources:
+  requests: { cpu: '2', memory: 4Gi }
+  limits: { cpu: '2', memory: 5Gi }
+env:
+  # PyTorch takes every core of the node otherwise: 2-3x slower under the CPU quota.
+  TORCH_THREADS: '2'
+  OMP_NUM_THREADS: '2'
+  WORK_DIR: /tmp/audio-separate
+  # A minute of video separates in 41 s at 2 CPUs (spike 02); uvicorn finishes it on SIGTERM.
+  SHUTDOWN_GRACE_SECONDS: '120'
+secretEnv: {}
+terminationGracePeriodSeconds: 135
+# Keeps serving while the endpoint removal reaches kube-proxy.
+preStopSleepSeconds: 5
+# 44.1 kHz stereo FLAC of a minute plus its two stems.
+tmpSizeLimit: 512Mi
+# See pdp-lib/templates/_scaling.tpl.
+autoscaling:
+  enabled: false
+# See pdp-lib/templates/_network.tpl: called only by video-dub; S3 and the collector.
+networkPolicy:
+  enabled: false

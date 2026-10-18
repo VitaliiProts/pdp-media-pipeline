@@ -19,6 +19,7 @@
     "@opentelemetry/api": "^1.9.1",
     "@pdp/config": "workspace:^",
     "@pdp/contracts": "workspace:^",
+    "@pdp/egress": "workspace:^",
     "@pdp/messaging": "workspace:^",
     "@pdp/metadata-client": "workspace:^",
     "@pdp/observability": "workspace:^",
@@ -27,5 +28,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^4"
+  },
+  "optionalDependencies": {
+    "onnxruntime-node": "^1.30.0"
   }
 }

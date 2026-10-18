@@ -23,6 +23,7 @@ import {
   type RedriveRequest,
   type TransitionRequest,
   type TransitionResponse,
+  VideoDubInputV1,
   VideoFramesInputV1,
   VideoTranscodeInputV1,
 } from '@pdp/contracts';
@@ -43,6 +44,7 @@ import {
 } from '../database/schema';
 import { enqueueEvent } from '../outbox/outbox';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { assertDubQuota } from './dub-quota';
 import { insertJob } from './insert-job';
 import { decodeCursor, encodeCursor, toJobDto } from './job.mapper';
 import {
@@ -58,6 +60,7 @@ const INPUT_SCHEMAS: Partial<Record<JobType, z.ZodType>> = {
   'image.resize': ImageResizeInputV1,
   'video.frames': VideoFramesInputV1,
   'video.transcode': VideoTranscodeInputV1,
+  'video.dub': VideoDubInputV1,
 };
 
 const error = (code: MetadataErrorBody['code'], message: string): MetadataErrorBody => ({
@@ -74,6 +77,7 @@ const seconds = (from: Date, to: Date) => Math.max(0, (to.getTime() - from.getTi
 export class JobsService {
   private readonly policy: RetryPolicy;
   private readonly idempotencyTtlHours: number;
+  private readonly dubQuotaSeconds: number;
 
   constructor(
     private readonly pg: PostgresService,
@@ -83,6 +87,7 @@ export class JobsService {
   ) {
     this.policy = { maxAttempts: config.get('JOB_MAX_ATTEMPTS', { infer: true }) };
     this.idempotencyTtlHours = config.get('IDEMPOTENCY_TTL_HOURS', { infer: true });
+    this.dubQuotaSeconds = config.get('DUB_QUOTA_SECONDS', { infer: true });
   }
 
   async create(req: CreateJobRequest): Promise<CreateJobResponse> {
@@ -94,6 +99,7 @@ export class JobsService {
     if (!input.success) {
       throw new BadRequestException(error('VALIDATION_FAILED', z.prettifyError(input.error)));
     }
+    if (req.type === 'video.dub') await this.checkReuse(req.userId, input.data as VideoDubInputV1);
 
     const created = await this.pg.db.transaction(async (tx) => {
       if (req.idempotency) {
@@ -102,6 +108,9 @@ export class JobsService {
       }
 
       const { sourceKey } = input.data as { sourceKey?: string };
+      if (req.type === 'video.dub' && sourceKey) {
+        await assertDubQuota(tx, req.userId, sourceKey, this.dubQuotaSeconds);
+      }
       const job = await insertJob(tx, {
         userId: req.userId,
         type: req.type,
@@ -125,6 +134,26 @@ export class JobsService {
     });
     if (!created.replayed) jobMetrics.created(created.job.type);
     return created;
+  }
+
+  /**
+   * The worker copies the recognised speech and audio of `reuseOf`, so it must be a dub of the
+   * same file by the same user. Any state will do: a dub that failed on `same_language` has them.
+   * A job of another user is answered like a missing one.
+   */
+  private async checkReuse(userId: string, input: VideoDubInputV1): Promise<void> {
+    if (!input.reuseOf) return;
+    const [previous] = await this.pg.db
+      .select({ input: jobs.input })
+      .from(jobs)
+      .where(and(eq(jobs.id, input.reuseOf), eq(jobs.userId, userId), eq(jobs.type, 'video.dub')))
+      .limit(1);
+    const previousKey = (previous?.input as { sourceKey?: string } | undefined)?.sourceKey;
+    if (previousKey !== input.sourceKey) {
+      throw new BadRequestException(
+        error('VALIDATION_FAILED', 'reuseOf must name a dub of the same file'),
+      );
+    }
   }
 
   /**
@@ -344,7 +373,7 @@ export class JobsService {
   async progress(id: string, req: ProgressRequest): Promise<void> {
     const updated = await this.pg.db
       .update(jobs)
-      .set({ progress: req.progress })
+      .set({ progress: req.progress, progressStep: req.step ?? null })
       .where(and(eq(jobs.id, id), eq(jobs.status, 'running'), eq(jobs.attempts, req.attempt)))
       .returning({ id: jobs.id });
     if (updated.length > 0) return;
@@ -512,6 +541,7 @@ export class JobsService {
           .onConflictDoNothing();
         patch.attempts = req.attempt;
         patch.progress = null;
+        patch.progressStep = null;
         // The scheduler's own transition is a no-op when the worker overtook it.
         patch.class = job.class ?? req.class ?? null;
         break;

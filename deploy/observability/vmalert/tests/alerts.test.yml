@@ -103,6 +103,59 @@ tests:
               summary: 'video.transcode: error budget burns over 6x (6h and 30m)'
               description: At this rate the 30-day budget is gone in about five days.
 
+  # A dub has 15 minutes: 60% over 10 counts nothing by itself, 40% over 15 is an 8x ticket.
+  - name: video.dub is measured at its own 900 s threshold
+    interval: 5m
+    input_series:
+      - series: 'job_e2e_duration_seconds_bucket{type="video.dub",outcome="succeeded",le="600"}'
+        values: '0+4x90'
+      - series: 'job_e2e_duration_seconds_bucket{type="video.dub",outcome="succeeded",le="900"}'
+        values: '0+6x90'
+      - series: 'job_e2e_duration_seconds_count{type="video.dub",outcome="succeeded"}'
+        values: '0+10x90'
+    alert_rule_test:
+      - eval_time: 7h
+        groupname: job-alerts
+        alertname: JobSloBurnRateSlow
+        exp_alerts:
+          - exp_labels: { type: video.dub, severity: ticket }
+            exp_annotations:
+              summary: 'video.dub: error budget burns over 6x (6h and 30m)'
+              description: At this rate the 30-day budget is gone in about five days.
+    metricsql_expr_test:
+      - expr: job:slo_burn_rate:rate6h
+        eval_time: 7h
+        exp_samples:
+          - labels: 'job:slo_burn_rate:rate6h{type="video.dub"}'
+            value: 8
+
+  # Open while calls keep failing fast pages a ticket; after the outage, with no calls to
+  # probe it, the breaker reads open but nothing is failing and the alert resolves.
+  - name: dub provider breaker open while calls fail
+    interval: 1m
+    input_series:
+      - series: 'dub_breaker_state{provider="gpt-4o-transcribe-diarize",service_name="video-worker"}'
+        values: '2x40'
+      - series: 'dub_provider_duration_seconds_count{provider="gpt-4o-transcribe-diarize",operation="transcribe",outcome="unavailable"}'
+        values: '0+3x20 60x20'
+      - series: 'dub_breaker_state{provider="gpt-5-mini",service_name="video-worker"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 15m
+        groupname: dub-alerts
+        alertname: DubProviderCircuitOpen
+        exp_alerts:
+          - exp_labels: { provider: gpt-4o-transcribe-diarize, severity: ticket }
+            exp_annotations:
+              summary: 'gpt-4o-transcribe-diarize: circuit breaker open for 10 minutes'
+              description: >-
+                Dubs wait for the provider and come back when it answers; recognition that stays
+                down ends as dead with stt_unavailable. See the Dub dashboard and the provider status.
+      - eval_time: 40m
+        groupname: dub-alerts
+        alertname: DubProviderCircuitOpen
+        exp_alerts: []
+
   # 2% of images dead-lettered alerts; every one of a handful of videos does not.
   - name: dead letter share above 1% with enough volume
     interval: 1m

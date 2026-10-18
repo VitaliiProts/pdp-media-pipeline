@@ -25,8 +25,11 @@ import { ProgressReporter } from './progress';
 export interface JobContext {
   jobId: string;
   attempt: number;
-  /** Percent done, as often as convenient: updates are throttled and never block. */
-  progress: (percent: number) => void;
+  /**
+   * Percent done, as often as convenient: updates are throttled and never block. A job made
+   * of several steps names the current one; the percent is still that of the whole job.
+   */
+  progress: (percent: number, step?: string) => void;
   /**
    * Aborts when the worker shuts down and stops waiting for this job. Pass it to whatever
    * runs long; the error it causes hands the job back without using up an attempt.
@@ -199,7 +202,7 @@ export class JobRunner {
   private progressOf(jobId: string, attempt: number): JobContext['progress'] {
     const send = this.deps.progress;
     if (!send) return () => undefined;
-    return new ProgressReporter((progress) => send(jobId, { attempt, progress }), {
+    return new ProgressReporter((progress, step) => send(jobId, { attempt, progress, step }), {
       intervalMs: this.options.progressIntervalMs ?? DEFAULT_PROGRESS_INTERVAL_MS,
     }).report;
   }
@@ -247,11 +250,19 @@ export class JobRunner {
         error: message,
       });
       if (res.job.status === 'dead') return ack();
-      this.logger.log(`job ${jobId} retries in ${retryDelay}ms`);
-      return nak(retryDelay);
+      const delay = this.delayFor(err, retryDelay);
+      this.logger.log(`job ${jobId} retries in ${delay}ms`);
+      return nak(delay);
     } catch (transitionErr) {
       return this.onMetadataError(transitionErr, jobId, retryDelay);
     }
+  }
+
+  /** An error may know better, e.g. a provider's `Retry-After` or an open circuit breaker. */
+  private delayFor(err: unknown, retryDelay: number): number {
+    const hinted = (err as { retryAfterMs?: unknown } | null)?.retryAfterMs;
+    if (typeof hinted !== 'number' || !Number.isFinite(hinted)) return retryDelay;
+    return Math.max(retryDelay, Math.min(hinted, this.options.retry.maxMs));
   }
 
   private async onInterrupted(

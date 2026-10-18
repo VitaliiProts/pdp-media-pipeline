@@ -23,11 +23,17 @@ dependencies:
 - name: video-worker
   repository: file://../video-worker
   version: 0.2.0
+- name: video-worker
+  repository: file://../video-worker
+  version: 0.2.0
+- name: audio-separate
+  repository: file://../audio-separate
+  version: 0.1.0
 - name: web
   repository: file://../web
   version: 0.2.0
 - name: webhook-receiver
   repository: file://../webhook-receiver
   version: 0.2.0
-digest: sha256:1e957cfa4723f8917cd093ed1f711efc66e9135032aedcc625706729a536e7f2
-generated: "2026-10-13T17:42:05.637665+03:00"
+digest: sha256:a66d103a11755641384b61957746ecdab37446ea33983b1001d18388a2b5ca60
+generated: "2026-10-18T18:38:39.738557+03:00"

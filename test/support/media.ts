@@ -12,11 +12,19 @@ const ffprobePath = (require('@ffprobe-installer/ffprobe') as { path: string }).
 /** Static builds from npm, so tests do not depend on a system ffmpeg. */
 export const FFMPEG_ENV = { FFMPEG_PATH: ffmpegPath, FFPROBE_PATH: ffprobePath };
 
-/** An H.264 MP4 with a moving test pattern. */
-export async function makeVideo(seconds: number, width = 320, height = 240): Promise<Buffer> {
+/** An H.264 MP4 with a moving test pattern; with `audio`, an AAC tone as long. */
+export async function makeVideo(
+  seconds: number,
+  width = 320,
+  height = 240,
+  { audio = false } = {},
+): Promise<Buffer> {
   const dir = await mkdtemp(join(tmpdir(), 'pdp-video-'));
   try {
     const out = join(dir, 'clip.mp4');
+    const tone = audio
+      ? ['-f', 'lavfi', '-i', `sine=frequency=440:duration=${seconds}`, '-c:a', 'aac']
+      : [];
     await promisify(execFile)(ffmpegPath, [
       '-v',
       'error',
@@ -24,6 +32,7 @@ export async function makeVideo(seconds: number, width = 320, height = 240): Pro
       'lavfi',
       '-i',
       `testsrc=duration=${seconds}:size=${width}x${height}:rate=5`,
+      ...tone,
       '-c:v',
       'libx264',
       '-pix_fmt',

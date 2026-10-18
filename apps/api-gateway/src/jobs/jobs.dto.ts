@@ -2,6 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   DEAD_REASONS,
   type DeadReason,
+  DUB_TARGET_LANGUAGES,
+  DUB_VOICES,
+  type DubTargetLanguage,
   IMAGE_PRESET_NAMES,
   type ImagePreset,
   JOB_STATUSES,
@@ -19,6 +22,7 @@ import {
   IsIn,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -28,7 +32,12 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-export const CREATABLE_JOB_TYPES = ['image.resize', 'video.frames', 'video.transcode'] as const;
+export const CREATABLE_JOB_TYPES = [
+  'image.resize',
+  'video.frames',
+  'video.transcode',
+  'video.dub',
+] as const;
 export type CreatableJobType = (typeof CREATABLE_JOB_TYPES)[number];
 
 /** Exactly one of `sourceKey` and `sourceUrl`; the rest depends on `type`. */
@@ -90,6 +99,43 @@ export class CreateJobDto {
   @ArrayUnique()
   @IsIn(RENDITION_NAMES, { each: true })
   renditions?: Rendition[];
+
+  @ApiPropertyOptional({ enum: DUB_TARGET_LANGUAGES, description: 'Required for video.dub.' })
+  @ValidateIf((dto: CreateJobDto) => dto.type === 'video.dub')
+  @IsIn(DUB_TARGET_LANGUAGES)
+  targetLanguage?: DubTargetLanguage;
+
+  @ApiPropertyOptional({
+    default: 'auto',
+    description: 'video.dub: ISO 639-1 code of the speech, or auto to detect it.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4)
+  sourceLanguage?: string;
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: {
+      type: 'object',
+      properties: {
+        gender: { type: 'string', enum: ['male', 'female'] },
+        voice: { type: 'string', enum: [...DUB_VOICES] },
+      },
+    },
+    description: 'video.dub: gender or voice by speaker id of a previous dub (with reuseOf).',
+  })
+  @IsOptional()
+  @IsObject()
+  speakers?: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'video.dub: a previous dub of the same file; its recognition is reused.',
+  })
+  @IsOptional()
+  @IsUUID()
+  reuseOf?: string;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 9, default: 5 })
   @IsOptional()
@@ -252,6 +298,133 @@ export class TranscodeResultDto {
   skipped!: Rendition[];
 }
 
+export class DubFileDto {
+  @ApiProperty({ description: 'Presigned GET URL, valid for at least one hour.' })
+  url!: string;
+
+  @ApiPropertyOptional({
+    description: 'Presigned GET URL that saves the file under a readable name. Asset details only.',
+  })
+  downloadUrl?: string;
+}
+
+export class DubVideoDto extends DubFileDto {
+  @ApiProperty()
+  bytes!: number;
+}
+
+export class DubSpeakerDto {
+  @ApiProperty({ example: 'A' })
+  id!: string;
+
+  @ApiProperty({ enum: ['male', 'female'] })
+  gender!: 'male' | 'female';
+
+  @ApiProperty({ minimum: 0, maximum: 1, description: 'Of the classifier, on the speaker voice.' })
+  maleProbability!: number;
+
+  @ApiProperty({ enum: DUB_VOICES })
+  voice!: string;
+
+  @ApiProperty({ description: 'Speech of the speaker in the original.' })
+  seconds!: number;
+}
+
+export class DubPhraseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ description: 'Phrases of one turn are parts of one utterance of one speaker.' })
+  turn!: string;
+
+  @ApiProperty()
+  speaker!: string;
+
+  @ApiProperty({ description: 'First word of the original, in seconds.' })
+  start!: number;
+
+  @ApiProperty({ description: 'Last word of the original, in seconds.' })
+  end!: number;
+
+  @ApiProperty()
+  source!: string;
+
+  @ApiProperty()
+  target!: string;
+
+  @ApiProperty({ description: 'Where the dubbed phrase plays.' })
+  placedStart!: number;
+
+  @ApiProperty()
+  placedEnd!: number;
+
+  @ApiProperty({ description: 'Of the synthesiser; above 1 the phrase was sped up.' })
+  speed!: number;
+
+  @ApiProperty({ description: 'Rewritten to a word count because no variant fitted its time.' })
+  refitted!: boolean;
+}
+
+export class DubIntervalDto {
+  @ApiProperty()
+  start!: number;
+
+  @ApiProperty()
+  end!: number;
+}
+
+export class DubStatsDto {
+  @ApiProperty()
+  phrases!: number;
+
+  @ApiProperty()
+  sped!: number;
+
+  @ApiProperty()
+  refitted!: number;
+
+  @ApiProperty({ description: 'Ran past their slot even at the highest speed.' })
+  overflowed!: number;
+
+  @ApiProperty()
+  meanEndErrorSeconds!: number;
+}
+
+export class DubResultDto {
+  @ApiProperty()
+  durationSeconds!: number;
+
+  @ApiProperty({ example: 'en', description: 'Detected, unless the job named it.' })
+  sourceLanguage!: string;
+
+  @ApiProperty({ enum: DUB_TARGET_LANGUAGES })
+  targetLanguage!: DubTargetLanguage;
+
+  @ApiProperty({
+    type: DubVideoDto,
+    description: 'MP4 with the dub as the default audio track and the original second.',
+  })
+  video!: DubVideoDto;
+
+  @ApiProperty({ type: DubFileDto, description: 'WebVTT at the dubbed positions of the phrases.' })
+  subtitles!: DubFileDto;
+
+  @ApiProperty({ type: [DubSpeakerDto] })
+  speakers!: DubSpeakerDto[];
+
+  @ApiProperty({ type: [DubPhraseDto] })
+  phrases!: DubPhraseDto[];
+
+  @ApiProperty({
+    type: [DubIntervalDto],
+    description: 'Voice that no recognised word covers: shown, never dubbed.',
+  })
+  unrecognized!: DubIntervalDto[];
+
+  @ApiProperty({ type: DubStatsDto })
+  stats!: DubStatsDto;
+}
+
 export class JobResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -298,6 +471,9 @@ export class JobResponseDto {
   @ApiProperty({ type: TranscodeResultDto, required: false, description: 'video.transcode' })
   transcode?: TranscodeResultDto;
 
+  @ApiProperty({ type: DubResultDto, required: false, description: 'video.dub' })
+  dub?: DubResultDto;
+
   @ApiProperty({
     type: Number,
     nullable: true,
@@ -306,6 +482,15 @@ export class JobResponseDto {
     description: 'Percent done while running, for job types that report it (video.transcode).',
   })
   progress!: number | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'align',
+    description:
+      'Step of the work while running, for job types made of several (video.dub: extract, separate, align, translate, voice, mix).',
+  })
+  progressStep!: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;

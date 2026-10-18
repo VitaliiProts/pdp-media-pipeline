@@ -221,6 +221,59 @@ services:
       # Built by video-worker.
       video-worker: { condition: service_healthy }
 
+  # video.dub (ADR-016) on the Debian image with Supertonic: `--profile dub`. Recognition,
+  # translation and separation are fakes until .env sets DUB_PROVIDERS=openai with
+  # OPENAI_API_KEY, and DUB_AUDIO_SEPARATE=http with `--profile dub-separate` as well.
+  video-dub:
+    <<: *app
+    profiles: [dub]
+    build: { context: ., dockerfile: apps/video-worker/Dockerfile, target: dub }
+    image: pdp/video-dub:dev
+    environment:
+      <<: [*app-env, *s3-env]
+      NATS_URL: nats://nats:4222
+      METADATA_URL: http://metadata:3000
+      VIDEO_CONCURRENCY: 1
+      VIDEO_JOB_TYPES: video.dub
+      DUB_PROVIDERS: ${DUB_PROVIDERS:-fake}
+      # From .env or the shell, unset otherwise.
+      OPENAI_API_KEY:
+      DUB_AUDIO_SEPARATE: ${DUB_AUDIO_SEPARATE:-fake}
+      AUDIO_SEPARATE_URL: http://audio-separate:3000
+      SUPERTONIC_THREADS: 2
+    ports: ['${VIDEO_DUB_HOST_PORT:-18087}:3000']
+    depends_on:
+      # Filters on one work-queue stream may not overlap: the image worker narrows first.
+      worker: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+
+  # Demucs, MMS_FA and the gender classifier; a 6 GB image with the weights.
+  audio-separate:
+    profiles: [dub-separate]
+    build: { context: ., dockerfile: apps/audio-separate/Dockerfile }
+    image: pdp/audio-separate:dev
+    restart: unless-stopped
+    environment:
+      <<: *s3-env
+      LOG_LEVEL: info
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      DEPLOYMENT_ENVIRONMENT: compose
+      SERVICE_VERSION: dev
+      TORCH_THREADS: 2
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health/ready')
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    ports: ['${AUDIO_SEPARATE_HOST_PORT:-18088}:3000']
+    depends_on:
+      minio-init: { condition: service_completed_successfully }
+
   # Test endpoint for webhooks: /ok, /fail, /status/<code>, /slow?ms=, /drop, /flaky?failures=.
   webhook-receiver:
     <<: *app

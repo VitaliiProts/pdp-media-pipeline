@@ -36,6 +36,7 @@ import {
   MEDIA_JOB_TYPES,
   selectClass,
   uploadKeyPrefix,
+  VideoDubInputV1,
   VideoFramesInputV1,
   VideoTranscodeInputV1,
 } from '@pdp/contracts';
@@ -82,6 +83,7 @@ export class JobsController {
       'image.resize': config.get('MAX_UPLOAD_BYTES', { infer: true }),
       'video.frames': config.get('MAX_VIDEO_UPLOAD_BYTES', { infer: true }),
       'video.transcode': config.get('MAX_VIDEO_UPLOAD_BYTES', { infer: true }),
+      'video.dub': config.get('MAX_VIDEO_UPLOAD_BYTES', { infer: true }),
     };
   }
 
@@ -99,6 +101,11 @@ export class JobsController {
   @ApiConflictResponse({ description: 'A request with this Idempotency-Key is still in progress' })
   @ApiUnprocessableEntityResponse({
     description: 'This Idempotency-Key was already used with a different body',
+  })
+  @ApiTooManyRequestsResponse({
+    description:
+      'Rate limit exceeded (see Retry-After), or code DUB_QUOTA_EXCEEDED: the dub seconds of ' +
+      'this month are used up',
   })
   async create(
     @UserId() userId: string,
@@ -217,6 +224,18 @@ function jobInput(body: CreateJobDto): Record<string, unknown> {
         });
       case 'video.transcode':
         return VideoTranscodeInputV1.safeParse({ ...source, renditions: body.renditions });
+      case 'video.dub':
+        // The quota counts the duration of a known asset, so never a URL.
+        if (body.sourceUrl !== undefined) {
+          throw new BadRequestException('video.dub takes a sourceKey from the media library');
+        }
+        return VideoDubInputV1.safeParse({
+          sourceKey: body.sourceKey,
+          targetLanguage: body.targetLanguage,
+          sourceLanguage: body.sourceLanguage,
+          speakers: body.speakers,
+          reuseOf: body.reuseOf,
+        });
     }
   })();
   if (!parsed.success) throw new BadRequestException(z.prettifyError(parsed.error));

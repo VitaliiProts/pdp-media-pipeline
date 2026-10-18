@@ -82,6 +82,9 @@ const GENDER_RULE = [
   'oneself in `speakerGender` and say "you" in `listenerGender` (the nearest other speaker,',
   'whom the line most likely addresses) unless the text clearly addresses someone else; this',
   'includes forms of address, nicknames and terms of endearment.',
+  '`speakerGender` is about "I" only. "We" and "they" take the grammatical default for a mixed',
+  'or unknown group (e.g. Spanish "nosotros", French masculine plural): a "we" of the speaker and',
+  'a listener of the other gender is mixed, and so is a group of friends of both genders.',
   'With `unknown`, prefer gender-neutral wording.',
 ].join(' ');
 
@@ -109,6 +112,8 @@ const REFIT_SYSTEM = [
   'You fit one dubbing line to its time: rephrase the translation `fullest` of `original` to',
   'about `words` words. Give three phrasings: a little shorter than that, about that, a little',
   'longer. Drop filler before meaning; same meaning, tone and strength as the original.',
+  'A longer phrasing says the same thing more fully; it never adds a statement, a request or a',
+  'repetition the original does not have.',
   '`before` and `after` are the neighbouring parts of the same utterance: the phrasing continues',
   'them and agrees with them grammatically.',
   GENDER_RULE,

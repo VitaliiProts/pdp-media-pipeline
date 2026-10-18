@@ -1,0 +1,8 @@
+{
+  "vocals": "results/0b6f5c3e-6f0c-4d1e-9a51-7f5d3c2b1a00/dub/vocals.flac",
+  "segments": [
+    { "id": "1", "speaker": "A", "start": 1, "end": 2, "text": "Привіт, Селіє." },
+    { "id": "2", "speaker": "B", "start": 2, "end": 3, "text": "Hi there, Tom!" }
+  ],
+  "output": "results/0b6f5c3e-6f0c-4d1e-9a51-7f5d3c2b1a00/dub/analysis.json"
+}

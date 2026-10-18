@@ -14,6 +14,10 @@ describe('selectClass', () => {
     expect(selectClass({ type: 'image.resize', priority: PRIORITY_THRESHOLD - 1 })).toBe('cpu');
   });
 
+  it('routes dubbing to cpu like the other video work', () => {
+    expect(selectClass({ type: 'video.dub', priority: DEFAULT_JOB_PRIORITY })).toBe('cpu');
+  });
+
   it('routes low priority to its type class', () => {
     expect(selectClass({ type: 'video.transcode', priority: 0 })).toBe('cpu');
   });

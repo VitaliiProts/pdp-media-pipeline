@@ -38,7 +38,8 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
 {{- end -}}
 
 {{/*
-Plain values from global.env, then the chart's env (wins), then secret references.
+Plain values from global.env, then the chart's env (wins), then secret references; a null
+reference drops the variable in an overlay.
 SERVICE_VERSION follows the image tag so traces and metrics carry the deployed version.
 */}}
 {{- define "pdp-lib.env" -}}
@@ -55,11 +56,13 @@ SERVICE_VERSION follows the image tag so traces and metrics carry the deployed v
 {{- end }}
 {{- range $name := keys (.Values.secretEnv | default dict) | sortAlpha }}
 {{- $ref := get $.Values.secretEnv $name }}
+{{- if $ref }}
 - name: {{ $name }}
   valueFrom:
     secretKeyRef:
       name: {{ $ref.secret }}
       key: {{ $ref.key }}
+{{- end }}
 {{- end }}
 {{- end -}}
 

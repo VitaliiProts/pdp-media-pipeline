@@ -174,6 +174,14 @@ describe('JobRunner', () => {
     expect(targets()).toEqual(['running@3', 'scheduled@3']);
   });
 
+  it('waits as long as a transient error asks, within the retry ceiling', async () => {
+    const { process, run } = setup();
+    const busy = (retryAfterMs: number) => Object.assign(new Error('busy'), { retryAfterMs });
+    process.mockRejectedValueOnce(busy(30_000)).mockRejectedValueOnce(busy(600_000));
+    await expect(run(dispatch(), 1)).resolves.toEqual({ kind: 'nak', delayMs: 30_000 });
+    await expect(run(dispatch(), 1)).resolves.toEqual({ kind: 'nak', delayMs: 60_000 });
+  });
+
   it('acks when metadata turns the retry into dead / exhausted', async () => {
     const { deps, process, run, targets } = setup();
     process.mockRejectedValueOnce(new Error('503 slow down'));
@@ -253,5 +261,29 @@ describe('JobRunner', () => {
     await runner.handle({ data: encode(job), deliveryCount: 2, consumer: 'worker-cpu' });
 
     expect(progress).toHaveBeenCalledWith(job.jobId, { attempt: 5, progress: 42 });
+  });
+
+  it('reports the step a job is in along with the percent', async () => {
+    const progress = jest.fn(() => Promise.resolve());
+    const runner = new JobRunner(
+      { transition: asRequested, progress },
+      { workerId: 'w1', retry },
+    ).register({
+      type: 'image.resize',
+      inputSchema,
+      process: (job) => {
+        job.progress(10, 'separate');
+        return Promise.resolve({});
+      },
+    });
+    const job = dispatch({ attemptBase: 0 });
+
+    await runner.handle({ data: encode(job), deliveryCount: 1, consumer: 'worker-cpu' });
+
+    expect(progress).toHaveBeenCalledWith(job.jobId, {
+      attempt: 1,
+      progress: 10,
+      step: 'separate',
+    });
   });
 });

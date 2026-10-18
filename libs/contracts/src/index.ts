@@ -10,6 +10,7 @@ export * from './jobs';
 export * from './metadata-api';
 export * from './source';
 export * from './topology';
+export * from './video-dub';
 export * from './video-frames';
 export * from './video-transcode';
 export * from './webhooks';

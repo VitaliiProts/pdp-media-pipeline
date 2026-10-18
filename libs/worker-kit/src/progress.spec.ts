@@ -3,7 +3,7 @@ import { ProgressReporter } from './progress';
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup(send = jest.fn((_percent: number) => Promise.resolve())) {
+function setup(send = jest.fn((_percent: number, _step?: string) => Promise.resolve())) {
   let now = 0;
   const reporter = new ProgressReporter(send, { intervalMs: 3000, now: () => now });
   const at = (ms: number) => {
@@ -63,6 +63,59 @@ describe('ProgressReporter', () => {
     report(10);
     await flush();
     expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends the step along with the percent', async () => {
+    const { send, report } = setup();
+    report(10, 'separate');
+    await flush();
+    expect(send.mock.calls).toEqual([[10, 'separate']]);
+  });
+
+  it('sends a new step at once, even at the same percent', async () => {
+    const { send, report, at } = setup();
+    report(45, 'separate');
+    await flush();
+    at(500);
+    report(45, 'align');
+    at(1000);
+    report(46, 'align');
+    await flush();
+    expect(send.mock.calls).toEqual([
+      [45, 'separate'],
+      [45, 'align'],
+    ]);
+  });
+
+  it('sends a step that changed during an update once that update is answered', async () => {
+    let resolve: () => void = () => undefined;
+    const send = jest.fn(
+      (_percent: number, _step?: string) => new Promise<void>((r) => (resolve = r)),
+    );
+    const { report } = setup(send);
+    report(90, 'voice');
+    report(92, 'mix');
+    report(93, 'mix');
+    expect(send).toHaveBeenCalledTimes(1);
+    resolve();
+    await flush();
+    expect(send.mock.calls).toEqual([
+      [90, 'voice'],
+      [93, 'mix'],
+    ]);
+  });
+
+  it('keeps the percent from going back when the step changes', async () => {
+    const { send, report, at } = setup();
+    report(50, 'translate');
+    await flush();
+    at(500);
+    report(40, 'voice');
+    await flush();
+    expect(send.mock.calls).toEqual([
+      [50, 'translate'],
+      [50, 'voice'],
+    ]);
   });
 
   it('stops once Metadata says the attempt is no longer running', async () => {

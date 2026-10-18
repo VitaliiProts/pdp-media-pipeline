@@ -86,6 +86,24 @@ jobs:
           path: coverage-int/
           if-no-files-found: ignore
 
+  # The Python service without its ML stack: models are faked, S3 is moto.
+  audio-separate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/audio-separate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: apps/audio-separate/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: python -m pytest -q
+
   # Report only: findings show up in the job summary and as warnings, the job never fails.
   # Blocking on CRITICAL is enabled in Stage 7.
   audit:
@@ -127,19 +145,45 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api-gateway, metadata, scheduler, worker, video-worker, webhook-receiver, web]
+        app:
+          [
+            api-gateway,
+            metadata,
+            scheduler,
+            worker,
+            video-worker,
+            webhook-receiver,
+            web,
+            audio-separate,
+          ]
+        include:
+          # The Debian dub image of the video worker (ADR-016).
+          - app: video-dub
+            dockerfile: video-worker
+            target: dub
     steps:
+      # The runner has ~14 GB free; the build cache, the tarball for `load` and the loaded image
+      # of audio-separate (~6 GB unpacked) or video-dub take more. Unused toolchains free ~30 GB.
+      - name: Free disk space
+        if: matrix.app == 'audio-separate' || matrix.app == 'video-dub'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          docker image prune --all --force
+          df -h /
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/${{ matrix.app }}/Dockerfile
+          file: apps/${{ matrix.dockerfile || matrix.app }}/Dockerfile
+          target: ${{ matrix.target }}
           push: false
           load: true
           tags: pdp/${{ matrix.app }}:ci
           cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+          # audio-separate carries ~3 GB of model weights and would evict every other cache.
+          cache-to: ${{ matrix.app != 'audio-separate' && format('type=gha,mode=max,scope={0}', matrix.app) || '' }}
       # Official image pinned by version instead of aquasecurity/trivy-action (past tag hijacking).
       - name: Trivy image scan (report only)
         run: |

@@ -1,7 +1,8 @@
-# SLO of ADR-001, ADR-008 and ADR-011, over 30 days:
+# SLO of ADR-001, ADR-008, ADR-011 and ADR-016, over 30 days:
 #   image.resize     99% succeed within 5 minutes of creation
 #   video.frames     95% within 5 minutes
 #   video.transcode  95% within 10 minutes
+#   video.dub        95% within 15 minutes
 #
 # SLI = jobs that succeeded within the threshold / jobs that finished, without `permanent`
 # failures: those are rejected input (a broken file, a 404 URL), which retries cannot fix
@@ -29,6 +30,9 @@ groups:
       - record: job:slo_objective:ratio
         expr: vector(0.95)
         labels: { type: video.transcode, le: '600' }
+      - record: job:slo_objective:ratio
+        expr: vector(0.95)
+        labels: { type: video.dub, le: '900' }
 
       - record: job:slo_errors:ratio_rate5m
         expr: |
