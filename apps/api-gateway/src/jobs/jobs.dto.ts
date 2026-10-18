@@ -298,6 +298,23 @@ export class TranscodeResultDto {
   skipped!: Rendition[];
 }
 
+export class DubQuotaResponseDto {
+  @ApiProperty({ description: 'Dub seconds counted this calendar month (UTC), running dubs too.' })
+  usedSeconds!: number;
+
+  @ApiProperty()
+  limitSeconds!: number;
+
+  @ApiProperty({ description: 'What a new dub may still take; a longer video gets 429.' })
+  remainingSeconds!: number;
+
+  @ApiProperty({ description: 'Longest video one dub accepts.' })
+  maxVideoSeconds!: number;
+
+  @ApiProperty({ format: 'date-time', description: 'When the count starts over.' })
+  resetsAt!: string;
+}
+
 export class DubFileDto {
   @ApiProperty({ description: 'Presigned GET URL, valid for at least one hour.' })
   url!: string;

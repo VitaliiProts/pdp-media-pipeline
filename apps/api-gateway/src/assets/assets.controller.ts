@@ -122,6 +122,7 @@ export class AssetsController {
   private async toSummary({
     preview,
     latestJob,
+    dubs,
     ...asset
   }: InternalAssetSummaryDto): Promise<AssetSummaryDto> {
     return {
@@ -132,6 +133,7 @@ export class AssetsController {
         height: preview.height,
       },
       latestJob,
+      dubs,
     };
   }
 }

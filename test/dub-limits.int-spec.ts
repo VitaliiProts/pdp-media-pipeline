@@ -108,4 +108,28 @@ describe('dub limits and quota', () => {
     );
     expect((await dub({ sourceKey: await video(60) })).status).toBe(202);
   });
+
+  it('reports what the quota check counts, for the form to warn before a dub', async () => {
+    const quota = async () => {
+      const res = await fetch(`${gateway}/v1/dub-quota`, { headers: { 'x-api-key': apiKey } });
+      expect(res.status).toBe(200);
+      return (await res.json()) as Record<string, unknown>;
+    };
+    const now = new Date();
+    const resetsAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    expect(await quota()).toEqual({
+      usedSeconds: 0,
+      limitSeconds: 150,
+      remainingSeconds: 150,
+      maxVideoSeconds: 60,
+      resetsAt: resetsAt.toISOString(),
+    });
+
+    await dub({ sourceKey: await video(50) });
+    await dub({ sourceKey: await video(null) });
+    expect(await quota()).toMatchObject({ usedSeconds: 110, remainingSeconds: 40 });
+
+    const unauthenticated = await fetch(`${gateway}/v1/dub-quota`);
+    expect(unauthenticated.status).toBe(401);
+  });
 });

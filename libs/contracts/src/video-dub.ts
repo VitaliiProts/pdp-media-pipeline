@@ -105,6 +105,15 @@ export const VideoDubOutputV1 = z.object({
 });
 export type VideoDubOutputV1 = z.infer<typeof VideoDubOutputV1>;
 
+/** Dub seconds of a user in the current calendar month (UTC), as the create check counts them. */
+export const DubQuotaDto = z.object({
+  usedSeconds: z.number().int().min(0),
+  limitSeconds: z.number().int().min(0),
+  /** Start of the next month, when the count starts over. */
+  resetsAt: z.iso.datetime(),
+});
+export type DubQuotaDto = z.infer<typeof DubQuotaDto>;
+
 /** Deterministic, so a redelivered job overwrites instead of duplicating. */
 export const dubVideoKey = (jobId: string): string => `results/${jobId}/dubbed.mp4`;
 

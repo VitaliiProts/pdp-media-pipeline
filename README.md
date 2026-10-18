@@ -1148,7 +1148,10 @@ Supertonic) з `VIDEO_JOB_TYPES=video.dub`. У compose — `--profile dub`, фе
 `audio-separate` — `--profile dub-separate`.
 
 Результат — поле `dub` у `GET /v1/jobs/:id`: мови, мовці, фрази з таймкодами, статистика
-підгонки, presigned `video` і `subtitles`. Спостережуваність: span `dub.step.*` на кожен крок і
+підгонки, presigned `video` і `subtitles`. `GET /v1/dub-quota` — використано й лишилось секунд
+цього місяця так, як їх рахує перевірка створення, і найдовше відео для дубляжу;
+`GET /v1/assets` віддає `dubs` (мови готових перекладів) і фільтр `dubbed=true`.
+Спостережуваність: span `dub.step.*` на кожен крок і
 `dub.transcribe` / `translate` / `refit` / `separate` / `analyze` на виклик провайдера;
 метрики `dub_step_duration_seconds{step}`, `dub_provider_duration_seconds{provider,outcome}`,
 `dub_breaker_state`, `dub_phrases_total`, `dub_phrases_adjusted_total{adjustment}`,

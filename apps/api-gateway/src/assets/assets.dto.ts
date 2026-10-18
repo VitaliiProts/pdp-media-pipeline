@@ -5,13 +5,15 @@ import {
   ASSET_STATUSES,
   type AssetKind,
   type AssetStatus,
+  DUB_TARGET_LANGUAGES,
+  type DubTargetLanguage,
   JOB_STATUSES,
   type JobStatus,
   UPLOAD_CONTENT_TYPES,
   type UploadContentType,
 } from '@pdp/contracts';
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { JobResponseDto } from '../jobs/jobs.dto';
 
 export class ListAssetsQueryDto {
@@ -37,6 +39,14 @@ export class ListAssetsQueryDto {
   @IsString()
   @MaxLength(ASSET_SEARCH_MAX_LENGTH)
   q?: string;
+
+  @ApiPropertyOptional({ description: 'true: only files with a succeeded dub.' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  dubbed?: boolean;
 
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
   @IsOptional()
@@ -130,6 +140,13 @@ export class AssetSummaryDto extends AssetDto {
 
   @ApiProperty({ type: AssetLatestJobDto, nullable: true })
   latestJob!: AssetLatestJobDto | null;
+
+  @ApiProperty({
+    enum: DUB_TARGET_LANGUAGES,
+    isArray: true,
+    description: 'Languages of the succeeded dubs, in alphabetical order.',
+  })
+  dubs!: DubTargetLanguage[];
 }
 
 export class ListAssetsResponseDto {

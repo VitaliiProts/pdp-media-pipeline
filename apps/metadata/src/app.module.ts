@@ -10,6 +10,7 @@ import { AuthController } from './auth/auth.controller';
 import { envSchema } from './config';
 import { DatabaseModule } from './database/database.module';
 import { PostgresService } from './database/postgres.service';
+import { DubQuotaController } from './jobs/dub-quota.controller';
 import { IdempotencyJanitor } from './jobs/idempotency-janitor';
 import { JobsController } from './jobs/jobs.controller';
 import { JobsService } from './jobs/jobs.service';
@@ -32,7 +33,13 @@ import { WebhooksService } from './webhooks/webhooks.service';
       ],
     }),
   ],
-  controllers: [JobsController, WebhooksController, AuthController, AssetsController],
+  controllers: [
+    JobsController,
+    DubQuotaController,
+    WebhooksController,
+    AuthController,
+    AssetsController,
+  ],
   providers: [
     AccountsService,
     AssetsService,
