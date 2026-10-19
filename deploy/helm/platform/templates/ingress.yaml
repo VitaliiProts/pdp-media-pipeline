@@ -2,6 +2,7 @@
 UIs of the platform on http://<host>.<domain>:<port>; the app's own hosts are in the pdp chart.
 s3.<domain> is what presigned upload URLs point to.
 */}}
+{{- if .Values.ingress.hosts }}
 {{- $domain := .Values.ingress.domain }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -21,3 +22,4 @@ spec:
                 port:
                   number: {{ .port }}
     {{- end }}
+{{- end }}

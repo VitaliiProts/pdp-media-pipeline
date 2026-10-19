@@ -148,6 +148,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "pdp-lib.labels" $ | nindent 4 }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   {{- with .className }}
   ingressClassName: {{ . }}

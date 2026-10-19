@@ -1,0 +1,128 @@
+# EKS (Stage 5b, ADR-017), on top of values-prod.yaml: two m7i.xlarge nodes, so one replica
+# of everything and dubbing scaled from zero; RDS and the real bucket; images from ECR.
+# The image tags come from scripts/aws.sh (`/pdp/prod/deployed-tag/*` in SSM).
+#
+# S3 has no endpoint and no keys: the SDK goes to S3 of the region with the pod's role
+# (EKS Pod Identity, an association per ServiceAccount in the cluster layer).
+# The cluster layer provides the Secrets postgres-app (RDS URL) and dub-provider, the
+# ConfigMap rds-ca, and Traefik's default certificate for *.pdp-media-pipeline.online.
+
+global:
+  image:
+    registry: 186712718120.dkr.ecr.eu-central-1.amazonaws.com
+  env:
+    DEPLOYMENT_ENVIRONMENT: aws
+    S3_REGION: eu-central-1
+    S3_FORCE_PATH_STYLE: 'false'
+
+.s3: &s3-env
+  S3_ENDPOINT: null
+  S3_BUCKET: pdp-media-186712718120
+.no-s3-keys: &no-s3-keys
+  S3_ACCESS_KEY: null
+  S3_SECRET_KEY: null
+.https: &https
+  traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  traefik.ingress.kubernetes.io/router.tls: 'true'
+
+metadata:
+  replicaCount: 1
+  env:
+    # Five hours a month for all users together, about $5.4 at OpenAI.
+    DUB_SYSTEM_QUOTA_SECONDS: '18000'
+  # DATABASE_URL ends in sslmode=verify-full&sslrootcert=/etc/rds/ca.pem; the migration Job
+  # mounts the same.
+  extraVolumes:
+    - name: rds-ca
+      configMap: { name: rds-ca }
+  extraVolumeMounts:
+    - name: rds-ca
+      mountPath: /etc/rds
+      readOnly: true
+
+api-gateway:
+  env:
+    <<: *s3-env
+    # Presigned URLs point to the regional S3 host, which the bucket's CORS opens to app.
+    S3_PUBLIC_ENDPOINT: null
+    APP_ORIGINS: https://app.pdp-media-pipeline.online
+    RATE_LIMIT_REPLICAS: '1'
+  secretEnv: *no-s3-keys
+  autoscaling: { minReplicas: 1, maxReplicas: 3 }
+  ingress:
+    enabled: true
+    annotations: *https
+    hosts:
+      - host: api.pdp-media-pipeline.online
+      - host: app.pdp-media-pipeline.online
+        paths: [/v1, /docs]
+
+scheduler:
+  replicaCount: 1
+
+worker-priority:
+  env: *s3-env
+  secretEnv: *no-s3-keys
+  autoscaling: { minReplicas: 1, maxReplicas: 2 }
+
+worker-cpu:
+  env: *s3-env
+  secretEnv: *no-s3-keys
+  autoscaling: { minReplicas: 1, maxReplicas: 2 }
+
+worker-io:
+  env: *s3-env
+  secretEnv: *no-s3-keys
+  autoscaling: { minReplicas: 1, maxReplicas: 2 }
+
+video-frames:
+  env: *s3-env
+  secretEnv: *no-s3-keys
+  resources:
+    requests: { cpu: 500m, memory: 384Mi }
+    limits: { cpu: '2', memory: 1Gi }
+  autoscaling: { minReplicas: 1, maxReplicas: 2 }
+
+# A second pod while a dub runs waits in Pending until the dub frees the node.
+video-transcode:
+  env: *s3-env
+  secretEnv: *no-s3-keys
+  resources:
+    requests: { cpu: '1', memory: 768Mi }
+    limits: { cpu: '2', memory: 1536Mi }
+  autoscaling: { minReplicas: 1, maxReplicas: 2 }
+
+# From zero: the first dub after a pause waits for both pods to start (the image pull of
+# audio-separate on a fresh node adds about a minute).
+video-dub:
+  env: *s3-env
+  secretEnv: *no-s3-keys
+  autoscaling: { minReplicas: 0, maxReplicas: 2 }
+  networkPolicy:
+    egressPodIdentity: true
+
+audio-separate:
+  env: *s3-env
+  secretEnv: *no-s3-keys
+  autoscaling: { minReplicas: 0, maxReplicas: 1 }
+  networkPolicy:
+    # S3 is outside the cluster here.
+    egressPublicHttps: true
+    egressPodIdentity: true
+
+web:
+  replicaCount: 1
+  env:
+    # The port-forward of `scripts/aws.sh grafana`.
+    GRAFANA_URL: http://localhost:3000
+  ingress:
+    enabled: true
+    annotations: *https
+    hosts:
+      - host: app.pdp-media-pipeline.online
+
+redirectToApp:
+  enabled: true
+  target: app.pdp-media-pipeline.online
+  annotations: *https
+  hosts: [pdp-media-pipeline.online, www.pdp-media-pipeline.online]

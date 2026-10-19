@@ -1,0 +1,15 @@
+# EKS (Stage 5b, ADR-017): Postgres is RDS and S3 the real bucket, so neither runs here.
+# Volumes of NATS, Redis and observability go to the default StorageClass, gp3 from the
+# cluster layer. Grafana stays anonymous and without an Ingress: `scripts/aws.sh grafana`.
+
+ingress:
+  hosts: []
+
+postgres: null
+
+minio: null
+
+vmalert:
+  server:
+    extraArgs:
+      external.url: http://localhost:3000

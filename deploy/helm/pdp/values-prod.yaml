@@ -1,6 +1,6 @@
 # Production profile: two replicas of every stateless service, no test receiver, hosts
 # and registry of the target environment. The Secrets listed in values.yaml are
-# provisioned outside the chart. Stage 5b adds values-aws.yaml (RDS, S3 via IRSA).
+# provisioned outside the chart. values-aws.yaml goes on top for EKS (RDS, S3 via Pod Identity).
 
 global:
   image:

@@ -264,16 +264,21 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 
 **Helm:**
 
-- [ ] `platform/values-aws.yaml`: без Postgres і MinIO, PVC на `gp3`, Grafana без Ingress.
-- [ ] `pdp/values-aws.yaml` поверх `values-prod.yaml`: реєстр ECR, тег `audio-separate` окремо,
-      хости `api.`, `app.` і Ingress кореня з `www.` з Middleware `redirectRegex` на `app.`,
-      анотації cert-manager, S3 через роль (лише бакет і регіон),
-      `DATABASE_URL` з Secret `postgres-app` і CA-бандл з ConfigMap, мінімуми й максимуми з
-      [бюджету](#бюджет-ресурсів), `video-dub` 0–2 і `audio-separate` 0–1 з
-      `egressPublicHttps` і `egressPodIdentity`, `TRUST_PROXY_HOPS=1`,
-      `DUB_SYSTEM_QUOTA_SECONDS=18000`, `GRAFANA_URL=http://localhost:3000`.
-- [ ] `helm-check.sh` рендерить AWS-профіль. Розміщення на двох вузлах і холодний старт
-      `video-dub` і `audio-separate` перевіряються на першому `up`, без окремих замірів у k3d.
+- [x] `platform/values-aws.yaml`: без Postgres, MinIO та Ingress платформи, PVC — на StorageClass
+      за замовчуванням (`gp3`), Grafana без Ingress, `vmalert` посилається на `localhost:3000`.
+- [x] `pdp/values-aws.yaml` поверх `values-prod.yaml`: реєстр ECR, хости `api.`, `app.` і
+      Ingress кореня з `www.` з Middleware `redirectRegex` на `app.` (`templates/redirect.yaml`),
+      анотації Traefik на `websecure` з TLS, S3 через роль (лише бакет і регіон, без endpoint і
+      ключів), `DATABASE_URL` з Secret `postgres-app` і ConfigMap `rds-ca` у `/etc/rds` для
+      Metadata і Job міграцій, мінімуми й максимуми з [бюджету](#бюджет-ресурсів), `video-dub`
+      0–2 і `audio-separate` 0–1 з `egressPodIdentity` (`audio-separate` — ще
+      `egressPublicHttps` до S3), `DUB_SYSTEM_QUOTA_SECONDS=18000`,
+      `GRAFANA_URL=http://localhost:3000`. Теги образів (і окремий для `audio-separate`) дає
+      `aws.sh`. Requests на мінімумах: 2.33 CPU і 2.25 ГіБ сервіси, 0.37 CPU і 0.75 ГіБ
+      платформа.
+- [x] `helm-check.sh` рендерить AWS-профіль і падає, якщо щось ще посилається на MinIO або
+      `video-dub` і `audio-separate` не мають `egressPodIdentity`. Розміщення на двох вузлах і
+      холодний старт перевіряються на першому `up`, без окремих замірів у k3d.
 
 **Terraform, шар `cluster`:**
 
@@ -288,11 +293,15 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
       `s3:DeleteObject`); external-dns і cert-manager → лише зона `pdp-media-pipeline.online`; LB
       Controller; EBS CSI.
 - [ ] Helm-релізи кластерних компонентів: AWS Load Balancer Controller, Traefik (Service на NLB,
-      proxy protocol), cert-manager з `letsencrypt-staging` і `letsencrypt-prod`, external-dns
-      (`domainFilters: [pdp-media-pipeline.online]`, `policy: sync` лише в цій зоні), KEDA,
+      proxy protocol, ingress class за замовчуванням, `web` → `websecure` з переадресацією,
+      `publishedService` для статусу Ingress), cert-manager з `letsencrypt-staging` і
+      `letsencrypt-prod` (DNS-01 у Route 53): один `Certificate` на
+      `pdp-media-pipeline.online` і `*.pdp-media-pipeline.online` — `TLSStore` `default` Traefik,
+      тож Ingress сервісів без секції `tls`; external-dns (джерело `ingress`,
+      `domainFilters: [pdp-media-pipeline.online]`, `policy: sync` лише в цій зоні), KEDA,
       metrics-server.
-- [ ] Secret `postgres-app`, Secret `dub-provider` (з SSM), ConfigMap з CA-бандлом RDS у
-      namespace `pdp`.
+- [ ] Secret `postgres-app` (ключ `uri`), Secret `dub-provider` (ключ `openaiApiKey`, з SSM),
+      ConfigMap `rds-ca` (ключ `ca.pem`, бандл регіону) у namespace `pdp`.
 
 **`scripts/aws.sh`:**
 
