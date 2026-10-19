@@ -30,6 +30,7 @@
       "loading": "Checking translation time…",
       "error": "Could not check the translation time left.",
       "left": "Translation time left this month: {{left}} of {{limit}}, renewed on {{date}}.",
+      "systemLeft": "Translation time shared by everyone left this month: {{left}}, renewed on {{date}}.",
       "unmeasured": "A new video holds {{max}} of it until it is translated; then only its length counts."
     },
     "confirm": {
@@ -41,6 +42,7 @@
       "unknownDuration": "Length unknown",
       "tooLong": "Longer than {{max}}: too long to translate.",
       "overQuota": "Not enough translation time left this month.",
+      "overSystemQuota": "Not enough translation time shared by everyone left this month.",
       "start": "Upload and translate",
       "back": "Back"
     },

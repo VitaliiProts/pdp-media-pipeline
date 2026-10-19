@@ -53,13 +53,15 @@ export type StartDubArgs = DubSettings & {
 export type DubQuota = {
   usedSeconds: number;
   limitSeconds: number;
+  /** Of the own limit, or of the service-wide one when that leaves less. */
   remainingSeconds: number;
+  systemLimited: boolean;
   maxVideoSeconds: number;
   resetsAt: string;
 };
 
 /** Why a video cannot be dubbed now, judged before anything is sent. */
-export type DubBlock = 'tooLong' | 'overQuota';
+export type DubBlock = 'tooLong' | 'overQuota' | 'overSystemQuota';
 
 /**
  * The quota holds what the library knows of the duration; a file it has not measured yet (a
@@ -73,7 +75,8 @@ export function dubBlockOf(
   if (durationSeconds !== null && durationSeconds > quota.maxVideoSeconds) return 'tooLong';
   const held =
     measured && durationSeconds !== null ? Math.ceil(durationSeconds) : quota.maxVideoSeconds;
-  return held > quota.remainingSeconds ? 'overQuota' : null;
+  if (held <= quota.remainingSeconds) return null;
+  return quota.systemLimited ? 'overSystemQuota' : 'overQuota';
 }
 
 /** New uploads in order, each holding a full dub of what the ones before it left. */

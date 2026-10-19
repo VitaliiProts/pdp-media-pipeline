@@ -63,7 +63,9 @@ function problemOf(error: AppError): { problem: UploadProblem; detail: string | 
     case 'http':
       if (error.code === 'STORAGE_QUOTA_EXCEEDED')
         return { problem: 'quotaExceeded', detail: null };
-      if (error.code === 'DUB_QUOTA_EXCEEDED') return { problem: 'dubQuotaExceeded', detail: null };
+      if (error.code === 'DUB_QUOTA_EXCEEDED' || error.code === 'DUB_SYSTEM_QUOTA_EXCEEDED') {
+        return { problem: 'dubQuotaExceeded', detail: null };
+      }
       return { problem: 'rejected', detail: error.message };
     default:
       return { problem: 'network', detail: null };

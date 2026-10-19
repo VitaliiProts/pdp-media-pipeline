@@ -269,6 +269,7 @@ describe('upload dialog', () => {
       usedSeconds: 600,
       limitSeconds: 1800,
       remainingSeconds: 1200,
+      systemLimited: false,
       maxVideoSeconds: 60,
       resetsAt: '2026-11-01T00:00:00.000Z',
     };
