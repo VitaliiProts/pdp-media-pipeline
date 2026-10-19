@@ -65,8 +65,10 @@
   облікових даних AWS. Плюс `audio-separate` в AWS ходить у S3 назовні (`egressPublicHttps`).
 - **Платформа без Postgres і MinIO.** У `platform` — `postgres.enabled` і `minio.enabled`; в AWS
   обидва вимкнені, PVC для NATS, Redis і observability — на `gp3` (EBS CSI).
-- **Grafana за логіном.** Локально Grafana анонімна; на `grafana.pdp-media-pipeline.online` — вхід
-  адміністратора з паролем із Secret.
+- **Grafana без публічної адреси.** Як і локально, анонімна, але лише через
+  `aws.sh grafana` (`kubectl port-forward` на `localhost:3000`): для демо не потрібні ні логін, ні
+  ще один сертифікат. `GRAFANA_URL=http://localhost:3000` — посилання на трейси з UI працюють у
+  того, у кого запущений port-forward.
 - **Розміри під вузли.** `values-prod.yaml` на мінімумах просить 13.7 CPU і 15.3 ГіБ, а два
   `m7i.xlarge` дають ≈7.8 CPU під поди. `values-aws.yaml` ставить по одній репліці, а
   `video-dub` і `audio-separate` масштабує від нуля (див. [бюджет ресурсів](#бюджет-ресурсів)).
@@ -90,14 +92,14 @@
   80 ГБ замість 20 за замовчуванням. Egress `video-dub` — лише `443` назовні (network policy у
   `vpc-cni`).
 - **Вхід за доменом.** Cookie сесії з `Secure` і без атрибута `Domain` (вже так): вона належить
-  лише `app.pdp-media-pipeline.online` і не потрапляє на `api.` чи `grafana.`. `APP_ORIGINS` —
+  лише `app.pdp-media-pipeline.online` і не потрапляє на `api.`. `APP_ORIGINS` —
   `https://app.pdp-media-pipeline.online`.
 
 ## Прийняті рішення
 
 | Питання          | Рішення                                                                                                                                                                                                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Домен            | `pdp-media-pipeline.online` (GoDaddy) повністю в Route 53: hosted zone у базовому шарі, у GoDaddy — власні nameservers з виходу Terraform. Хости `api.`, `app.`, `grafana.`; корінь і `www.` переадресовують на `app.` (Traefik)                                   |
+| Домен            | `pdp-media-pipeline.online` (GoDaddy) повністю в Route 53: hosted zone у базовому шарі, у GoDaddy — власні nameservers з виходу Terraform. Хости `api.` і `app.`; корінь і `www.` переадресовують на `app.` (Traefik)                                              |
 | Кластер          | EKS, managed node group: 2 × `m7i.xlarge` (4 vCPU, 16 ГБ), on-demand, диск 80 ГБ `gp3`. Обґрунтування й вартість — ADR-017 (у PDF — ADR-010). k3s на EC2 і EKS Auto Mode — в альтернативах                                                                         |
 | Розміщення       | По одній репліці кожного сервісу; `video-dub` 0–2 і `audio-separate` 0–1 з масштабуванням від нуля: перший дубляж після простою чекає на старт пода (≈1–2 хв, перше витягування образу на вузол — довше)                                                           |
 | Режим роботи     | Кластер піднімається під роботу й демо і знищується; постійний лише дешевий базовий шар. RDS між сесіями зупиняється                                                                                                                                               |
@@ -256,19 +258,16 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 
 **Helm:**
 
-- [ ] `platform/values-aws.yaml`: без Postgres і MinIO, PVC на `gp3`, Grafana з логіном і Ingress
-      `grafana.pdp-media-pipeline.online`.
+- [ ] `platform/values-aws.yaml`: без Postgres і MinIO, PVC на `gp3`, Grafana без Ingress.
 - [ ] `pdp/values-aws.yaml` поверх `values-prod.yaml`: реєстр ECR, тег `audio-separate` окремо,
       хости `api.`, `app.` і Ingress кореня з `www.` з Middleware `redirectRegex` на `app.`,
       анотації cert-manager, S3 через роль (лише бакет і регіон),
       `DATABASE_URL` з Secret `postgres-app` і CA-бандл з ConfigMap, мінімуми й максимуми з
       [бюджету](#бюджет-ресурсів), `video-dub` 0–2 і `audio-separate` 0–1 з
       `egressPublicHttps` і `egressPodIdentity`, `TRUST_PROXY_HOPS=1`,
-      `DUB_SYSTEM_QUOTA_SECONDS=18000`, `GRAFANA_URL`.
-- [ ] `helm-check.sh` рендерить AWS-профіль і перевіряє суму requests на мінімумах (≤ 3 CPU для
-      `pdp` і платформи разом), щоб нова репліка не зламала розміщення непомітно.
-- [ ] k3d з тими ж мінімумами: `video-dub` і `audio-separate` стартують з нуля на перший дубляж —
-      заміряти, скільки чекає задача.
+      `DUB_SYSTEM_QUOTA_SECONDS=18000`, `GRAFANA_URL=http://localhost:3000`.
+- [ ] `helm-check.sh` рендерить AWS-профіль. Розміщення на двох вузлах і холодний старт
+      `video-dub` і `audio-separate` перевіряються на першому `up`, без окремих замірів у k3d.
 
 **Terraform, шар `cluster`:**
 
@@ -297,13 +296,14 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 - [ ] `down`: попередження, якщо в черзі є задачі; видалити релізи (NLB і EBS зникають разом зі
       Service і PVC), дочекатися, поки LB видалиться, `destroy` шару `cluster`, зупинити RDS.
 - [ ] `status`: що працює, стан RDS (і коли він сам стартує), скільки коштує година.
+- [ ] `grafana`: `kubectl port-forward` на `localhost:3000`.
 
 **Перевірити:**
 
 - `https://api.pdp-media-pipeline.online/health/ready`; сертифікат спершу від staging, потім prod;
 - `https://app.pdp-media-pipeline.online`: реєстрація й вхід, завантаження картинки й відео, переклад
   відео з прогресом, перегляд із субтитрами, медіатека;
-- `https://grafana.pdp-media-pipeline.online` за логіном: дашборди, трейси одного дубляжу;
+- `aws.sh grafana`: дашборди, трейси одного дубляжу, посилання на трейс з UI;
 - gateway бачить справжній IP клієнта (`429` за IP для невідомого ключа);
 - з `DUB_SYSTEM_QUOTA_SECONDS=60` другий дубляж отримує `429 DUB_SYSTEM_QUOTA_EXCEEDED`;
 - задачі, що стояли в черзі під час `down`, після `up` доходять до кінця;
@@ -366,4 +366,4 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 - **Публічний endpoint EKS API** відкритий для IP GitHub-раннерів; захищає IAM-автентифікація й
   мінімальна роль деплою.
 - **Обсяг.** Три PR при 8–10 год/тиждень — щільно. Якщо не вкладається, smoke-тест з
-  медіатекою й Grafana за доменом переходять на початок Етапу 6.
+  медіатекою переходить на початок Етапу 6.
