@@ -87,7 +87,8 @@
   VTT із S3 з перевіркою CORS.
 - **Ключ провайдера дубляжу.** Не в репозиторії, не в values і не в state Terraform: Terraform
   створює SSM SecureString із заглушкою (`ignore_changes` на значення), справжній ключ вносите ви
-  через `aws ssm put-parameter --overwrite`. Шар `cluster` робить з нього Secret `dub-provider`.
+  через `aws ssm put-parameter --overwrite`. `aws.sh up` робить з нього Secret `dub-provider`
+  (`aws ssm get-parameter` → `kubectl apply`), тож ключ не проходить і через state шару `cluster`.
 - **`video-dub` і `audio-separate`.** Образи 1.9 і 5.9 ГБ у розпакованому вигляді: диск вузла
   80 ГБ замість 20 за замовчуванням. Egress `video-dub` — лише `443` назовні (network policy у
   `vpc-cni`).
@@ -113,7 +114,7 @@
 | Образи           | ECR, 8 репозиторіїв (без `webhook-receiver`), теги незмінні. Сервіси — тег SHA коміту, зберігаються 10 останніх. `audio-separate` — тег за вмістом `apps/audio-separate` (`git rev-parse HEAD:apps/audio-separate`), збирається лише коли змінився, зберігаються 3 |
 | Витрати OpenAI   | Загальний ліміт секунд дубляжу на місяць на всю систему в Metadata (`DUB_SYSTEM_QUOTA_SECONDS`); в AWS — 18 000 с (300 хв, ≈ $5.4 на місяць). Квота на користувача лишається                                                                                       |
 | Локальний доступ | IAM Identity Center (інстанс організації, один регіон), профіль `pdp`; без IAM-ключів                                                                                                                                                                              |
-| Секрети          | Пароль RDS — `random_password` у Terraform → SSM SecureString; шар `cluster` створює Secret `postgres-app` (ключ `uri`) з тим самим іменем, що дає CloudNativePG локально                                                                                          |
+| Секрети          | Пароль RDS — `random_password` у Terraform → SSM SecureString; `aws.sh up` створює Secret `postgres-app` (ключ `uri`) з тим самим іменем, що дає CloudNativePG локально                                                                                            |
 | CI → AWS         | GitHub OIDC, роль лише для `repo:VitaliiProts/pdp-media-pipeline:environment:aws`; environment `aws` дозволений лише для `main`. Права: push в ECR, `eks:DescribeCluster`, читання `/pdp/prod/*`, access entry лише на namespace `pdp`                             |
 | Параметри        | Terraform пише виходи (домен, бакет, ARN, endpoint RDS) в SSM Parameter Store `/pdp/prod/*`; CI пише туди ж останній задеплоєний тег. `scripts/aws.sh` і CI читають звідти, у репозиторії нічого не копіюється                                                     |
 
@@ -282,16 +283,33 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 
 **Terraform, шар `cluster`:**
 
-- [ ] EKS (остання версія зі standard support на момент `apply`), публічний endpoint API з
-      автентифікацією IAM; node group 2 × `m7i.xlarge`, диск 80 ГБ `gp3`, група `pdp-nodes` з
-      базового шару.
-- [ ] Addons: `vpc-cni` з network policy, `coredns`, `kube-proxy`, `aws-ebs-csi-driver`,
-      `eks-pod-identity-agent`; StorageClass `gp3` за замовчуванням.
-- [ ] Access entries: адміністратор (роль SSO, ARN через data-джерело `aws_iam_roles`) і роль
-      деплою (namespace `pdp`).
-- [ ] Pod Identity: gateway, воркери, `video-*`, `audio-separate` → бакет медіа (воркер — ще
-      `s3:DeleteObject`); external-dns і cert-manager → лише зона `pdp-media-pipeline.online`; LB
-      Controller; EBS CSI.
+Лише ресурси AWS. Helm-релізи й об'єкти Kubernetes ставить `aws.sh up`: провайдери `helm` і
+`kubernetes` в одному `apply` з кластером, якого ще немає на `plan`, ненадійні, а Secret з
+ключем OpenAI, зроблений Terraform, лишив би ключ у state.
+
+- [x] EKS 1.37 (`terraform-aws-modules/eks` 21.29.0) — найновіша зі standard support, до грудня
+      2027; публічний endpoint API з автентифікацією IAM (`authentication_mode = API`), без
+      IRSA, без власного KMS-ключа й логів control plane в CloudWatch; node group 2 ×
+      `m7i.xlarge` (AL2023, максимум 3 на час оновлення), диск 80 ГБ `gp3`, групи вузлів —
+      `pdp-nodes` з базового шару й група модуля з тегом `kubernetes.io/cluster/pdp` (LB
+      Controller вимагає рівно одну таку). Що базовий шар віддав, шар читає з SSM `/pdp/prod/*`,
+      не з його state.
+- [x] Addons: `vpc-cni` з network policy, `kube-proxy` і `eks-pod-identity-agent` до вузлів,
+      `coredns` і `aws-ebs-csi-driver` після; `bootstrap_self_managed_addons = false`.
+- [x] Access entries: адміністратор (роль SSO, ARN без шляху через `aws_iam_roles`) —
+      `AmazonEKSClusterAdminPolicy`; роль деплою — `AmazonEKSAdminPolicy` лише в namespace `pdp`
+      (чи вистачає прав на ресурси CRD — `ScaledObject`, `Middleware` — перевіряється в 5b.3).
+- [x] Pod Identity (`terraform-aws-modules/eks-pod-identity` 2.10.0): `pdp-media` для gateway,
+      `video-*`, `audio-separate` (`ListBucket`, `Get/PutObject`, `AbortMultipartUpload`),
+      `pdp-media-purge` для трьох класів воркерів (те саме й `DeleteObject`); external-dns і
+      cert-manager — лише зона `pdp-media-pipeline.online`; LB Controller; EBS CSI.
+- [x] Trivy: чотири прийняті знахідки позначені в `eks.tf` з причиною — публічний API (два
+      правила), egress вузлів, шифрування Secrets ключем AWS.
+- [x] `validate` і `plan` проти акаунта: 63 ресурси, без `apply`.
+
+**`scripts/aws.sh`:**
+
+- [ ] StorageClass `gp3` за замовчуванням.
 - [ ] Helm-релізи кластерних компонентів: AWS Load Balancer Controller, Traefik (Service на NLB,
       proxy protocol, ingress class за замовчуванням, `web` → `websecure` з переадресацією,
       `publishedService` для статусу Ingress), cert-manager з `letsencrypt-staging` і
@@ -300,11 +318,8 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
       тож Ingress сервісів без секції `tls`; external-dns (джерело `ingress`,
       `domainFilters: [pdp-media-pipeline.online]`, `policy: sync` лише в цій зоні), KEDA,
       metrics-server.
-- [ ] Secret `postgres-app` (ключ `uri`), Secret `dub-provider` (ключ `openaiApiKey`, з SSM),
-      ConfigMap `rds-ca` (ключ `ca.pem`, бандл регіону) у namespace `pdp`.
-
-**`scripts/aws.sh`:**
-
+- [ ] Secret `postgres-app` (ключ `uri`), Secret `dub-provider` (ключ `openaiApiKey`), обидва з
+      SSM; ConfigMap `rds-ca` (ключ `ca.pem`, бандл регіону) у namespace `pdp`.
 - [ ] `up`: перевірка `aws sts get-caller-identity` (інакше підказка `aws sso login`), `apply`
       для `base` і `cluster`, старт RDS, платформа, реліз `pdp` з тегом з `/pdp/prod/deployed-tag`,
       створення smoke-користувача, якщо його немає.
