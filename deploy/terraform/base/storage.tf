@@ -5,6 +5,7 @@ resource "aws_s3_bucket" "media" {
   bucket = "pdp-media-${data.aws_caller_identity.current.account_id}"
 }
 
+#trivy:ignore:AWS-0132 a customer managed KMS key costs $1 a month plus requests
 resource "aws_s3_bucket_server_side_encryption_configuration" "media" {
   bucket = aws_s3_bucket.media.id
   rule {

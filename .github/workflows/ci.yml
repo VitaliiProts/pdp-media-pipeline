@@ -146,6 +146,17 @@ jobs:
             terraform -chdir="$dir" init -backend=false -input=false
             terraform -chdir="$dir" validate
           done
+      - name: Trivy config scan (report only)
+        run: |
+          set +e
+          docker run --rm -v "$PWD/deploy/terraform:/src:ro" \
+            aquasec/trivy:0.75.0 config --quiet --severity HIGH,CRITICAL --exit-code 1 \
+            --format table /src > trivy.txt 2>&1
+          code=$?
+          { echo "## Trivy: terraform"; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -ne 0 ]; then
+            echo "::warning title=Trivy terraform::HIGH/CRITICAL misconfigurations found, see job summary"
+          fi
 
   alert-rules:
     runs-on: ubuntu-latest

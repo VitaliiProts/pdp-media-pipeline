@@ -5,6 +5,7 @@ locals {
   azs = ["${var.region}a", "${var.region}b"]
 }
 
+#trivy:ignore:AWS-0164 public node addresses, see ADR-017
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "6.7.3"

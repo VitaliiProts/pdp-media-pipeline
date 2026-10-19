@@ -19,6 +19,7 @@ resource "aws_vpc_security_group_ingress_rule" "database_from_nodes" {
   ip_protocol                  = "tcp"
   from_port                    = 5432
   to_port                      = 5432
+  description                  = "PostgreSQL from EKS nodes"
 }
 
 resource "aws_db_parameter_group" "main" {
