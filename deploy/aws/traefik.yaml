@@ -1,0 +1,34 @@
+# Traefik on EKS (Stage 5b, ADR-017): the same ingress as in k3d, behind an NLB that the
+# AWS Load Balancer Controller creates for this Service.
+
+service:
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    # The NLB hands over the client's address, so the gateway's IP limits see real clients.
+    service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: '*'
+  spec:
+    loadBalancerClass: service.k8s.aws/nlb
+
+ports:
+  web:
+    http:
+      redirections:
+        entryPoint: { to: websecure, scheme: https, permanent: true }
+    # The NLB's addresses: it sits in the VPC's public subnets.
+    proxyProtocol:
+      trustedIPs: [10.40.0.0/16]
+  websecure:
+    proxyProtocol:
+      trustedIPs: [10.40.0.0/16]
+
+# The wildcard certificate of deploy/helm/cluster-aws; until it is issued Traefik serves its
+# own self-signed one.
+tlsStore:
+  default:
+    defaultCertificate:
+      secretName: pdp-tls
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { memory: 256Mi }

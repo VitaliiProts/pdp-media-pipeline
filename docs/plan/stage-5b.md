@@ -309,24 +309,42 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 
 **`scripts/aws.sh`:**
 
-- [ ] StorageClass `gp3` за замовчуванням.
-- [ ] Helm-релізи кластерних компонентів: AWS Load Balancer Controller, Traefik (Service на NLB,
-      proxy protocol, ingress class за замовчуванням, `web` → `websecure` з переадресацією,
-      `publishedService` для статусу Ingress), cert-manager з `letsencrypt-staging` і
-      `letsencrypt-prod` (DNS-01 у Route 53): один `Certificate` на
-      `pdp-media-pipeline.online` і `*.pdp-media-pipeline.online` — `TLSStore` `default` Traefik,
-      тож Ingress сервісів без секції `tls`; external-dns (джерело `ingress`,
-      `domainFilters: [pdp-media-pipeline.online]`, `policy: sync` лише в цій зоні), KEDA,
-      metrics-server.
-- [ ] Secret `postgres-app` (ключ `uri`), Secret `dub-provider` (ключ `openaiApiKey`), обидва з
-      SSM; ConfigMap `rds-ca` (ключ `ca.pem`, бандл регіону) у namespace `pdp`.
-- [ ] `up`: перевірка `aws sts get-caller-identity` (інакше підказка `aws sso login`), `apply`
-      для `base` і `cluster`, старт RDS, платформа, реліз `pdp` з тегом з `/pdp/prod/deployed-tag`,
-      створення smoke-користувача, якщо його немає.
-- [ ] `down`: попередження, якщо в черзі є задачі; видалити релізи (NLB і EBS зникають разом зі
-      Service і PVC), дочекатися, поки LB видалиться, `destroy` шару `cluster`, зупинити RDS.
-- [ ] `status`: що працює, стан RDS (і коли він сам стартує), скільки коштує година.
-- [ ] `grafana`: `kubectl port-forward` на `localhost:3000`.
+Профіль завжди `pdp`, власний kubeconfig `~/.kube/pdp-aws` (контексти інших кластерів не
+чіпаються). Значення секретів ідуть у `kubectl` лише через stdin і файлові дескриптори, не
+через аргументи. Версії чартів зафіксовані в скрипті; `helm-check.sh` перевіряє values
+компонентів (`deploy/aws/*.yaml`) схемами цих чартів тих самих версій.
+
+- [x] Чарт `deploy/helm/cluster-aws`: StorageClass `gp3` за замовчуванням (том зникає разом з
+      PVC), `ClusterIssuer` `letsencrypt-staging` і `letsencrypt-prod` (DNS-01 у Route 53), один
+      `Certificate` (ECDSA) на `pdp-media-pipeline.online` і `*.pdp-media-pipeline.online` у
+      namespace `traefik` — `TLSStore` `default`, тож Ingress сервісів без секції `tls`.
+      Видавець — `TLS_ISSUER`, за замовчуванням prod.
+- [x] Релізи компонентів: metrics-server 3.14.0, AWS Load Balancer Controller 3.6.0 (`vpcId` і
+      `clusterName` явно: подам IMDS недоступний), cert-manager v1.21.2, Traefik 42.0.0 (NLB
+      `ip`-цілі, proxy protocol від `10.40.0.0/16`, `web` → `websecure` постійною
+      переадресацією, `publishedService` для статусу Ingress), external-dns 1.23.0 (джерело
+      `ingress`, `domainFilters`, `policy: sync`, власник TXT `pdp`), KEDA 2.21.0.
+- [x] Сертифікат prod між сесіями: Let's Encrypt дає п'ять сертифікатів на ті самі імена за
+      тиждень, а кожен `up` — новий кластер. `down` кладе ланцюжок у `/pdp/prod/tls-crt`, ключ у
+      `/pdp/prod/tls-key` (SecureString; ECDSA вміщається в стандартний параметр), `up` повертає
+      Secret з анотаціями видавця, і cert-manager його не перевипускає.
+- [x] Secret `postgres-app` (ключ `uri`), Secret `dub-provider` (ключ `openaiApiKey`, попередження,
+      якщо ключ не внесено), обидва з SSM; ConfigMap `rds-ca` (бандл регіону) у namespace `pdp`.
+- [x] `up`: профіль і акаунт (інакше підказка `aws sso login`); теги образів з
+      `/pdp/prod/deployed-tag/*` до будь-яких витрат — без образів у ECR скрипт зупиняється;
+      старт RDS; план базового шару з підтвердженням, `apply` шару `cluster`; компоненти,
+      секрети, платформа, реліз `pdp`; очікування сертифіката. Smoke-користувач — у 5b.3 разом
+      зі `smoke.sh`, до того `aws.sh seed`.
+- [x] `down`: кількість незавершених задач (усі, крім `succeeded` і `dead`) з RDS і
+      підтвердження, якщо вони є; збереження сертифіката; видалення `pdp` і `platform`, PVC і
+      очікування, поки зникнуть PV (EBS); видалення Traefik — Service тримає finalizer, доки
+      контролер не прибере NLB, target groups і security groups; `destroy` шару `cluster`;
+      зупинка RDS; перевірка, що NLB і EBS з тегами кластера не лишилися.
+- [x] `status`: кластер, RDS (і коли зупинено — AWS стартує його через 7 днів), вузли й поди,
+      адреси, вартість, залишки.
+- [x] `grafana`: `kubectl port-forward` на `localhost:3000`; `seed` — як у `k8s.sh`.
+- [x] Базовий шар: `database_enabled` за замовчуванням `true` — RDS створить перший `up` (план
+      зараз: 2 ресурси, інстанс і параметр з URL).
 
 **Перевірити:**
 
@@ -336,7 +354,8 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 - `aws.sh grafana`: дашборди, трейси одного дубляжу, посилання на трейс з UI;
 - gateway бачить справжній IP клієнта (`429` за IP для невідомого ключа);
 - з `DUB_SYSTEM_QUOTA_SECONDS=60` другий дубляж отримує `429 DUB_SYSTEM_QUOTA_EXCEEDED`;
-- задачі, що стояли в черзі під час `down`, після `up` доходять до кінця;
+- `down` з незавершеною задачею питає підтвердження: черга NATS зникає з кластером, і
+  автоматичної повторної відправки задач немає, тож така задача лишається у своєму статусі;
 - після `down` у консолі немає NLB, EBS-томів і EC2, `terraform state list` шару `cluster` порожній.
 
 **Коміти:** `feat(config): S3 credentials from the pod role` → `feat(metadata): system-wide dub
@@ -345,6 +364,10 @@ quota` → `feat(web): show the system dub limit` →
 `infra(terraform): EKS cluster layer` → `feat(scripts): aws.sh up, down and status`.
 
 ## Підетап 5b.3. Деплой з CI
+
+Push образів іде перед першим `aws.sh up`: без образів у ECR `up` зупиняється, а збирати
+x86-образи на Mac з ARM (`audio-separate` — 5.9 ГБ) довго. Перевірки 5b.2 на живому кластері —
+після першого push.
 
 - [ ] `.github/workflows/deploy.yml`: `workflow_run` після успішного CI на `main` (checkout
       `head_sha` того запуску) і `workflow_dispatch`; environment `aws`; `concurrency: deploy-aws`

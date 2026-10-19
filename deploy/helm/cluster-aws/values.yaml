@@ -1,0 +1,14 @@
+# Installed by scripts/aws.sh after Traefik and cert-manager, which own the CRDs used here.
+# zoneId comes from SSM (/pdp/prod/zone-id).
+
+domain: pdp-media-pipeline.online
+region: eu-central-1
+zoneId: ''
+
+# letsencrypt-staging while DNS-01 is being debugged: Let's Encrypt allows five certificates
+# for the same names a week, and failed validations are limited too.
+issuer: letsencrypt-prod
+
+# Traefik's namespace: its default TLSStore reads the Secret from there.
+certificateNamespace: traefik
+certificateSecret: pdp-tls

@@ -1,0 +1,26 @@
+# external-dns: the records of the Ingress hosts in the Route 53 zone, aliases to the NLB
+# that Traefik publishes in the Ingress status.
+
+provider:
+  name: aws
+# The pod has no instance metadata to read the region from.
+env:
+  - name: AWS_REGION
+    value: eu-central-1
+
+sources: [ingress]
+domainFilters: [pdp-media-pipeline.online]
+extraArgs: [--aws-zone-type=public]
+# Records of removed hosts go too, but only those its TXT records mark as its own.
+policy: sync
+registry: txt
+txtOwnerId: pdp
+interval: 30s
+
+# The name of its Pod Identity association in the cluster layer.
+serviceAccount:
+  name: external-dns
+
+resources:
+  requests: { cpu: 10m, memory: 48Mi }
+  limits: { memory: 128Mi }

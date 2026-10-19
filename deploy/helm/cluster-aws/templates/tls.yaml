@@ -1,0 +1,47 @@
+{{- if not .Values.zoneId }}
+{{- fail "zoneId is required (/pdp/prod/zone-id)" }}
+{{- end }}
+{{- $servers := dict
+  "letsencrypt-staging" "https://acme-staging-v02.api.letsencrypt.org/directory"
+  "letsencrypt-prod" "https://acme-v02.api.letsencrypt.org/directory" }}
+{{- if not (hasKey $servers .Values.issuer) }}
+{{- fail (printf "issuer must be one of %s" (keys $servers | sortAlpha | join ", ")) }}
+{{- end }}
+{{- range $name, $server := $servers }}
+# DNS-01 in Route 53 with cert-manager's pod role; the ACME account is new with each cluster.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ $name }}
+spec:
+  acme:
+    server: {{ $server }}
+    privateKeySecretRef:
+      name: {{ $name }}-account
+    solvers:
+      - dns01:
+          route53:
+            region: {{ $.Values.region }}
+            hostedZoneID: {{ $.Values.zoneId }}
+---
+{{- end }}
+# One certificate for the apex and every host under it, Traefik's default: the Ingresses of
+# the services carry no `tls` section.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.certificateSecret }}
+  namespace: {{ .Values.certificateNamespace }}
+spec:
+  secretName: {{ .Values.certificateSecret }}
+  dnsNames:
+    - {{ .Values.domain }}
+    - '*.{{ .Values.domain }}'
+  issuerRef:
+    kind: ClusterIssuer
+    name: {{ .Values.issuer }}
+  # ECDSA keeps the chain and key small enough for a standard SSM parameter, where
+  # `aws.sh down` keeps them until the next cluster.
+  privateKey:
+    algorithm: ECDSA
+    size: 256

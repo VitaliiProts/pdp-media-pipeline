@@ -43,6 +43,10 @@ module "eks" {
     }
     coredns = {}
     aws-ebs-csi-driver = {
+      # `aws.sh down` and `status` find volumes left behind by these tags.
+      configuration_values = jsonencode({
+        controller = { extraVolumeTags = { Project = "pdp-media-pipeline", Layer = "cluster" } }
+      })
       pod_identity_association = [{
         role_arn        = module.ebs_csi_identity.iam_role_arn
         service_account = "ebs-csi-controller-sa"

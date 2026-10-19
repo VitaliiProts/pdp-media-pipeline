@@ -4,8 +4,9 @@
 #
 # S3 has no endpoint and no keys: the SDK goes to S3 of the region with the pod's role
 # (EKS Pod Identity, an association per ServiceAccount in the cluster layer).
-# The cluster layer provides the Secrets postgres-app (RDS URL) and dub-provider, the
-# ConfigMap rds-ca, and Traefik's default certificate for *.pdp-media-pipeline.online.
+# scripts/aws.sh provides the Secrets postgres-app (RDS URL) and dub-provider, the ConfigMap
+# rds-ca, and Traefik's default certificate for *.pdp-media-pipeline.online
+# (deploy/helm/cluster-aws).
 
 global:
   image:

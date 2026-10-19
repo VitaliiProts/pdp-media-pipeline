@@ -1,0 +1,14 @@
+# AWS Load Balancer Controller: creates the NLB for Traefik's Service. clusterName and vpcId
+# come from scripts/aws.sh: pods cannot reach the instance metadata (hop limit 1), so the
+# controller cannot discover them.
+
+region: eu-central-1
+replicaCount: 1
+
+# The name of its Pod Identity association in the cluster layer.
+serviceAccount:
+  name: aws-load-balancer-controller
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 256Mi }
