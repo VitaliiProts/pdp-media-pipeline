@@ -5,6 +5,8 @@ NetworkPolicy of one service, rendered by pdp-lib.app when networkPolicy.enabled
                      port; empty: none. The kubelet's probes are always allowed.
   egressPublicHttps  port 443 to addresses outside the private ranges (an external API).
                      A standard NetworkPolicy has no FQDNs, so this is as narrow as it gets.
+  egressPodIdentity  the EKS Pod Identity agent on the node, where the AWS SDK gets the
+                     credentials of the pod's role. The rest of 169.254/16 stays closed.
 
 Egress always allows DNS and every pod of the namespace (NATS, Metadata, MinIO, collector).
 */}}
@@ -59,6 +61,13 @@ spec:
               - 169.254.0.0/16
       ports:
         - { port: 443, protocol: TCP }
+    {{- end }}
+    {{- if $np.egressPodIdentity }}
+    - to:
+        - ipBlock:
+            cidr: 169.254.170.23/32
+      ports:
+        - { port: 80, protocol: TCP }
     {{- end }}
 {{- end }}
 {{- end -}}

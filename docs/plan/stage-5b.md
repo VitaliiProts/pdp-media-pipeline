@@ -258,8 +258,9 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
   - тести: інтеграційний на Postgres (два користувачі разом перевищують ліміт; поки тест тримає
     блокування, жоден із двох паралельних запитів не завершується, потім проходить один — без
     блокування в коді тест падає), Vitest на модель і діалог.
-- [ ] `pdp-lib`: ServiceAccount на сервіс; у `_network.tpl` — `egressPodIdentity`
-      (`169.254.170.23/32:80`); тести рендеру в `helm-check.sh`.
+- [x] `pdp-lib`: ServiceAccount на сервіс (імʼя — як у сервісу, токен API не монтується); у
+      `_network.tpl` — `egressPodIdentity` (`169.254.170.23/32:80`). Рендер перевіряє
+      `helm-check.sh` разом з AWS-профілем.
 
 **Helm:**
 
