@@ -132,6 +132,21 @@ jobs:
       - uses: azure/setup-helm@v4
       - run: scripts/helm-check.sh
 
+  # Formatting and validation only, without a backend or AWS credentials.
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.6
+      - run: terraform fmt -recursive -check deploy/terraform
+      - run: |
+          for dir in deploy/terraform/*/; do
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+          done
+
   alert-rules:
     runs-on: ubuntu-latest
     steps:

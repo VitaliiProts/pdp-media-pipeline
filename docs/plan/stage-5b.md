@@ -1,196 +1,367 @@
 # Етап 5b. AWS, домен і перший деплой з CI
 
 - Тижні 24–25: 22 березня – 4 квітня 2027 (після етапів 5c і 5d, [план](stages-5c-5d.md); у PDF —
-  тижні 16–17)
-- Статус: план. Етап розбито на три PR:
-  - **5b.1 «Terraform: базовий шар і домен»**, гілка `feature/stage-5b.1-terraform-base`;
-  - **5b.2 «EKS і застосунок в AWS»**, гілка `feature/stage-5b.2-eks`;
+  тижні 16–17). Етапи 0–5d закриті з випередженням приблизно на 5 місяців, тож починати можна
+  одразу
+- Статус: план, деталізований 19 жовтня 2026 після навантажувального тесту 5d. Етап розбито на
+  три PR:
+  - **5b.1 «Доступ, Terraform-база і домен»**, гілка `feature/stage-5b.1-terraform-base`;
+  - **5b.2 «Код і Helm під AWS, EKS»**, гілка `feature/stage-5b.2-eks`;
   - **5b.3 «Деплой з CI»**, гілка `feature/stage-5b.3-deploy-ci`.
 
 ## Результат і критерій
 
-**Результат:** система працює в AWS, API відкривається за власним доменом через HTTPS, а merge у
+**Результат:** система працює в AWS на домені `pdp-media-pipeline.online` через HTTPS, а merge у
 `main` автоматично деплоїть нову версію. Наступні етапи (chaos, canary, перформанс) йдуть уже на
 цьому кластері.
 
 **Готово, коли:**
 
-- `https://api.<домен>` відповідає з валідним сертифікатом;
-- інфраструктура піднімається з нуля через `terraform apply`;
-- merge у `main` без ручних дій доходить до AWS і проходить smoke-тест. Canary і rollback — Етап 7.
+- `https://api.pdp-media-pipeline.online` і `https://app.pdp-media-pipeline.online` відповідають з валідним
+  сертифікатом Let's Encrypt, а `pdp-media-pipeline.online` і `www.` переадресовують на `app.`;
+- інфраструктура піднімається з нуля через `terraform apply`, а `aws.sh down` не лишає платних
+  ресурсів, крім базового шару;
+- merge у `main` без ручних дій доходить до AWS і проходить smoke-тест. Canary і rollback — Етап 7;
+- дубляж понад загальний місячний ліміт системи отримує `429`, і за місяць неможливо витратити на
+  OpenAI більше за цей ліміт.
 
 ## Що вже є
 
 - Helm: library-чарт `pdp-lib`, umbrella `pdp` з `values-dev.yaml` і `values-prod.yaml`
   (Ingress для `api.` і `app.`, `TRUST_PROXY_HOPS`, мінімум 2 репліки), чарт `platform`
-  (NATS, Redis, MinIO, CloudNativePG, observability). Міграції — Job з хуком
+  (NATS, Redis з AOF і PVC, MinIO, CloudNativePG, observability). Міграції — Job з хуком
   `pre-install,pre-upgrade`. Чарти `video-worker` (Deployment `video-dub`) і `audio-separate`
   з NetworkPolicy (Етап 5d).
-- Автоскейл KEDA за лагом консюмерів, HPA gateway, PDB, anti-affinity, graceful shutdown (ADR-012).
+- Автоскейл KEDA за лагом консюмерів, зокрема до нуля (`minReplicas: 0`, `activationLagThreshold`),
+  HPA gateway, PDB, anti-affinity, graceful shutdown (ADR-012).
 - CI: `verify`, `test` (Jest і Vitest), `integration` (поріг покриття 80% рядків, інструкцій і
-  функцій), `audio-separate` (ruff і pytest), `audit`, `helm`, `alert-rules`, `docker` (збирає
-  образи без push, Trivy у режимі звіту).
+  функцій), `audio-separate` (ruff і pytest), `audit`, `helm`, `alert-rules`, `docker` (збирає 9
+  образів без push, Trivy у режимі звіту).
 - `scripts/k8s.sh` для k3d, `scripts/e2e-smoke.sh` для compose і k3d.
-- AWS-акаунт з MFA і бюджетним алертом (Етап 0). Домен куплено в іншого реєстратора.
+- Навантаження дубляжу ([звіт](../../perf/reports/stage-5d.md)): один под `audio-separate`
+  (2 CPU, 4 ГБ на піку) і два `video-dub` дають 74 дубляжі на годину, $0.018 за хвилину.
+- AWS-акаунт `186712718120` (Етап 0): root з MFA і без ключів, бюджет `pdp-monthly` $15 з
+  алертами на email, план Paid. Профіль `default` в `~/.aws` — робочий акаунт, для PDP не
+  використовується.
+- Домен `pdp-media-pipeline.online` зареєстрований у GoDaddy 19 жовтня 2026 (до 19 жовтня 2027),
+  DNS поки в GoDaddy (`ns49/ns50.domaincontrol.com`), DNSSEC вимкнений, інших записів і сайту
+  немає.
 
 ## Що треба змінити в наявному коді
 
 - **S3 без статичних ключів.** `s3EnvSchema` вимагає `S3_ENDPOINT`, `S3_ACCESS_KEY` і
-  `S3_SECRET_KEY`. В AWS ключів немає: SDK бере облікові дані з ролі пода. Ключі й endpoint
-  стають необовʼязковими, `S3_FORCE_PATH_STYLE=false`; presign — на регіональний endpoint S3.
-- **TLS до RDS.** RDS PostgreSQL 15+ вимагає TLS (`rds.force_ssl=1`). `DATABASE_URL` з
+  `S3_SECRET_KEY`, gateway — ще й `S3_PUBLIC_ENDPOINT`, `audio-separate` читає ті самі змінні. В
+  AWS ключів немає: SDK бере облікові дані з ролі пода. Endpoint'и й ключі стають необовʼязковими
+  (ключі — обидва або жодного), `S3_FORCE_PATH_STYLE=false`; presign — на регіональний endpoint S3.
+- **TLS до RDS.** RDS PostgreSQL 17 вимагає TLS (`rds.force_ssl=1`). `DATABASE_URL` з
   `sslmode=verify-full` і CA-бандлом RDS (публічний файл, монтується з ConfigMap); перевірити, що
-  `pg` і `drizzle-kit migrate` його приймають.
+  `pg` у Metadata і `migrate.ts` його приймають.
+- **ServiceAccount на сервіс.** Усі поди зараз під `default` ServiceAccount, а Pod Identity видає
+  роль саме ServiceAccount'у: без окремих акаунтів доступ до S3 отримав би кожен под. `pdp-lib`
+  створює ServiceAccount на сервіс; `automountServiceAccountToken: false` лишається — агент Pod
+  Identity монтує свій токен окремо (перевірити на першому деплої).
+- **Egress до агента Pod Identity.** `_network.tpl` забороняє `169.254.0.0/16`, а агент слухає
+  `169.254.170.23:80`. `video-dub` і `audio-separate` під NetworkPolicy інакше лишаться без
+  облікових даних AWS. Плюс `audio-separate` в AWS ходить у S3 назовні (`egressPublicHttps`).
 - **Платформа без Postgres і MinIO.** У `platform` — `postgres.enabled` і `minio.enabled`; в AWS
-  обидва вимкнені, PVC для NATS і observability — на `gp3` (EBS CSI).
-- **Grafana за логіном.** Локально Grafana анонімна; на `grafana.<домен>` — вхід адміністратора
-  з паролем із Secret.
-- **Розміри під вузли.** `values-prod.yaml` просить 2 CPU на под транскодингу і по 2 репліки
-  кожного класу: на двох вузлах це не вміститься. `values-aws.yaml` зменшує мінімуми й requests.
+  обидва вимкнені, PVC для NATS, Redis і observability — на `gp3` (EBS CSI).
+- **Grafana за логіном.** Локально Grafana анонімна; на `grafana.pdp-media-pipeline.online` — вхід
+  адміністратора з паролем із Secret.
+- **Розміри під вузли.** `values-prod.yaml` на мінімумах просить 13.7 CPU і 15.3 ГіБ, а два
+  `m7i.xlarge` дають ≈7.8 CPU під поди. `values-aws.yaml` ставить по одній репліці, а
+  `video-dub` і `audio-separate` масштабує від нуля (див. [бюджет ресурсів](#бюджет-ресурсів)).
+- **Загальний ліміт дубляжу.** Реєстрація відкрита, а квота (`DUB_QUOTA_SECONDS`, 30 хв на місяць)
+  рахується на користувача: сто акаунтів — сто квот на ключ OpenAI. Потрібен ще ліміт на всю
+  систему (див. 5b.2).
 
 ## Що додають етапи 5c і 5d
 
-Етап 5b тепер іде після входу, медіатеки й перекладу відео, тому інфраструктура проєктується
-одразу під них:
-
-- **Redis із сесіями.** Досі Redis тримав лише лічильники rate limit, і їх втрата нічого не
-  ламала. Тепер у ньому сесії: падіння або перезапуск без даних розлогінює всіх. Потрібні
-  персистентність (AOF) і PVC на `gp3`; ElastiCache в ADR-017 порівнюється вже з цими вимогами.
+- **Redis із сесіями.** AOF і PVC уже є (5c). PVC живе, поки живе кластер: сесії переживають
+  рестарт пода, але не `aws.sh down`, після нього всі входять знову. ElastiCache в ADR-017
+  порівнюється з цим.
 - **S3.** Оригінали зберігаються навмисно (медіатека). Завантаження, з яких не створили задачу,
   прибирає janitor Metadata, а не lifecycle-правило (ADR-014); об'єкти видаляє воркер через роль
-  пода (`s3:ListBucket`, `s3:DeleteObject`).
-- **Ключ провайдера дубляжу.** Не в репозиторії й не в values: SSM SecureString у Terraform, шар
-  `cluster` створює з нього Secret у namespace `pdp`, як і `postgres-app`.
-- **`video-dub`.** Ще один Deployment воркерів: requests і максимум реплік входять у розрахунок
-  двох вузлів; egress лише до API провайдера через NetworkPolicy (у `vpc-cni` увімкнути
-  network policy).
-- **Вхід за доменом.** Cookie сесії з `Secure` на `app.<домен>`, перевірка `Origin` з цим хостом.
+  пода (`s3:ListBucket`, `s3:DeleteObject`). CORS потрібен і для субтитрів: `<track>` вантажить
+  VTT із S3 з перевіркою CORS.
+- **Ключ провайдера дубляжу.** Не в репозиторії, не в values і не в state Terraform: Terraform
+  створює SSM SecureString із заглушкою (`ignore_changes` на значення), справжній ключ вносите ви
+  через `aws ssm put-parameter --overwrite`. Шар `cluster` робить з нього Secret `dub-provider`.
+- **`video-dub` і `audio-separate`.** Образи 1.9 і 5.9 ГБ у розпакованому вигляді: диск вузла
+  80 ГБ замість 20 за замовчуванням. Egress `video-dub` — лише `443` назовні (network policy у
+  `vpc-cni`).
+- **Вхід за доменом.** Cookie сесії з `Secure` і без атрибута `Domain` (вже так): вона належить
+  лише `app.pdp-media-pipeline.online` і не потрапляє на `api.` чи `grafana.`. `APP_ORIGINS` —
+  `https://app.pdp-media-pipeline.online`.
 
 ## Прийняті рішення
 
-| Питання        | Рішення                                                                                                                                                                                                                     |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Кластер        | EKS, managed node group: 2 × `m7i.xlarge` (4 vCPU, 16 ГБ), on-demand. Обґрунтування й вартість — ADR-017 (у PDF — ADR-010). k3s на EC2 і EKS Auto Mode — в альтернативах                                                    |
-| Режим роботи   | Кластер піднімається під роботу й демо і знищується; постійний лише дешевий базовий шар. RDS між сесіями зупиняється                                                                                                        |
-| Регіон         | `eu-central-1`                                                                                                                                                                                                              |
-| Дані           | RDS PostgreSQL (`db.t4g.micro`, 20 ГБ gp3, приватні підмережі), S3 замість MinIO. Redis і NATS JetStream — у кластері, як локально. ElastiCache — в альтернативах ADR                                                       |
-| Мережа         | VPC з публічними й приватними підмережами в 2 AZ, **без NAT Gateway** (~$35/міс): вузли в публічних підмережах з security group, RDS — у приватних. Gateway endpoint для S3 (безкоштовний)                                  |
-| Ролі для подів | EKS Pod Identity: асоціації переживають перестворення кластера без зміни trust policy. IRSA — в альтернативах                                                                                                               |
-| Ingress        | Traefik (той самий, що в k3d) за NLB, який створює AWS Load Balancer Controller. ingress-nginx не беремо: проєкт знято з підтримки                                                                                          |
-| TLS і DNS      | cert-manager з Let's Encrypt (DNS-01 через Route 53), external-dns створює записи з Ingress. Хости: `api.`, `app.`, `grafana.`                                                                                              |
-| Домен          | Hosted zone у Route 53 (базовий шар), NS делегуються в реєстратора вручну один раз                                                                                                                                          |
-| Terraform      | `deploy/terraform`: `bootstrap` (S3-бакет для state, локальний state), `base` (постійний), `cluster` (на вимогу). State у S3 з нативним блокуванням (`use_lockfile`), модулі `terraform-aws-modules` з фіксованими версіями |
-| Образи         | ECR, репозиторій на сервіс, тег — SHA коміту, lifecycle: останні 20 образів                                                                                                                                                 |
-| Секрети        | Пароль RDS — `random_password` у Terraform → SSM SecureString; шар `cluster` створює Secret `postgres-app` (ключ `uri`) з тим самим іменем, що дає CloudNativePG локально                                                   |
-| CI → AWS       | GitHub OIDC, роль лише для `repo:VitaliiProts/pdp-media-pipeline` на `main` і environment `aws`: push в ECR, `eks:DescribeCluster`, access entry з правами лише на namespace `pdp`                                          |
-| Параметри      | Terraform пише виходи (домен, бакет, ARN, endpoint RDS) в SSM Parameter Store `/pdp/prod/*`; `scripts/aws.sh` і CI читають звідти, у репозиторії нічого не копіюється                                                       |
+| Питання          | Рішення                                                                                                                                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Домен            | `pdp-media-pipeline.online` (GoDaddy) повністю в Route 53: hosted zone у базовому шарі, у GoDaddy — власні nameservers з виходу Terraform. Хости `api.`, `app.`, `grafana.`; корінь і `www.` переадресовують на `app.` (Traefik)                                   |
+| Кластер          | EKS, managed node group: 2 × `m7i.xlarge` (4 vCPU, 16 ГБ), on-demand, диск 80 ГБ `gp3`. Обґрунтування й вартість — ADR-017 (у PDF — ADR-010). k3s на EC2 і EKS Auto Mode — в альтернативах                                                                         |
+| Розміщення       | По одній репліці кожного сервісу; `video-dub` 0–2 і `audio-separate` 0–1 з масштабуванням від нуля: перший дубляж після простою чекає на старт пода (≈1–2 хв, перше витягування образу на вузол — довше)                                                           |
+| Режим роботи     | Кластер піднімається під роботу й демо і знищується; постійний лише дешевий базовий шар. RDS між сесіями зупиняється                                                                                                                                               |
+| Регіон           | `eu-central-1`                                                                                                                                                                                                                                                     |
+| Дані             | RDS PostgreSQL 17 (`db.t4g.micro`, 20 ГБ gp3, приватні підмережі), S3 замість MinIO. Redis і NATS JetStream — у кластері, як локально. ElastiCache — в альтернативах ADR                                                                                           |
+| Мережа           | VPC з публічними й приватними підмережами в 2 AZ, **без NAT Gateway** (~$35/міс): вузли в публічних підмережах з security group, RDS — у приватних. Gateway endpoint для S3 (безкоштовний)                                                                         |
+| Ролі для подів   | EKS Pod Identity: асоціації переживають перестворення кластера без зміни trust policy. ServiceAccount на сервіс. IRSA — в альтернативах                                                                                                                            |
+| Ingress          | Traefik (той самий, що в k3d) за NLB, який створює AWS Load Balancer Controller. ingress-nginx не беремо: проєкт знято з підтримки                                                                                                                                 |
+| TLS і DNS        | cert-manager з Let's Encrypt (DNS-01 через Route 53), external-dns створює записи з Ingress лише в зоні `pdp-media-pipeline.online`                                                                                                                                |
+| Terraform        | `deploy/terraform`: `bootstrap` (S3-бакет для state, локальний state), `base` (постійний), `cluster` (на вимогу). State у S3 з нативним блокуванням (`use_lockfile`, Terraform ≥ 1.11), модулі `terraform-aws-modules` з фіксованими версіями                      |
+| Образи           | ECR, 8 репозиторіїв (без `webhook-receiver`), теги незмінні. Сервіси — тег SHA коміту, зберігаються 10 останніх. `audio-separate` — тег за вмістом `apps/audio-separate` (`git rev-parse HEAD:apps/audio-separate`), збирається лише коли змінився, зберігаються 3 |
+| Витрати OpenAI   | Загальний ліміт секунд дубляжу на місяць на всю систему в Metadata (`DUB_SYSTEM_QUOTA_SECONDS`); в AWS — 18 000 с (300 хв, ≈ $5.4 на місяць). Квота на користувача лишається                                                                                       |
+| Локальний доступ | IAM Identity Center (інстанс організації, один регіон), профіль `pdp`; без IAM-ключів                                                                                                                                                                              |
+| Секрети          | Пароль RDS — `random_password` у Terraform → SSM SecureString; шар `cluster` створює Secret `postgres-app` (ключ `uri`) з тим самим іменем, що дає CloudNativePG локально                                                                                          |
+| CI → AWS         | GitHub OIDC, роль лише для `repo:VitaliiProts/pdp-media-pipeline:environment:aws`; environment `aws` дозволений лише для `main`. Права: push в ECR, `eks:DescribeCluster`, читання `/pdp/prod/*`, access entry лише на namespace `pdp`                             |
+| Параметри        | Terraform пише виходи (домен, бакет, ARN, endpoint RDS) в SSM Parameter Store `/pdp/prod/*`; CI пише туди ж останній задеплоєний тег. `scripts/aws.sh` і CI читають звідти, у репозиторії нічого не копіюється                                                     |
+
+## Бюджет ресурсів
+
+Requests на двох вузлах (≈7.8 CPU і ≈29 ГіБ під поди):
+
+| Що                                                                                                                                          | CPU  | Пам'ять  |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ---- | -------- |
+| Системні: `vpc-cni`, `kube-proxy`, CoreDNS, EBS CSI, Pod Identity, LB Controller, Traefik, cert-manager, external-dns, KEDA, metrics-server | ≈1.2 | ≈1.5 ГіБ |
+| Платформа: NATS, Redis, observability                                                                                                       | 0.4  | 0.9 ГіБ  |
+| Сервіси на мінімумах: gateway, Metadata, scheduler, web, три класи воркерів, `video-frames`, `video-transcode`                              | 2.4  | 2.2 ГіБ  |
+| **У простої**                                                                                                                               | ≈4.0 | ≈4.6 ГіБ |
+| Під час дубляжу: `video-dub` + `audio-separate`                                                                                             | +3.0 | +5 ГіБ   |
+| Другий под `video-transcode` під час дубляжу                                                                                                | +1.0 | +0.8 ГіБ |
+
+Простій і один дубляж вміщаються з запасом ≈0.8 CPU. Якщо під час дубляжу черга транскодингу
+підніме другий под, він чекатиме в `Pending`, поки дубляж не завершиться: задача стоїть у черзі,
+нічого не губиться. Максимуми в `values-aws.yaml`: `video-transcode` і `video-frames` — 2,
+воркери — 2, gateway — 3.
 
 ## Вартість (оцінка, уточнюється в ADR-017 через AWS Pricing Calculator)
 
-| Що                                          | Коли кластер працює | Коли вимкнений       |
-| ------------------------------------------- | ------------------- | -------------------- |
-| EKS control plane                           | ~$0.10 / год        | —                    |
-| 2 × `m7i.xlarge`, EBS вузлів, публічні IPv4 | ~$0.50 / год        | —                    |
-| NLB                                         | ~$0.03 / год        | —                    |
-| RDS `db.t4g.micro`                          | ~$0.02 / год        | лише диск, ~$3 / міс |
-| Route 53 zone, ECR, S3, SSM, state          | —                   | ~$1–2 / міс          |
-| **Разом**                                   | **~$0.65 / год**    | **~$4–5 / міс**      |
+| Що                                             | Коли кластер працює | Коли вимкнений       |
+| ---------------------------------------------- | ------------------- | -------------------- |
+| EKS control plane                              | ~$0.10 / год        | —                    |
+| 2 × `m7i.xlarge`, 2 × 80 ГБ gp3, публічні IPv4 | ~$0.52 / год        | —                    |
+| NLB                                            | ~$0.03 / год        | —                    |
+| RDS `db.t4g.micro`                             | ~$0.02 / год        | лише диск, ~$3 / міс |
+| Route 53 zone, ECR, S3, SSM, state             | —                   | ~$1–2 / міс          |
+| **Разом AWS**                                  | **~$0.67 / год**    | **~$4–5 / міс**      |
+| OpenAI (загальний ліміт)                       | до ~$5.4 / міс      | —                    |
 
-30–40 годин роботи на місяць — близько $25–30. Бюджетний алерт піднімається до $30 з
-повідомленнями на 50%, 80% і 100% прогнозу.
+Бюджет — $15 на місяць з повідомленнями на 50% і 80% фактичних витрат і 100% прогнозу. Жорсткого
+ліміту AWS не має, а дані про витрати оновлюються із затримкою до доби, тож бюджет — сигнал, а не
+вимикач: після базового шару на кластер лишається ≈ $10, тобто ≈ 15 годин на місяць, і кластер
+піднімається лише під конкретну роботу. OpenAI в бюджет не входить: його тримають загальний ліміт
+дубляжу й передплачений баланс без автопоповнення.
 
-## Підетап 5b.1. Terraform: базовий шар і домен
+## Підетап 5b.1. Доступ, Terraform-база і домен
 
-- [ ] Локальний доступ до AWS через IAM Identity Center (`aws configure sso`), без статичних ключів.
-- [ ] `deploy/terraform/bootstrap`: S3-бакет для state (versioning, шифрування, Block Public Access).
-- [ ] `deploy/terraform/base`:
-  - Route 53 hosted zone; NS-записи вручну в реєстратора, перевірка `dig NS <домен>`;
-  - VPC: 2 AZ, публічні й приватні підмережі, без NAT, S3 gateway endpoint;
-  - RDS PostgreSQL: приватні підмережі, SG лише з SG вузлів, бекапи 1 день, `deletion_protection`;
-  - S3-бакет медіа: Block Public Access, CORS для `https://app.<домен>`, шифрування (без
-    lifecycle-правила для `uploads/`: їх прибирає janitor, ADR-014);
-  - SSM SecureString для ключа провайдера дубляжу (значення вносите ви, не Terraform);
-  - ECR-репозиторії для 7 образів з lifecycle policy;
-  - GitHub OIDC provider і роль деплою;
-  - AWS Budgets $30 з алертами;
-  - параметри в SSM `/pdp/prod/*`.
+Найдовше тут — чекання поширення NS, тому зона Route 53 і зміна nameservers ідуть першими, а код
+5b.2 пишеться, поки вони поширюються.
+
+**Ручні кроки (робите ви, я підказую по ходу):**
+
+- [x] **IAM Identity Center.** Доступ до акаунта через Identity Center дає лише інстанс організації,
+      тому спершу — AWS Organizations (поточний акаунт стає management account). Потім:
+      Identity Center у `eu-central-1` (Single-Region, ключ AWS — без оплати KMS), користувач з
+      MFA, permission set `AdministratorAccess` (сесія 8 год), призначення на акаунт. Зроблено
+      19 жовтня.
+- [x] Профіль `pdp` в `~/.aws/config` (`sso-session pdp`); `aws sso login --profile pdp`;
+      `aws sts get-caller-identity` показує роль `AWSReservedSSO_AdministratorAccess_*`.
+- [x] IAM-користувач `vitalii` з Етапу 0 (`AdministratorAccess`, пароль і MFA) лишається
+      аварійним входом у консоль на випадок збою Identity Center; access keys йому не
+      створюються, щоденна робота — лише через SSO.
+- [x] Terraform 1.16.6 — бінарник HashiCorp з перевіркою SHA256 у `~/.local/bin` (Homebrew
+      вимагає Command Line Tools для Xcode 27).
+- [x] Квота On-Demand vCPU у `eu-central-1` — 5, а два `m7i.xlarge` займають 8: запит на 16
+      (два вузли й заміна вузла під час оновлення) подано 19 жовтня.
+- [x] Після `apply` базового шару — у GoDaddy: домен → DNS → Nameservers → «Change» → «I'll use
+      my own nameservers», чотири значення з виходу `name_servers`. Записи в DNS GoDaddy після
+      цього не діють: усе живе в Route 53. Зроблено 19 жовтня: сервери `.online` і публічні
+      резолвери (1.1.1.1, 8.8.8.8, 9.9.9.9) віддають Route 53 через ≈12 хв після збереження.
+- [ ] Автопродовження домену в GoDaddy: реєстрація до 19 жовтня 2027, захист — у квітні 2027;
+      ціна продовження `.online` помітно вища за першу.
+
+**Код:**
+
+- [ ] `deploy/terraform/bootstrap`: S3-бакет для state (versioning, шифрування, Block Public
+      Access, заборона запитів без TLS); state самого bootstrap — локальний, у `.gitignore`.
+- [ ] `deploy/terraform/base` (`versions.tf`, `backend.tf`, `dns.tf`, `network.tf`, `rds.tf`,
+      `storage.tf`, `ecr.tf`, `ssm.tf`, `github.tf`, `budget.tf`, `outputs.tf`):
+  - hosted zone `pdp-media-pipeline.online`; CAA — `letsencrypt.org` і `amazon.com` (для
+    запасного варіанта з ACM), без них сертифікат може випустити будь-який центр;
+  - VPC: 2 AZ, публічні й приватні підмережі з тегами для LB Controller, без NAT, S3 gateway
+    endpoint;
+  - security group `pdp-nodes` без правил: шар `cluster` чіпляє її до вузлів, а RDS пускає лише
+    з неї. Інакше RDS посилався б на групу, яка зникає з кожним `down`;
+  - RDS PostgreSQL 17: приватні підмережі, `rds.force_ssl=1`, бекапи 1 день,
+    `deletion_protection`, пароль — `random_password` → SSM SecureString;
+  - S3-бакет медіа: Block Public Access, шифрування, CORS `GET`, `PUT`, `HEAD` для
+    `https://app.pdp-media-pipeline.online` з `ETag` у `ExposeHeaders`; без lifecycle для `uploads/`
+    (ADR-014);
+  - ECR: 8 репозиторіїв, `IMMUTABLE`, lifecycle — 10 останніх образів, для `audio-separate` — 3,
+    неперелічені теги — день;
+  - SSM SecureString `/pdp/prod/openai-api-key` із заглушкою й `ignore_changes`;
+  - GitHub OIDC provider і роль `pdp-deploy` (trust — `sub` з `environment:aws`);
+  - AWS Budgets: бюджет `pdp-monthly` з Етапу 0 імпортується (`import`), $15, email — у
+    `terraform.tfvars` поза репозиторієм;
+  - параметри `/pdp/prod/*`: домен, зона, бакет, endpoint RDS, ARN ролей, реєстр ECR.
+- [ ] CI: job `terraform` — `terraform fmt -check` і `init -backend=false && validate` для трьох
+      шарів, Trivy в режимі `config` (звіт, як для образів).
 - [ ] ADR-017 «Де запускати кластер»: EKS проти k3s на EC2 і EKS Auto Mode, Pod Identity проти
       IRSA, Redis у кластері проти ElastiCache (з урахуванням сесій), NAT проти публічних
-      підмереж; вартість на місяць для «постійно» і «на вимогу».
+      підмереж; вартість на місяць для «постійно» і
+      «на вимогу».
 - [ ] Таблиця відповідності ADR номерам PDF: 010 → 017.
 
-## Підетап 5b.2. EKS і застосунок в AWS
+**Перевірити:**
 
-- [ ] `deploy/terraform/cluster`:
-  - EKS (актуальна версія зі standard support), node group 2 × `m7i.xlarge`, публічний endpoint
-    API з автентифікацією IAM;
-  - addons: `vpc-cni`, `coredns`, `kube-proxy`, `aws-ebs-csi-driver`, `eks-pod-identity-agent`;
-    StorageClass `gp3` за замовчуванням;
-  - access entries: адміністратор (ваша SSO-роль) і роль деплою (namespace `pdp`);
-  - Pod Identity: воркери, video-*, gateway → S3; external-dns і cert-manager → Route 53;
-    LB Controller, EBS CSI;
-  - Helm-релізи кластерних компонентів: AWS Load Balancer Controller, Traefik (Service на NLB,
-    proxy protocol), cert-manager з ClusterIssuer `letsencrypt-staging` і `letsencrypt-prod`,
-    external-dns, KEDA, metrics-server;
-  - Secret `postgres-app`, Secret з ключем провайдера дубляжу (з SSM) і ConfigMap з CA-бандлом
-    RDS у namespace `pdp`;
-  - network policy у `vpc-cni` для egress-правил `video-dub`.
-- [ ] Код: S3 без статичних ключів і з необовʼязковим endpoint; TLS до RDS; тести на обидва
-      режими конфігу.
-- [ ] Helm:
-  - `platform/values-aws.yaml`: без Postgres і MinIO, PVC на `gp3`, Redis з AOF і PVC (сесії),
-    Grafana з логіном та Ingress `grafana.<домен>`;
-  - `pdp/values-aws.yaml` поверх `values-prod.yaml`: образи з ECR, хости з доменом, анотації
-    cert-manager, S3 через роль, менші мінімуми реплік і requests під два вузли (разом з
-    `video-dub`), `TRUST_PROXY_HOPS=1`;
-  - `helm-check.sh` рендерить і AWS-профіль.
-- [ ] `scripts/aws.sh`:
-  - `up`: `terraform apply` для `base` і `cluster`, старт RDS, платформа, реліз `pdp` з останнім
-    тегом `main` з ECR;
-  - `down`: видалити релізи (NLB і EBS зникають разом із Service і PVC), дочекатися, поки
-    LB видалиться, `terraform destroy` шару `cluster`, зупинити RDS;
-  - `status`: що зараз працює і скільки коштує година.
-- [ ] Перевірити: `https://api.<домен>/health/ready`, `https://app.<домен>` (реєстрація і вхід,
-      завантаження картинки й відео, переклад відео, медіатека), `https://grafana.<домен>` (дашборди, трейси), сертифікат Let's Encrypt, gateway бачить
-      справжній IP клієнта (`429` за IP для невідомого ключа).
+- `terraform plan` після `apply` — без змін;
+- `dig NS pdp-media-pipeline.online` повертає nameserver'и Route 53, `dig +trace` доходить до них
+  від сервера `.online`;
+- тестовий TXT у зоні Route 53 видно через `dig TXT test.pdp-media-pipeline.online`, потім його
+  прибрати; `dig CAA` показує обидва центри;
+- лист від AWS Budgets про створений бюджет.
+
+**Коміти:** `ci: terraform fmt and validate` → `infra(terraform): state bucket` →
+`infra(terraform): base layer — zone, VPC, RDS, S3, ECR` → `infra(terraform): GitHub OIDC,
+budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
+
+## Підетап 5b.2. Код і Helm під AWS, EKS
+
+Код і Helm перевіряються в k3d до першого `apply` кластера: година EKS коштує, а цикл
+`apply`/`destroy` займає ~30 хв.
+
+**Код:**
+
+- [ ] S3 без ключів: `libs/config/src/schemas.ts` (endpoint і ключі необовʼязкові, ключі — разом),
+      `libs/worker-kit/src/object-storage.ts`, `apps/api-gateway/src/config.ts` і
+      `storage/storage.service.ts` (`S3_PUBLIC_ENDPOINT` необовʼязковий: без нього presign на
+      регіональний endpoint), `apps/audio-separate/audio_separate/{main,storage}.py` (boto3 без
+      ключів бере облікові дані сам). Тести на обидва режими: з MinIO і без ключів.
+- [ ] TLS до RDS: `DATABASE_URL` з `sslmode=verify-full&sslrootcert=/etc/rds/ca.pem` у Metadata і
+      Job міграцій; тест розбору URL. Справжня перевірка — на RDS.
+- [ ] Загальний ліміт дубляжу:
+  - `DUB_SYSTEM_QUOTA_SECONDS` у `apps/metadata/src/config.ts`, `0` — без ліміту (локально нічого
+    не змінюється);
+  - `assertDubQuota` після блокування користувача бере `pg_advisory_xact_lock` ліміту системи й
+    рахує ті самі секунди по всіх користувачах; понад ліміт — `429` з кодом
+    `DUB_SYSTEM_QUOTA_EXCEEDED` (`libs/contracts`). Блокування одне на всю систему: дубляжі
+    створюються рідко, черга на ньому — мілісекунди;
+  - `GET /v1/dub-quota` додає `systemLimitReached`; діалог перекладу показує «ліміт перекладу на
+    цей місяць вичерпано, оновиться …» і не дає почати;
+  - тести: інтеграційний на Postgres (два користувачі разом перевищують ліміт, паралельні
+    створення не проходять обидва), gateway пропускає код, Vitest на діалог.
+- [ ] `pdp-lib`: ServiceAccount на сервіс; у `_network.tpl` — `egressPodIdentity`
+      (`169.254.170.23/32:80`); тести рендеру в `helm-check.sh`.
+
+**Helm:**
+
+- [ ] `platform/values-aws.yaml`: без Postgres і MinIO, PVC на `gp3`, Grafana з логіном і Ingress
+      `grafana.pdp-media-pipeline.online`.
+- [ ] `pdp/values-aws.yaml` поверх `values-prod.yaml`: реєстр ECR, тег `audio-separate` окремо,
+      хости `api.`, `app.` і Ingress кореня з `www.` з Middleware `redirectRegex` на `app.`,
+      анотації cert-manager, S3 через роль (лише бакет і регіон),
+      `DATABASE_URL` з Secret `postgres-app` і CA-бандл з ConfigMap, мінімуми й максимуми з
+      [бюджету](#бюджет-ресурсів), `video-dub` 0–2 і `audio-separate` 0–1 з
+      `egressPublicHttps` і `egressPodIdentity`, `TRUST_PROXY_HOPS=1`,
+      `DUB_SYSTEM_QUOTA_SECONDS=18000`, `GRAFANA_URL`.
+- [ ] `helm-check.sh` рендерить AWS-профіль і перевіряє суму requests на мінімумах (≤ 3 CPU для
+      `pdp` і платформи разом), щоб нова репліка не зламала розміщення непомітно.
+- [ ] k3d з тими ж мінімумами: `video-dub` і `audio-separate` стартують з нуля на перший дубляж —
+      заміряти, скільки чекає задача.
+
+**Terraform, шар `cluster`:**
+
+- [ ] EKS (остання версія зі standard support на момент `apply`), публічний endpoint API з
+      автентифікацією IAM; node group 2 × `m7i.xlarge`, диск 80 ГБ `gp3`, група `pdp-nodes` з
+      базового шару.
+- [ ] Addons: `vpc-cni` з network policy, `coredns`, `kube-proxy`, `aws-ebs-csi-driver`,
+      `eks-pod-identity-agent`; StorageClass `gp3` за замовчуванням.
+- [ ] Access entries: адміністратор (роль SSO, ARN через data-джерело `aws_iam_roles`) і роль
+      деплою (namespace `pdp`).
+- [ ] Pod Identity: gateway, воркери, `video-*`, `audio-separate` → бакет медіа (воркер — ще
+      `s3:DeleteObject`); external-dns і cert-manager → лише зона `pdp-media-pipeline.online`; LB
+      Controller; EBS CSI.
+- [ ] Helm-релізи кластерних компонентів: AWS Load Balancer Controller, Traefik (Service на NLB,
+      proxy protocol), cert-manager з `letsencrypt-staging` і `letsencrypt-prod`, external-dns
+      (`domainFilters: [pdp-media-pipeline.online]`, `policy: sync` лише в цій зоні), KEDA,
+      metrics-server.
+- [ ] Secret `postgres-app`, Secret `dub-provider` (з SSM), ConfigMap з CA-бандлом RDS у
+      namespace `pdp`.
+
+**`scripts/aws.sh`:**
+
+- [ ] `up`: перевірка `aws sts get-caller-identity` (інакше підказка `aws sso login`), `apply`
+      для `base` і `cluster`, старт RDS, платформа, реліз `pdp` з тегом з `/pdp/prod/deployed-tag`,
+      створення smoke-користувача, якщо його немає.
+- [ ] `down`: попередження, якщо в черзі є задачі; видалити релізи (NLB і EBS зникають разом зі
+      Service і PVC), дочекатися, поки LB видалиться, `destroy` шару `cluster`, зупинити RDS.
+- [ ] `status`: що працює, стан RDS (і коли він сам стартує), скільки коштує година.
+
+**Перевірити:**
+
+- `https://api.pdp-media-pipeline.online/health/ready`; сертифікат спершу від staging, потім prod;
+- `https://app.pdp-media-pipeline.online`: реєстрація й вхід, завантаження картинки й відео, переклад
+  відео з прогресом, перегляд із субтитрами, медіатека;
+- `https://grafana.pdp-media-pipeline.online` за логіном: дашборди, трейси одного дубляжу;
+- gateway бачить справжній IP клієнта (`429` за IP для невідомого ключа);
+- з `DUB_SYSTEM_QUOTA_SECONDS=60` другий дубляж отримує `429 DUB_SYSTEM_QUOTA_EXCEEDED`;
+- задачі, що стояли в черзі під час `down`, після `up` доходять до кінця;
+- після `down` у консолі немає NLB, EBS-томів і EC2, `terraform state list` шару `cluster` порожній.
+
+**Коміти:** `feat(config): S3 credentials from the pod role` → `feat(metadata): TLS to Postgres` →
+`feat(metadata): system-wide dub quota` → `feat(web): show the system dub limit` →
+`feat(helm): service accounts and Pod Identity egress` → `feat(helm): AWS profile` →
+`infra(terraform): EKS cluster layer` → `feat(scripts): aws.sh up, down and status`.
 
 ## Підетап 5b.3. Деплой з CI
 
-- [ ] `.github/workflows/deploy.yml`: після успішного CI на `main` (`workflow_run`) і вручну
-      (`workflow_dispatch`); environment `aws`.
-  - OIDC → роль деплою; build і push 7 образів у ECR з тегом SHA (кеш з CI);
+- [ ] `.github/workflows/deploy.yml`: `workflow_run` після успішного CI на `main` (checkout
+      `head_sha` того запуску) і `workflow_dispatch`; environment `aws`; `concurrency: deploy-aws`
+      без скасування поточного.
+  - OIDC → роль `pdp-deploy`; build і push образів у ECR з тегом SHA (кеш з CI, звільнення диска
+    для великих образів, як у CI); `audio-separate` — лише якщо тега за вмістом ще немає в ECR;
+  - тег пишеться в `/pdp/prod/deployed-tag`, щойно образи в ECR;
   - якщо кластер не існує — job зелений з повідомленням «кластер вимкнений, образи в ECR», а
     `aws.sh up` потім розгорне цей тег;
   - `helm upgrade --install pdp` з `values-prod.yaml` і `values-aws.yaml`, `--atomic --wait`;
-    міграції — той самий хук;
+    міграції — той самий хук. Платформу оновлює `aws.sh up`, не CI;
   - smoke-тест.
 - [ ] `scripts/smoke.sh <base-url>`: `GET /health/ready`, потім одна справжня задача `image.resize`:
       upload через presigned URL, `POST /v1/jobs`, очікування `succeeded` (до 2 хв), `GET` одного
       результату. Ключ — секрет environment `aws` (`SMOKE_API_KEY`); користувача створює
       `aws.sh` один раз, у RDS він переживає перестворення кластера. Окремо — вхід тестовим
-      користувачем і `GET /v1/assets`. Падіння — workflow червоний.
-- [ ] Налаштування GitHub (робите ви): environment `aws`, змінні `AWS_REGION` і `AWS_ROLE_ARN`,
-      секрет `SMOKE_API_KEY`.
+      користувачем і `GET /v1/assets`. Дубляж у smoke не входить: він платний і стартує з нуля.
+      Падіння — workflow червоний.
+- [ ] Налаштування GitHub (робите ви): environment `aws` з правилом «лише `main`», змінні
+      `AWS_REGION` і `AWS_ROLE_ARN`, секрет `SMOKE_API_KEY`.
 - [ ] Перевірити руками: змінити відповідь endpoint'а (наприклад, `version` у `/health/ready`),
-      змерджити, побачити нову версію за доменом без ручних кроків.
-- [ ] README: розділ «Запуск в AWS» (передумови, `aws.sh up/down`, адреси, вартість) і «Етап 5b»
-      у перевірці етапів; план і ADR — статус «готово».
+      змерджити, побачити нову версію за доменом без ручних кроків; запуск з іншої гілки не
+      отримує роль.
+- [ ] README: розділ «Запуск в AWS» (передумови, SSO, `aws.sh up/down`, адреси, вартість) і
+      «Етап 5b» у перевірці етапів; план, прогрес і ADR — статус «готово».
+
+**Коміти:** `feat(scripts): smoke test against a base URL` → `ci: deploy to AWS after CI on main`
+→ `docs: running in AWS`.
 
 ## Ризики
 
 - **Ліміти Let's Encrypt.** На той самий набір імен — не більше 5 сертифікатів на тиждень, а кожне
-  перестворення кластера випускає нові. Під час налагодження — `letsencrypt-staging`, production —
-  для перевірок і демо. Запасний варіант — ACM на NLB (безкоштовно, сертифікат живе в базовому шарі).
+  перестворення кластера випускає нові. Під час налагодження — `letsencrypt-staging`,
+  production — для перевірок і демо. Запасний варіант — ACM на NLB (безкоштовно, сертифікат
+  живе в базовому шарі, CAA для `amazon.com` уже в зоні).
 - **Забуті ресурси.** NLB і EBS, створені з кластера, Terraform не бачить. Якщо знищити кластер, не
   видаливши Service і PVC, вони лишаться й коштуватимуть гроші. `aws.sh down` видаляє їх першими й
   чекає; бюджетний алерт — страховка.
-- **Делегування NS** може йти до 48 год: зробити заздалегідь, ще під час етапів 5c і 5d (hosted
-  zone коштує $0.50 на місяць).
+- **Ліміт дубляжу вичерпає хтось один.** Загальний ліміт захищає гроші, а не доступ: зареєстровані
+  акаунти можуть з'їсти його за всіх. На демо ліміт піднімається значенням у `values-aws.yaml`.
+- **Зміна nameservers** може йти до 48 год: TTL делегування в зоні `.online` задає реєстр, а
+  новий домен GoDaddy ще й публікує не одразу. Тому робити першим.
 - **RDS сам стартує через 7 днів** після зупинки. `aws.sh status` це показує; за бажанням —
   EventBridge Scheduler, що щоночі зупиняє інстанс.
 - **Довгий цикл.** `apply` кластера ~15–20 хв, `destroy` ~10 хв: налагоджувати Helm-частину
   локально на k3d з `values-aws.yaml`, де це можливо.
+- **Перший дубляж після простою** чекає старту `audio-separate` з нуля; перше витягування
+  2.3 ГБ образу на вузол додає ~1 хв. SLO дубляжу (95% за 15 хв) це вміщає.
 - **Публічний endpoint EKS API** відкритий для IP GitHub-раннерів; захищає IAM-автентифікація й
   мінімальна роль деплою.
-- **Обсяг.** Три PR за два тижні при 8–10 год/тиждень — щільно. Якщо не вкладається, smoke-тест з
-  відео й Grafana за доменом переходять на початок Етапу 6.
+- **Обсяг.** Три PR при 8–10 год/тиждень — щільно. Якщо не вкладається, smoke-тест з
+  медіатекою й Grafana за доменом переходять на початок Етапу 6.

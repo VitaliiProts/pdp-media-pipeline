@@ -18,6 +18,14 @@ perf/k6/fixtures/video.mp4
 # Helm dependencies, fetched by `helm dependency build`
 deploy/helm/*/charts/
 
+# Terraform: providers, state (bootstrap keeps its state locally) and per-user variables
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+crash.log
+terraform.tfvars
+
 # Python (apps/audio-separate)
 __pycache__/
 .pytest_cache/
