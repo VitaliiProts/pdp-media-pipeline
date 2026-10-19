@@ -240,8 +240,11 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
       `storage/storage.service.ts` (`S3_PUBLIC_ENDPOINT` необовʼязковий: без нього presign на
       регіональний endpoint), `apps/audio-separate/audio_separate/{main,storage}.py` (boto3 без
       ключів бере облікові дані сам). Тести на обидва режими: з MinIO і без ключів.
-- [ ] TLS до RDS: `DATABASE_URL` з `sslmode=verify-full&sslrootcert=/etc/rds/ca.pem` у Metadata і
-      Job міграцій; тест розбору URL. Справжня перевірка — на RDS.
+- [x] TLS до RDS: `DATABASE_URL` з `sslmode=verify-full&sslrootcert=/etc/rds/ca.pem` у Metadata і
+      Job міграцій. Код не змінюється: `pg` (`pg-connection-string` 2.14) сам читає CA з
+      `sslrootcert` і перевіряє ланцюжок та імʼя хоста. Перевірено 19 жовтня на Postgres 17 з TLS
+      у Docker: свій CA — TLS 1.3, чужий CA — `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, IP замість імені з
+      сертифіката — `ERR_TLS_CERT_ALTNAME_INVALID`. Справжня перевірка — на RDS.
 - [ ] Загальний ліміт дубляжу:
   - `DUB_SYSTEM_QUOTA_SECONDS` у `apps/metadata/src/config.ts`, `0` — без ліміту (локально нічого
     не змінюється);
@@ -309,8 +312,8 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 - задачі, що стояли в черзі під час `down`, після `up` доходять до кінця;
 - після `down` у консолі немає NLB, EBS-томів і EC2, `terraform state list` шару `cluster` порожній.
 
-**Коміти:** `feat(config): S3 credentials from the pod role` → `feat(metadata): TLS to Postgres` →
-`feat(metadata): system-wide dub quota` → `feat(web): show the system dub limit` →
+**Коміти:** `feat(config): S3 credentials from the pod role` → `feat(metadata): system-wide dub
+quota` → `feat(web): show the system dub limit` →
 `feat(helm): service accounts and Pod Identity egress` → `feat(helm): AWS profile` →
 `infra(terraform): EKS cluster layer` → `feat(scripts): aws.sh up, down and status`.
 
