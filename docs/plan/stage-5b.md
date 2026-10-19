@@ -40,8 +40,9 @@
 - `scripts/k8s.sh` для k3d, `scripts/e2e-smoke.sh` для compose і k3d.
 - Навантаження дубляжу ([звіт](../../perf/reports/stage-5d.md)): один под `audio-separate`
   (2 CPU, 4 ГБ на піку) і два `video-dub` дають 74 дубляжі на годину, $0.018 за хвилину.
-- AWS-акаунт з MFA і бюджетним алертом (Етап 0). AWS CLI 2 є, Terraform не встановлений,
-  локальний доступ — профіль `default` зі статичним ключем.
+- AWS-акаунт `186712718120` (Етап 0): root з MFA і без ключів, бюджет `pdp-monthly` $15 з
+  алертами на email, план Paid. Профіль `default` в `~/.aws` — робочий акаунт, для PDP не
+  використовується.
 - Домен `pdp-media-pipeline.online` зареєстрований у GoDaddy 19 жовтня 2026 (до 19 жовтня 2027),
   DNS поки в GoDaddy (`ns49/ns50.domaincontrol.com`), DNSSEC вимкнений, інших записів і сайту
   немає.
@@ -109,7 +110,7 @@
 | Terraform        | `deploy/terraform`: `bootstrap` (S3-бакет для state, локальний state), `base` (постійний), `cluster` (на вимогу). State у S3 з нативним блокуванням (`use_lockfile`, Terraform ≥ 1.11), модулі `terraform-aws-modules` з фіксованими версіями                      |
 | Образи           | ECR, 8 репозиторіїв (без `webhook-receiver`), теги незмінні. Сервіси — тег SHA коміту, зберігаються 10 останніх. `audio-separate` — тег за вмістом `apps/audio-separate` (`git rev-parse HEAD:apps/audio-separate`), збирається лише коли змінився, зберігаються 3 |
 | Витрати OpenAI   | Загальний ліміт секунд дубляжу на місяць на всю систему в Metadata (`DUB_SYSTEM_QUOTA_SECONDS`); в AWS — 18 000 с (300 хв, ≈ $5.4 на місяць). Квота на користувача лишається                                                                                       |
-| Локальний доступ | IAM Identity Center і `aws configure sso`, профіль `pdp`; статичний ключ видаляється                                                                                                                                                                               |
+| Локальний доступ | IAM Identity Center (інстанс організації, один регіон), профіль `pdp`; без IAM-ключів                                                                                                                                                                              |
 | Секрети          | Пароль RDS — `random_password` у Terraform → SSM SecureString; шар `cluster` створює Secret `postgres-app` (ключ `uri`) з тим самим іменем, що дає CloudNativePG локально                                                                                          |
 | CI → AWS         | GitHub OIDC, роль лише для `repo:VitaliiProts/pdp-media-pipeline:environment:aws`; environment `aws` дозволений лише для `main`. Права: push в ECR, `eks:DescribeCluster`, читання `/pdp/prod/*`, access entry лише на namespace `pdp`                             |
 | Параметри        | Terraform пише виходи (домен, бакет, ARN, endpoint RDS) в SSM Parameter Store `/pdp/prod/*`; CI пише туди ж останній задеплоєний тег. `scripts/aws.sh` і CI читають звідти, у репозиторії нічого не копіюється                                                     |
@@ -144,8 +145,11 @@ Requests на двох вузлах (≈7.8 CPU і ≈29 ГіБ під поди)
 | **Разом AWS**                                  | **~$0.67 / год**    | **~$4–5 / міс**      |
 | OpenAI (загальний ліміт)                       | до ~$5.4 / міс      | —                    |
 
-30–40 годин роботи на місяць — близько $25–30 в AWS. Бюджетний алерт піднімається до $30 з
-повідомленнями на 50%, 80% і 100% прогнозу. OpenAI в нього не входить: його тримає загальний ліміт.
+Бюджет — $15 на місяць з повідомленнями на 50% і 80% фактичних витрат і 100% прогнозу. Жорсткого
+ліміту AWS не має, а дані про витрати оновлюються із затримкою до доби, тож бюджет — сигнал, а не
+вимикач: після базового шару на кластер лишається ≈ $10, тобто ≈ 15 годин на місяць, і кластер
+піднімається лише під конкретну роботу. OpenAI в бюджет не входить: його тримають загальний ліміт
+дубляжу й передплачений баланс без автопоповнення.
 
 ## Підетап 5b.1. Доступ, Terraform-база і домен
 
@@ -154,15 +158,19 @@ Requests на двох вузлах (≈7.8 CPU і ≈29 ГіБ під поди)
 
 **Ручні кроки (робите ви, я підказую по ходу):**
 
-- [ ] **IAM Identity Center.** Доступ до акаунта через Identity Center дає лише інстанс організації,
+- [x] **IAM Identity Center.** Доступ до акаунта через Identity Center дає лише інстанс організації,
       тому спершу — AWS Organizations (поточний акаунт стає management account). Потім:
-      Identity Center у `eu-central-1`, користувач з MFA, permission set `AdministratorAccess`
-      (сесія 8 год), призначення на акаунт.
-- [ ] `aws configure sso` → профіль `pdp`; `aws sso login --profile pdp`;
-      `aws sts get-caller-identity --profile pdp` показує роль `AWSReservedSSO_AdministratorAccess_*`.
-- [ ] Статичний ключ: деактивувати в IAM, через тиждень без помилок — видалити; прибрати
-      `[default]` з `~/.aws/credentials`.
-- [ ] Terraform: `brew tap hashicorp/tap && brew install hashicorp/tap/terraform`.
+      Identity Center у `eu-central-1` (Single-Region, ключ AWS — без оплати KMS), користувач з
+      MFA, permission set `AdministratorAccess` (сесія 8 год), призначення на акаунт. Зроблено
+      19 жовтня.
+- [x] Профіль `pdp` в `~/.aws/config` (`sso-session pdp`); `aws sso login --profile pdp`;
+      `aws sts get-caller-identity` показує роль `AWSReservedSSO_AdministratorAccess_*`.
+- [ ] IAM-користувач `vitalii` з Етапу 0 (`AdministratorAccess`, пароль, без ключів) — видалити,
+      коли вхід через портал перевірено: аварійний доступ дає root.
+- [x] Terraform 1.16.6 — бінарник HashiCorp з перевіркою SHA256 у `~/.local/bin` (Homebrew
+      вимагає Command Line Tools для Xcode 27).
+- [x] Квота On-Demand vCPU у `eu-central-1` — 5, а два `m7i.xlarge` займають 8: запит на 16
+      (два вузли й заміна вузла під час оновлення) подано 19 жовтня.
 - [ ] Після `apply` базового шару — у GoDaddy: домен → DNS → Nameservers → «Change» → «I'll use
       my own nameservers», чотири значення з виходу `name_servers`. Записи в DNS GoDaddy після
       цього не діють: усе живе в Route 53.
@@ -190,7 +198,8 @@ Requests на двох вузлах (≈7.8 CPU і ≈29 ГіБ під поди)
     неперелічені теги — день;
   - SSM SecureString `/pdp/prod/openai-api-key` із заглушкою й `ignore_changes`;
   - GitHub OIDC provider і роль `pdp-deploy` (trust — `sub` з `environment:aws`);
-  - AWS Budgets $30 з алертами на email;
+  - AWS Budgets: бюджет `pdp-monthly` з Етапу 0 імпортується (`import`), $15, email — у
+    `terraform.tfvars` поза репозиторієм;
   - параметри `/pdp/prod/*`: домен, зона, бакет, endpoint RDS, ARN ролей, реєстр ECR.
 - [ ] CI: job `terraform` — `terraform fmt -check` і `init -backend=false && validate` для трьох
       шарів, Trivy в режимі `config` (звіт, як для образів).
