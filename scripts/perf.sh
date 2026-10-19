@@ -8,6 +8,8 @@
 #   scripts/perf.sh slo-burn              # Stage 4 demo: dashboards and a burn-rate alert
 #   scripts/perf.sh login                 # Stage 5c: sign-in P95 and Metadata CPU (argon2id)
 #   LOGIN_RATE=60 scripts/perf.sh login   # the same at 60 logins/s
+#   scripts/perf.sh dub-load              # Stage 5d: video.dub under load, `--profile dub` stack;
+#                                         # paid with DUB_PROVIDERS=openai, MAX_DUBS bounds the bill
 #
 # Raw output lands in perf/reports/raw/ (git-ignored); numbers go to perf/reports/stage-N.md.
 set -euo pipefail
@@ -144,6 +146,83 @@ login() {
   return "$status"
 }
 
+DUB_CLIP="${DUB_CLIP:-spikes/02-video-dub/input/tos-1min.mp4}"
+DUB_WORKERS="${DUB_WORKERS:-2}"
+MAX_DUBS="${MAX_DUBS:-80}"
+VM="http://localhost:${VICTORIAMETRICS_HOST_PORT:-18428}"
+
+# Raw counters per series, not increase(): VictoriaMetrics extrapolates a series that appears
+# mid-window. Every container has its own series (`host_name`), so the report subtracts per
+# series and a replaced container's leftovers drop out.
+dub_metrics() {
+  local name
+  for name in dub_cost_usd_total dub_provider_duration_seconds_count \
+    dub_provider_duration_seconds_sum dub_step_duration_seconds_count \
+    dub_step_duration_seconds_sum; do
+    curl -sS --fail "$VM/api/v1/query" --data-urlencode "query=$name" |
+      jq -c --arg name "$name" \
+        '{name: $name, result: [.data.result[] | {labels: .metric, value: (.value[1] | tonumber)}]}'
+  done | jq -s .
+}
+
+# Dubs created since $1: statuses, executions, and jobs that succeeded twice (a paid duplicate).
+dub_jobs() {
+  docker compose exec -T postgres psql -U pdp -d metadata -At -v since="$1" <<'SQL'
+with run as (
+  select j.* from jobs j join users u on u.id = j.user_id
+  where j.type = 'video.dub' and u.name like 'perf-%' and j.created_at >= :'since'
+)
+select json_build_object(
+  'byStatus', (select json_object_agg(status, n) from
+    (select status, count(*) n from run group by status) s),
+  'executions', (select json_object_agg(coalesce(outcome::text, 'running'), n) from
+    (select e.outcome, count(*) n from job_executions e join run on run.id = e.job_id
+     group by e.outcome) o),
+  'succeededTwice', (select count(*) from
+    (select e.job_id from job_executions e join run on run.id = e.job_id
+     where e.outcome = 'succeeded' group by e.job_id having count(*) > 1) d),
+  'deadReasons', (select json_object_agg(coalesce(dead_reason::text, '?'), n) from
+    (select dead_reason, count(*) n from run where status = 'dead' group by dead_reason) r),
+  'lastErrors', (select json_agg(distinct last_error) from run where last_error is not null)
+);
+SQL
+}
+
+dub_load() {
+  [[ -f "$DUB_CLIP" ]] || { echo "no clip at $DUB_CLIP (DUB_CLIP=...)" >&2; exit 1; }
+  local providers since override status=0
+  providers="$(docker compose exec -T video-dub printenv DUB_PROVIDERS)"
+  echo "== dub-load: up to $MAX_DUBS dubs of $DUB_CLIP, providers: $providers, $DUB_WORKERS video-dub"
+  [[ "$providers" != openai ]] || echo "   paid: about \$0.018 per minute of speech, at most $MAX_DUBS dubs"
+
+  # Replicas cannot share the host port of video-dub.
+  override="$(mktemp)"
+  printf 'services:\n  video-dub:\n    ports: !reset []\n' >"$override"
+  docker compose -f docker-compose.yml -f "$override" --profile dub --profile dub-separate \
+    up -d --no-deps --wait --scale video-dub="$DUB_WORKERS" video-dub >/dev/null
+
+  since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  dub_metrics >"$RAW/dub-load-metrics-before.json"
+  local clip_dir
+  clip_dir="$(cd "$(dirname "$DUB_CLIP")" && pwd)"
+  k6 dub-load -v "$clip_dir/$(basename "$DUB_CLIP"):/clip/clip.mp4:ro" \
+    -e MAX_DUBS="$MAX_DUBS" -e RUN="$(date +%s)" \
+    -e DUB_USERS="${DUB_USERS:-4}" -e DUB_USER_FROM="${DUB_USER_FROM:-1}" \
+    -e STEADY="${STEADY:-30m}" -e PEAK="${PEAK:-29m}" \
+    -e STEADY_PER_HOUR="${STEADY_PER_HOUR:-45}" -e PEAK_PER_HOUR="${PEAK_PER_HOUR:-120}" ||
+    status=$?
+  # Services push metrics every 15 s (OTEL_METRIC_EXPORT_INTERVAL), the collector batches them.
+  sleep 45
+  dub_metrics >"$RAW/dub-load-metrics-after.json"
+  dub_jobs "$since" >"$RAW/dub-load-jobs.json"
+
+  docker compose --profile dub --profile dub-separate \
+    up -d --no-deps --wait --scale video-dub=1 video-dub >/dev/null
+  rm -f "$override"
+  node scripts/dub-load-report.mjs "$RAW" | tee "$RAW/dub-load-report.md"
+  return "$status"
+}
+
 scenarios=("$@")
 [[ ${#scenarios[@]} -gt 0 ]] || scenarios=(api-baseline rate-limit spike backpressure)
 
@@ -153,6 +232,7 @@ for scenario in "${scenarios[@]}"; do
     backpressure) backpressure ;;
     autocannon) autocannon ;;
     login) login ;;
+    dub-load) dub_load ;;
     *) k6 "$scenario" ;;
   esac
 done
