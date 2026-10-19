@@ -24,6 +24,7 @@
 | [014](0014-media-library.md)                     | Медіатека                                                 | Прийнято |
 | [015](0015-frontend-prerender.md)                | Пререндер фронтенду                                       | Прийнято |
 | [016](0016-video-dub.md)                         | Переклад відео                                            | Прийнято |
+| [017](0017-cluster-in-aws.md)                    | Де запускати кластер                                      | Прийнято |
 
 ## Відповідність номерам PDF
 
@@ -42,5 +43,5 @@
 | 007 Ретраї і DLQ                          | [007](0007-retries-and-dlq.md)                                                                                                                                                                                                                                                                     |
 | 008 Сигнал для автоскейлу і SLO для відео | SLO відео — [008](0008-video-worker.md) і [011](0011-video-transcode.md); сигнал автоскейлу — [012](0012-autoscaling-and-graceful-shutdown.md)                                                                                                                                                     |
 | 009 Стратегія деплою і rollback           | Етап 7                                                                                                                                                                                                                                                                                             |
-| 010 Де запускати кластер (EKS чи k3s)     | Етап 5b                                                                                                                                                                                                                                                                                            |
+| 010 Де запускати кластер (EKS чи k3s)     | [017](0017-cluster-in-aws.md)                                                                                                                                                                                                                                                                      |
 | —                                         | [009](0009-egress-and-webhooks.md) вихідні запити і вебхуки, [010](0010-observability.md) observability, [013](0013-user-authentication.md) автентифікація, [014](0014-media-library.md) медіатека, [015](0015-frontend-prerender.md) пререндер фронтенду, [016](0016-video-dub.md) переклад відео |

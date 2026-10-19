@@ -171,7 +171,7 @@ Requests на двох вузлах (≈7.8 CPU і ≈29 ГіБ під поди)
 - [x] Terraform 1.16.6 — бінарник HashiCorp з перевіркою SHA256 у `~/.local/bin` (Homebrew
       вимагає Command Line Tools для Xcode 27).
 - [x] Квота On-Demand vCPU у `eu-central-1` — 5, а два `m7i.xlarge` займають 8: запит на 16
-      (два вузли й заміна вузла під час оновлення) подано 19 жовтня.
+      (два вузли й заміна вузла під час оновлення) подано й схвалено 19 жовтня.
 - [x] Після `apply` базового шару — у GoDaddy: домен → DNS → Nameservers → «Change» → «I'll use
       my own nameservers», чотири значення з виходу `name_servers`. Записи в DNS GoDaddy після
       цього не діють: усе живе в Route 53. Зроблено 19 жовтня: сервери `.online` і публічні
@@ -181,10 +181,11 @@ Requests на двох вузлах (≈7.8 CPU і ≈29 ГіБ під поди)
 
 **Код:**
 
-- [ ] `deploy/terraform/bootstrap`: S3-бакет для state (versioning, шифрування, Block Public
+- [x] `deploy/terraform/bootstrap`: S3-бакет для state (versioning, шифрування, Block Public
       Access, заборона запитів без TLS); state самого bootstrap — локальний, у `.gitignore`.
-- [ ] `deploy/terraform/base` (`versions.tf`, `backend.tf`, `dns.tf`, `network.tf`, `rds.tf`,
-      `storage.tf`, `ecr.tf`, `ssm.tf`, `github.tf`, `budget.tf`, `outputs.tf`):
+- [x] `deploy/terraform/base` (`versions.tf`, `dns.tf`, `network.tf`, `database.tf`, `storage.tf`,
+      `services.tf`, `ssm.tf`, `github.tf`, `budget.tf`, `outputs.tf`). RDS — за прапорцем
+      `database_enabled`, вмикається в день першого кластера:
   - hosted zone `pdp-media-pipeline.online`; CAA — `letsencrypt.org` і `amazon.com` (для
     запасного варіанта з ACM), без них сертифікат може випустити будь-який центр;
   - VPC: 2 AZ, публічні й приватні підмережі з тегами для LB Controller, без NAT, S3 gateway
@@ -203,13 +204,14 @@ Requests на двох вузлах (≈7.8 CPU і ≈29 ГіБ під поди)
   - AWS Budgets: бюджет `pdp-monthly` з Етапу 0 імпортується (`import`), $15, email — у
     `terraform.tfvars` поза репозиторієм;
   - параметри `/pdp/prod/*`: домен, зона, бакет, endpoint RDS, ARN ролей, реєстр ECR.
-- [ ] CI: job `terraform` — `terraform fmt -check` і `init -backend=false && validate` для трьох
-      шарів, Trivy в режимі `config` (звіт, як для образів).
-- [ ] ADR-017 «Де запускати кластер»: EKS проти k3s на EC2 і EKS Auto Mode, Pod Identity проти
+- [x] CI: job `terraform` — `terraform fmt -check` і `init -backend=false && validate` для трьох
+      шарів, Trivy в режимі `config` (звіт, як для образів). Свідомі відступи — шифрування без
+      власного ключа KMS і публічні адреси вузлів — позначені `#trivy:ignore` з причиною.
+- [x] ADR-017 «Де запускати кластер»: EKS проти k3s на EC2 і EKS Auto Mode, Pod Identity проти
       IRSA, Redis у кластері проти ElastiCache (з урахуванням сесій), NAT проти публічних
       підмереж; вартість на місяць для «постійно» і
       «на вимогу».
-- [ ] Таблиця відповідності ADR номерам PDF: 010 → 017.
+- [x] Таблиця відповідності ADR номерам PDF: 010 → 017.
 
 **Перевірити:**
 
