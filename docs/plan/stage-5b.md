@@ -165,8 +165,9 @@ Requests на двох вузлах (≈7.8 CPU і ≈29 ГіБ під поди)
       19 жовтня.
 - [x] Профіль `pdp` в `~/.aws/config` (`sso-session pdp`); `aws sso login --profile pdp`;
       `aws sts get-caller-identity` показує роль `AWSReservedSSO_AdministratorAccess_*`.
-- [ ] IAM-користувач `vitalii` з Етапу 0 (`AdministratorAccess`, пароль, без ключів) — видалити,
-      коли вхід через портал перевірено: аварійний доступ дає root.
+- [x] IAM-користувач `vitalii` з Етапу 0 (`AdministratorAccess`, пароль і MFA) лишається
+      аварійним входом у консоль на випадок збою Identity Center; access keys йому не
+      створюються, щоденна робота — лише через SSO.
 - [x] Terraform 1.16.6 — бінарник HashiCorp з перевіркою SHA256 у `~/.local/bin` (Homebrew
       вимагає Command Line Tools для Xcode 27).
 - [x] Квота On-Demand vCPU у `eu-central-1` — 5, а два `m7i.xlarge` займають 8: запит на 16
