@@ -308,6 +308,13 @@ export class DubQuotaResponseDto {
   @ApiProperty({ description: 'What a new dub may still take; a longer video gets 429.' })
   remainingSeconds!: number;
 
+  @ApiProperty({
+    description:
+      'The service-wide monthly limit, not the own one, leaves less: remainingSeconds is ' +
+      'what is left of it, and a longer video gets 429 DUB_SYSTEM_QUOTA_EXCEEDED.',
+  })
+  systemLimited!: boolean;
+
   @ApiProperty({ description: 'Longest video one dub accepts.' })
   maxVideoSeconds!: number;
 

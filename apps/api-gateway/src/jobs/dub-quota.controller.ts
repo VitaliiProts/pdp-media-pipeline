@@ -18,10 +18,13 @@ export class DubQuotaController {
   @Get()
   @ApiOkResponse({ type: DubQuotaResponseDto })
   async get(@UserId() userId: string): Promise<DubQuotaResponseDto> {
-    const quota = await this.metadata.getDubQuota(userId);
+    const { systemRemainingSeconds, ...quota } = await this.metadata.getDubQuota(userId);
+    const own = Math.max(0, quota.limitSeconds - quota.usedSeconds);
+    const systemLimited = systemRemainingSeconds !== null && systemRemainingSeconds < own;
     return {
       ...quota,
-      remainingSeconds: Math.max(0, quota.limitSeconds - quota.usedSeconds),
+      remainingSeconds: systemLimited ? systemRemainingSeconds : own,
+      systemLimited,
       maxVideoSeconds: DUB_MAX_DURATION_SECONDS,
     };
   }

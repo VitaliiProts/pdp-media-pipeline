@@ -45,7 +45,7 @@ import {
 } from '../database/schema';
 import { enqueueEvent } from '../outbox/outbox';
 import { WebhooksService } from '../webhooks/webhooks.service';
-import { assertDubQuota, dubQuotaOf } from './dub-quota';
+import { assertDubQuota, type DubQuotaLimits, dubQuotaOf } from './dub-quota';
 import { insertJob } from './insert-job';
 import { decodeCursor, encodeCursor, toJobDto } from './job.mapper';
 import {
@@ -78,7 +78,7 @@ const seconds = (from: Date, to: Date) => Math.max(0, (to.getTime() - from.getTi
 export class JobsService {
   private readonly policy: RetryPolicy;
   private readonly idempotencyTtlHours: number;
-  private readonly dubQuotaSeconds: number;
+  private readonly dubQuotaLimits: DubQuotaLimits;
 
   constructor(
     private readonly pg: PostgresService,
@@ -88,11 +88,14 @@ export class JobsService {
   ) {
     this.policy = { maxAttempts: config.get('JOB_MAX_ATTEMPTS', { infer: true }) };
     this.idempotencyTtlHours = config.get('IDEMPOTENCY_TTL_HOURS', { infer: true });
-    this.dubQuotaSeconds = config.get('DUB_QUOTA_SECONDS', { infer: true });
+    this.dubQuotaLimits = {
+      userSeconds: config.get('DUB_QUOTA_SECONDS', { infer: true }),
+      systemSeconds: config.get('DUB_SYSTEM_QUOTA_SECONDS', { infer: true }),
+    };
   }
 
   dubQuota(userId: string): Promise<DubQuotaDto> {
-    return dubQuotaOf(this.pg.db, userId, this.dubQuotaSeconds);
+    return dubQuotaOf(this.pg.db, userId, this.dubQuotaLimits);
   }
 
   async create(req: CreateJobRequest): Promise<CreateJobResponse> {
@@ -114,7 +117,7 @@ export class JobsService {
 
       const { sourceKey } = input.data as { sourceKey?: string };
       if (req.type === 'video.dub' && sourceKey) {
-        await assertDubQuota(tx, req.userId, sourceKey, this.dubQuotaSeconds);
+        await assertDubQuota(tx, req.userId, sourceKey, this.dubQuotaLimits);
       }
       const job = await insertJob(tx, {
         userId: req.userId,

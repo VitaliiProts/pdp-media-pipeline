@@ -9,8 +9,11 @@ const error = (code: MetadataErrorBody['code'], message: string): MetadataErrorB
   message,
 });
 
+/** Monthly dub seconds: per user, and for all users together (0 = no such limit). */
+export type DubQuotaLimits = { userSeconds: number; systemSeconds: number };
+
 /**
- * Checks a new dub against the monthly quota inside the transaction that creates it. A dub
+ * Checks a new dub against the monthly quotas inside the transaction that creates it. A dub
  * counts the duration it reported once it succeeded, and until then the known duration of its
  * asset, or the longest allowed when nothing probed it yet. A failed or dead dub counts nothing.
  */
@@ -18,7 +21,7 @@ export async function assertDubQuota(
   tx: Tx,
   userId: string,
   sourceKey: string,
-  quotaSeconds: number,
+  limits: DubQuotaLimits,
 ): Promise<void> {
   // Serialises the check per user, so two dubs cannot both fit the last gap; NO KEY UPDATE
   // leaves inserts that only reference the user unblocked.
@@ -45,35 +48,56 @@ export async function assertDubQuota(
 
   const needed = Math.ceil(known ?? DUB_MAX_DURATION_SECONDS);
   const used = await usedDubSeconds(tx, userId);
-  if (used + needed > quotaSeconds) {
+  if (used + needed > limits.userSeconds) {
     throw new HttpException(
       error(
         'DUB_QUOTA_EXCEEDED',
-        `dub quota exceeded: ${used} of ${quotaSeconds} s used this month, the video needs ` +
-          `${needed} s`,
+        `dub quota exceeded: ${used} of ${limits.userSeconds} s used this month, the video ` +
+          `needs ${needed} s`,
+      ),
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+
+  if (limits.systemSeconds === 0) return;
+  // One lock for every user, taken after the user's row and released at commit. Dubs are
+  // created rarely, so the wait is a few milliseconds.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('dub-system-quota', 0))`);
+  const usedByAll = await usedDubSeconds(tx);
+  if (usedByAll + needed > limits.systemSeconds) {
+    throw new HttpException(
+      error(
+        'DUB_SYSTEM_QUOTA_EXCEEDED',
+        `the service's dub time for this month is used up: ${usedByAll} of ` +
+          `${limits.systemSeconds} s, the video needs ${needed} s`,
       ),
       HttpStatus.TOO_MANY_REQUESTS,
     );
   }
 }
 
-/** What `assertDubQuota` would count now; a read without the user lock, for display. */
+/** What `assertDubQuota` would count now; a read without the locks, for display. */
 export async function dubQuotaOf(
   db: Db,
   userId: string,
-  quotaSeconds: number,
+  limits: DubQuotaLimits,
   now = new Date(),
 ): Promise<DubQuotaDto> {
   const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId));
   if (!user) throw new NotFoundException(error('USER_NOT_FOUND', `user ${userId} not found`));
   return {
     usedSeconds: await usedDubSeconds(db, userId),
-    limitSeconds: quotaSeconds,
+    limitSeconds: limits.userSeconds,
+    systemRemainingSeconds:
+      limits.systemSeconds === 0
+        ? null
+        : Math.max(0, limits.systemSeconds - (await usedDubSeconds(db))),
     resetsAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString(),
   };
 }
 
-async function usedDubSeconds(tx: Db | Tx, userId: string): Promise<number> {
+/** Of one user, or of everyone without `userId`. */
+async function usedDubSeconds(tx: Db | Tx, userId?: string): Promise<number> {
   const [row] = await tx
     .select({
       used: sql<string>`coalesce(sum(case
@@ -87,7 +111,7 @@ async function usedDubSeconds(tx: Db | Tx, userId: string): Promise<number> {
     .leftJoin(assets, eq(assets.id, jobs.assetId))
     .where(
       and(
-        eq(jobs.userId, userId),
+        userId === undefined ? undefined : eq(jobs.userId, userId),
         eq(jobs.type, 'video.dub'),
         sql`${jobs.createdAt} >= date_trunc('month', now(), 'UTC')`,
       ),
