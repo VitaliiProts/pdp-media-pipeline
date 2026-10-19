@@ -1,13 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { delay, http, HttpResponse } from 'msw';
 import { type Job } from '../features/jobs';
-import { videoDurationOf } from '../features/upload/lib/video-duration';
 import { TEST_EMAIL, TEST_PASSWORD, testAsset } from '../test/fixtures';
 import { renderApp } from '../test/render-app';
 import { server, STORAGE_ORIGIN } from '../test/server';
-
-// jsdom reads no media metadata.
-vi.mock('../features/upload/lib/video-duration', () => ({ videoDurationOf: vi.fn() }));
 
 const CORS = {
   'Access-Control-Allow-Origin': window.location.origin,
@@ -315,8 +311,20 @@ describe('upload dialog', () => {
 
     const clip = () => new File([new Uint8Array(64)], 'clip.mp4', { type: 'video/mp4' });
 
+    // jsdom loads no media: a video reports this length once it is given a source.
+    function videoLasts(seconds: number) {
+      vi.spyOn(HTMLMediaElement.prototype, 'duration', 'get').mockReturnValue(seconds);
+      vi.spyOn(HTMLMediaElement.prototype, 'src', 'set').mockImplementation(function (
+        this: HTMLMediaElement,
+      ) {
+        setTimeout(() => this.dispatchEvent(new Event('loadedmetadata')));
+      });
+    }
+
+    afterEach(() => vi.restoreAllMocks());
+
     it('confirms the length and the time left, then uploads with frames and a dub', async () => {
-      vi.mocked(videoDurationOf).mockResolvedValue(12.4);
+      videoLasts(12.4);
       const { jobs } = dubHandlers();
       const { user, dialog, router } = await chooseTranslation();
 
@@ -358,7 +366,7 @@ describe('upload dialog', () => {
     });
 
     it('refuses a video too long to translate and goes back to the choice', async () => {
-      vi.mocked(videoDurationOf).mockResolvedValue(75);
+      videoLasts(75);
       const { jobs } = dubHandlers();
       const { user, dialog } = await chooseTranslation();
       await user.upload(
@@ -376,7 +384,7 @@ describe('upload dialog', () => {
     });
 
     it('holds a full minute for a new video when little time is left', async () => {
-      vi.mocked(videoDurationOf).mockResolvedValue(10);
+      videoLasts(10);
       dubHandlers(45);
       const { user, dialog } = await chooseTranslation();
       await user.upload(
@@ -398,7 +406,7 @@ describe('upload dialog', () => {
     });
 
     it('shows on the tile when the month’s translation time ran out meanwhile', async () => {
-      vi.mocked(videoDurationOf).mockResolvedValue(10);
+      videoLasts(10);
       dubHandlers();
       server.use(
         http.post('/v1/jobs', async ({ request }) => {
