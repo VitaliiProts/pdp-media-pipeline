@@ -25,12 +25,18 @@ flowchart LR
   NATS -->|pull consumer| W[Worker]
   NATS -->|pull consumer| VW[Video worker]
   NATS -->|pull consumer| VT[Video transcode]
+  NATS -->|pull consumer| VD[Video dub]
   W -->|sharp: thumb / medium / large| S3
   VW -->|ffmpeg: превʼю і кадри| S3
   VT -->|ffmpeg: 480p і 720p MP4| S3
+  VD -->|розпізнавання і переклад| OAI[OpenAI]
+  VD -->|голос, фон, час слів, стать| AS[audio-separate]
+  AS --> S3
+  VD -->|Supertonic і ffmpeg: дубляж, VTT| S3
   W -->|переходи статусів| META
   VW -->|переходи статусів| META
   VT -->|переходи і прогрес| META
+  VD -->|переходи, прогрес і крок| META
   W -->|webhook.deliver, підпис HMAC| RCV[Приймач вебхуків]
 ```
 
@@ -44,7 +50,8 @@ flowchart LR
    Кожна спроба пишеться в `job_executions`. Відео (`video.frames`) бере окремий video-worker:
    ffprobe перевіряє файл, ffmpeg робить превʼю і кадри в `results/{jobId}/frames/NNNN.jpg`.
    `video.transcode` бере сервіс `video-transcode` з того самого образу: MP4 у
-   `results/{jobId}/{480p|720p}.mp4`.
+   `results/{jobId}/{480p|720p}.mp4`. `video.dub` бере `video-dub` (Debian-образ із вагами
+   Supertonic): MP4 з дубляжем і оригіналом другою доріжкою та субтитри VTT у `results/{jobId}/`.
 5. Статуси: `queued → scheduled → running → succeeded | dead`, переходи лише через
    машину станів у Metadata. Невдача — це `dead` з причиною: `permanent` (файл непридатний) або
    `exhausted` (усі спроби вичерпано).
@@ -145,6 +152,32 @@ flowchart LR
   задачам `WORKER_SHUTDOWN_GRACE_MS`. Потім скасовує їх (ffmpeg вбивається) і повертає в чергу як
   `interrupted`: інший под бере задачу одразу, а спроба не рахується.
 
+Акаунти, медіатека й новий UI (Етап 5c, [ADR-013](docs/adr/0013-user-authentication.md),
+[ADR-014](docs/adr/0014-media-library.md), [ADR-015](docs/adr/0015-frontend-prerender.md)):
+
+- **Вхід.** Email і пароль (argon2id), сесія в Redis і cookie `HttpOnly` / `SameSite`, перевірка
+  `Origin`, окремі ліміти входу за IP і email. API-ключі лишаються для скриптів і k6.
+- **Медіатека.** Кожне завантаження — asset користувача з квотою сховища; список з курсором,
+  фільтрами й пошуком, сторінка файлу з оригіналом і всіма версіями, видалення з очищенням
+  MinIO; покинуті завантаження прибирає janitor.
+- **Web UI.** Каркас з навігацією і дизайн-системою, медіатека, налаштування; сторінки входу,
+  реєстрації й опису сервісу пререндерені на збірці й гідруються.
+
+Переклад відео (Етап 5d, [ADR-016](docs/adr/0016-video-dub.md)):
+
+- **`video.dub`.** Відео з медіатеки до хвилини перекладається однією з п'яти мов (`uk`, `de`,
+  `en`, `es`, `fr`): розпізнавання з мовцями й переклад в OpenAI, розділення голосу й фону, час
+  слів і стать мовців у Python-сервісі `audio-separate`, озвучка Supertonic голосом своєї статі,
+  зведення з фоном у ffmpeg. Фраза стає на місце оригінальної, за потреби прискорюється або
+  перефразовується коротше.
+- **Платне API без повторної оплати.** Кожен крок пише чекпоінт у S3: повтор, redrive чи под,
+  убитий посеред задачі, продовжують з останнього готового кроку. Ретраї всередині спроби,
+  circuit breaker провайдера, коди помилок (`no_speech`, `same_language`, `stt_unavailable` …).
+- **Ліміти.** Хвилина відео на задачу і 30 хв на користувача за місяць (`429 DUB_QUOTA_EXCEEDED`);
+  `GET /v1/dub-quota` показує залишок.
+- **Web UI.** «Перекласти» в діалозі завантаження і на сторінці файлу, сторінка перекладу з
+  кроками, програвачем «переклад / оригінал», транскриптом і виправленням мовців.
+
 ### Структура репозиторію
 
 | Шлях                                   | Що там                                                              |
@@ -153,10 +186,10 @@ flowchart LR
 | `apps/metadata`                        | PostgreSQL (Drizzle), машина станів, outbox, внутрішній REST        |
 | `apps/scheduler`                       | `job.created` → стрім класу                                         |
 | `apps/worker`                          | `image.resize` через sharp і доставка вебхуків `webhook.deliver`    |
-| `apps/video-worker`                    | `video.frames` через ffmpeg, окремий образ                          |
+| `apps/video-worker`                    | `video.frames`, `video.transcode` і `video.dub`, окремі образи      |
 | `apps/audio-separate`                  | Python: розділення голосу, час слів і стать мовців для `video.dub`  |
 | `apps/webhook-receiver`                | Тестовий «поганий» приймач вебхуків для compose і тестів            |
-| `apps/web`                             | React + Redux Toolkit, завантаження, задачі, вебхуки                |
+| `apps/web`                             | React + Redux Toolkit: вхід, медіатека, переклад, задачі, вебхуки   |
 | `libs/egress`                          | Безпечні вихідні запити: SSRF-захист, ліміти, ліміт на хост         |
 | `libs/worker-kit`                      | Спільне для воркерів: `JobRunner`, `PermanentError`, S3, джерела    |
 | `libs/observability`                   | OpenTelemetry SDK, хелпери span'ів, baggage і метрик, логер, health |
@@ -165,7 +198,9 @@ flowchart LR
 | `deploy/k3d`                           | Локальний кластер k3d з registry                                    |
 | `deploy/observability`                 | Collector, Tempo, правила vmalert, Alertmanager, дашборди Grafana   |
 | `perf/k6`, `perf/reports`              | Навантажувальні сценарії і звіти                                    |
-| `docs/adr`, `docs/plan`, `docs/spikes` | Рішення, плани етапів, нотатки спайку                               |
+| `docs/adr`, `docs/plan`, `docs/spikes` | Рішення, плани етапів, нотатки спайків                              |
+| `docs/design`                          | Інформаційна архітектура, вайрфрейми, дизайн-система                |
+| `docs/pdp-progress.md`                 | Прогрес за пунктами PDP                                             |
 | `test/`                                | Інтеграційні тести на Testcontainers                                |
 
 ## Запуск
@@ -1048,6 +1083,111 @@ GET з `Content-Disposition: attachment`; посилання стабільні 
    Результати — [звіт 5c](perf/reports/stage-5c.md).
 6. Документи: [ADR-015](docs/adr/0015-frontend-prerender.md), [план 5c–5d](docs/plan/stages-5c-5d.md).
 
+### Етап 5d.1. Конвеєр перекладу
+
+**Критерій підетапу:** `video.dub` з медіатеки дає MP4 з дубляжем і оригіналом другою доріжкою,
+субтитри VTT і транскрипт у `GET /v1/jobs/:id`; повтор після збою не платить удруге за готовий
+крок; ліміти й квота дають зрозумілі помилки; кроки видно в трейсі, метриках і дашборді **Dub**.
+
+Що з'явилося:
+
+- Тип `video.dub` (клас `cpu`), Deployment `video-dub` і сервіс `audio-separate` (Python,
+  Demucs, `MMS_FA`, класифікатор статі) з NetworkPolicy: назовні ходить лише `video-dub`.
+- Шість кроків з чекпоінтами в S3: `extract`, `separate`, `align`, `translate`, `voice`, `mix`;
+  `progress` і `progressStep` у `GET /v1/jobs/:id`, поки задача `running`.
+- `reuseOf` і `speakers`: новий дубляж того самого файлу бере розпізнавання й аналіз звуку
+  попереднього і змінює лише стать або голос мовців.
+- Провайдери за інтерфейсами: OpenAI і Supertonic у продакшні, фейки для тестів, k6 і compose.
+
+1. Стек з фейковими провайдерами (без ключа й оплати), API-ключ і кліп зі звуком —
+   `perf/k6/fixtures/video.mp4` німий, дубляж відмовить з `no_audio`:
+   ```bash
+   docker compose --profile dub up -d --build --wait
+   KEY=$(docker compose exec -T metadata node dist/seed-user.js --name dub | jq -r .apiKey)
+   docker run --rm -v "$PWD:/out" --entrypoint ffmpeg pdp/video-dub:dev -v error \
+     -f lavfi -i testsrc2=size=1280x720:rate=30 -f lavfi -i sine=frequency=440 -t 20 \
+     -c:v libx264 -pix_fmt yuv420p -c:a aac -y /out/dub-test.mp4
+   ```
+2. Завантажити кліп і створити дубляж українською; кроки змінюються, поки задача йде:
+   ```bash
+   CLIP=dub-test.mp4
+   UP=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"contentType\":\"video/mp4\",\"size\":$(wc -c < $CLIP | tr -d ' '),\"name\":\"dub-test.mp4\"}" \
+     localhost:18080/v1/uploads)
+   curl -s -X PUT -H 'content-type: video/mp4' --data-binary @$CLIP "$(jq -r .uploadUrl <<<"$UP")"
+   JOB=$(curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"video.dub\",\"sourceKey\":\"$(jq -r .sourceKey <<<"$UP")\",\"targetLanguage\":\"uk\"}" \
+     localhost:18080/v1/jobs | jq -r .jobId)
+   for i in $(seq 30); do
+     curl -s -H "x-api-key: $KEY" localhost:18080/v1/jobs/$JOB | jq -c '{status, progress, progressStep}'
+     sleep 3
+   done
+   ```
+3. Результат — поле `dub`: мови, мовці з голосами, фрази, статистика підгонки й presigned
+   посилання на MP4 і VTT:
+   ```bash
+   R=$(curl -s -H "x-api-key: $KEY" localhost:18080/v1/jobs/$JOB)
+   jq -c '.dub | {sourceLanguage, targetLanguage, speakers: [.speakers[] | {id, gender, voice}],
+     phrases: (.phrases | length), stats}' <<<"$R"
+   curl -s "$(jq -r .dub.subtitles.url <<<"$R")" | head -5                         # WEBVTT
+   curl -s -o /dev/null -w '%{http_code}\n' "$(jq -r .dub.video.url <<<"$R")"      # 200
+   ```
+4. Ліміти: та сама мова — `400`, залишок квоти — `GET /v1/dub-quota`:
+   ```bash
+   curl -s -H "x-api-key: $KEY" -H 'content-type: application/json' \
+     -d "{\"type\":\"video.dub\",\"sourceKey\":\"$(jq -r .sourceKey <<<"$UP")\",\"targetLanguage\":\"uk\",\"sourceLanguage\":\"uk\"}" \
+     localhost:18080/v1/jobs | jq -c '{statusCode, message}'                        # 400
+   curl -s -H "x-api-key: $KEY" localhost:18080/v1/dub-quota | jq -c
+   ```
+5. Спостережуваність: дашборд **Dub** у Grafana (http://localhost:13000) — тривалість кроків,
+   виклики провайдерів, підгонка фраз, стан breaker'а; трейс задачі зі span'ами `dub.step.*`
+   відкривається з дашборду **Job**.
+6. Тести: unit — `apps/video-worker/src/dub/` (фрази, підгонка, ffmpeg, чекпоінти, процесор,
+   провайдери, breaker), `apps/audio-separate/tests`; інтеграційні — `test/video-dub.int-spec.ts`
+   (наскрізь на справжньому ffmpeg: дві доріжки `ukr` / `eng`, `reuseOf`, `no_audio`),
+   `test/dub-limits.int-spec.ts` (ліміти й квота), `test/dub-kill.int-spec.ts` (`SIGKILL`
+   посеред аналізу: задача не губиться, розпізнавання й розділення вдруге не викликаються).
+7. Документи: [ADR-016](docs/adr/0016-video-dub.md), [спайк 02](docs/spikes/02-video-dub.md),
+   [план 5c–5d](docs/plan/stages-5c-5d.md).
+
+### Етап 5d.2. UI перекладу
+
+**Критерій підетапу:** вибір мови, прогрес по кроках, перегляд з перемиканням доріжок і
+транскриптом, виправлення мовця — усе в браузері, без API і консолі.
+
+Що з'явилося:
+
+- «Перекласти» — третій режим відео в діалозі завантаження і кнопка на сторінці файлу: цільова
+  мова (`uk`, `de`, `en`, `es`, `fr`), мова оригіналу (за замовчуванням визначається сама),
+  тривалість, залишок квоти з `GET /v1/dub-quota`, попередження про задовге відео й про те, що
+  звук і текст ідуть в OpenAI.
+- Сторінка перекладу `/library/:assetId/dubs/:jobId`: шість кроків з поточним і відсотком, поки
+  задача йде; помилка словами за кодом і «Спробувати ще раз» для збоїв провайдера. Готовий
+  переклад — програвач «переклад / оригінал» на тому самому моменті, субтитри VTT, завантаження
+  MP4 і VTT, визначена мова. Поруч транскрипт: таймкод (клік перемотує), мовець, оригінал і
+  переклад, позначки «прискорено», «скорочено», «не вмістилося», нерозпізнані фрагменти. Під
+  програвачем мовці: виправлена стать або голос запускає новий дубляж з `speakers` і `reuseOf`.
+- Медіатека: бейдж «Є переклад: DE, UK» на плитці, фільтр «З перекладом» (`?dubbed=true`);
+  на сторінці файлу — посилання на незавершені переклади, готові переклади у «Версіях».
+
+1. Підняти воркер дубляжу з фейковими розпізнаванням, перекладом і розділенням (без ключа й
+   оплати): `docker compose --profile dub up -d --build --wait`.
+2. «Завантажити» → `dub-test.mp4` (крок 1 [Етапу 5d.1](#етап-5d1-конвеєр-перекладу)) → режим
+   «Перекласти», мова «Українська» (фейкове
+   розпізнавання вважає оригінал англійським, тож англійська дасть `same_language`) →
+   «Завантажити й перекласти». Екран підтвердження показує тривалість і залишок квоти; з
+   квотою, меншою за хвилину, кнопка неактивна.
+3. Відкрити файл → «Іде переклад: Українська» веде на сторінку перекладу: кроки змінюються без
+   перезавантаження, після перезавантаження сторінка показує той самий стан.
+4. Коли переклад готовий: перемкнути «Оригінал» і назад — відтворення триває з того самого
+   моменту; клік на таймкод у транскрипті перемотує, поточна фраза підсвічена.
+5. «Тип голосу» мовця B → інший, «Озвучити знову» → сторінка нового перекладу; у задачі
+   `reuseOf` вказує на попередню, розпізнавання не повторюється.
+6. Медіатека: на плитці «Є переклад: UK», «З перекладом» лишає тільки такі файли.
+7. Справжні провайдери (платно; образ `audio-separate` ~6 ГБ): відео з мовленням і
+   `DUB_PROVIDERS=openai DUB_AUDIO_SEPARATE=http OPENAI_API_KEY=…
+docker compose --profile dub --profile dub-separate up -d --build --wait`.
+
 ## Конфігурація Етапу 2
 
 Ліміти й пороги задаються через env gateway; у `docker-compose.yml` їх можна перевизначити
@@ -1148,7 +1288,10 @@ Supertonic) з `VIDEO_JOB_TYPES=video.dub`. У compose — `--profile dub`, фе
 `audio-separate` — `--profile dub-separate`.
 
 Результат — поле `dub` у `GET /v1/jobs/:id`: мови, мовці, фрази з таймкодами, статистика
-підгонки, presigned `video` і `subtitles`. Спостережуваність: span `dub.step.*` на кожен крок і
+підгонки, presigned `video` і `subtitles`. `GET /v1/dub-quota` — використано й лишилось секунд
+цього місяця так, як їх рахує перевірка створення, і найдовше відео для дубляжу;
+`GET /v1/assets` віддає `dubs` (мови готових перекладів) і фільтр `dubbed=true`.
+Спостережуваність: span `dub.step.*` на кожен крок і
 `dub.transcribe` / `translate` / `refit` / `separate` / `analyze` на виклик провайдера;
 метрики `dub_step_duration_seconds{step}`, `dub_provider_duration_seconds{provider,outcome}`,
 `dub_breaker_state`, `dub_phrases_total`, `dub_phrases_adjusted_total{adjustment}`,

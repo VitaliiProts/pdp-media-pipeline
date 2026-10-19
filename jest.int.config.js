@@ -9,7 +9,10 @@ module.exports = {
   testTimeout: 180_000,
   maxWorkers: 1,
   // Libs are loaded from their dist, so only app sources are attributed here.
-  collectCoverageFrom: ['apps/*/src/**/*.ts', '!**/*.spec.ts', '!**/main.ts'],
+  // The web app is covered by Vitest, not by these tests.
+  collectCoverageFrom: ['apps/*/src/**/*.ts', '!**/*.spec.ts', '!**/main.ts', '!apps/web/**'],
+  // Applies only with --coverage, as in CI. Branches (68%) get a floor in Stage 6.
+  coverageThreshold: { global: { lines: 80, statements: 80, functions: 80 } },
   coverageDirectory: '<rootDir>/coverage-int',
   coverageReporters: ['text-summary', 'json-summary', 'lcov'],
 };

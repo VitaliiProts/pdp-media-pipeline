@@ -1,0 +1,93 @@
+{
+  "title": "Translation",
+  "heading": "{{name}} · {{language}}",
+  "loading": "Loading the translation…",
+  "notFoundTitle": "Translation not found",
+  "notFoundBody": "The link may be wrong, or the translation is older than the 50 newest jobs on the file.",
+  "toLibrary": "Back to the library",
+  "toFile": "Back to the file",
+  "errorTitle": "Could not load the translation",
+  "error": "The gateway did not answer. Try again in a moment.",
+  "tooManyRequests_one": "Too many requests. Try again in {{count}} second.",
+  "tooManyRequests_other": "Too many requests. Try again in {{count}} seconds.",
+  "steps": {
+    "label": "Steps",
+    "extract": "Extract the sound",
+    "separate": "Separate the voice and recognise the speech",
+    "align": "Time every word",
+    "translate": "Translate",
+    "voice": "Voice the translation",
+    "mix": "Mix it over the background",
+    "done": "done",
+    "current": "in progress",
+    "pending": "to do"
+  },
+  "progress": {
+    "label": "Translation progress",
+    "queued": "Waiting for a free worker…",
+    "retrying": "Trying again soon. Last time: {{reason}}",
+    "started": "Started…",
+    "percent": "{{percent}}% done",
+    "leave": "You can leave this page: the translation goes on, and the library brings you back here."
+  },
+  "failure": {
+    "title": "The video was not translated",
+    "no_audio": "The video has no sound.",
+    "no_speech": "No speech was recognised in the video.",
+    "same_language": "The speech is already in the language of the translation.",
+    "too_long": "The video is longer than a minute.",
+    "stt_unavailable": "Speech recognition is unavailable right now. Try again later.",
+    "translate_unavailable": "Translation is unavailable right now. Try again later.",
+    "other": "Something went wrong while translating.",
+    "retry": "Try again",
+    "retryFailed": "Could not start the translation again."
+  },
+  "result": {
+    "player": "Play {{name}}",
+    "track": "Soundtrack",
+    "original": "Original",
+    "dubbed": "Translation · {{language}}",
+    "subtitles": "Subtitles · {{language}}",
+    "unplayable": "This video could not be played.",
+    "downloadVideo": "Download MP4 · {{size}}",
+    "downloadSubtitles": "Download subtitles (VTT)",
+    "target": "Translation",
+    "source": "Original language",
+    "sourceDetected": "{{language}} (detected)",
+    "duration": "Length",
+    "phrases": "Phrases",
+    "phrasesValue_one": "{{count}}: {{sped}} sped up, {{refitted}} shortened, {{overflowed}} ran over",
+    "phrasesValue_other": "{{count}}: {{sped}} sped up, {{refitted}} shortened, {{overflowed}} ran over"
+  },
+  "transcript": {
+    "title": "Transcript",
+    "empty": "No speech was recognised.",
+    "time": "Time",
+    "speaker": "Speaker",
+    "speakerName": "Speaker {{id}}",
+    "playFrom": "Play from {{time}}",
+    "sped": "Sped up ×{{speed}}",
+    "spedHint": "Spoken faster to keep to the original timing.",
+    "refitted": "Shortened",
+    "refittedHint": "Rephrased shorter to keep to the original timing.",
+    "overflowed": "Runs over",
+    "overflowedHint": "Still too long: it runs into the next phrase or past the end of the video.",
+    "unrecognized": "Speech not recognised, until {{until}}: not translated"
+  },
+  "speakers": {
+    "title": "Speakers",
+    "empty": "No speakers were found.",
+    "found": "{{length}} of speech · {{gender}}, {{percent}}% sure",
+    "gender": {
+      "male": "Male voice",
+      "female": "Female voice"
+    },
+    "genderOf": "Voice type for {{name}}",
+    "voiceOf": "Voice for {{name}}",
+    "voice": "Voice {{number}}",
+    "note": "Voiced again from this translation’s recognised speech. It counts towards this month’s translation time.",
+    "redub": "Voice again",
+    "failed": "Could not start the translation again.",
+    "overQuota": "Not enough translation time left this month."
+  }
+}

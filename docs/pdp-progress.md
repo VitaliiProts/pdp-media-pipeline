@@ -1,7 +1,8 @@
 # Vitalii Prots | PDP: прогрес
 
-Стан на 15 жовтня 2026. Структура — з PDP у Notion; детальний план з датами — PDF
-«PDP Media Pipeline — покроковий план реалізації» і [плани етапів](plan/).
+Стан на 19 жовтня 2026. Структура — з PDP у Notion; детальний план з датами — PDF
+«PDP Media Pipeline — покроковий план реалізації» і [плани етапів](plan/). Числа нижче виміряно
+19 жовтня на гілці `feature/stage-5d.2-dub-ui`.
 
 - `[x]` — виконано (посилання — де це видно)
 - `[ ]` **в процесі** — почато, але критерій ще не виконано
@@ -19,23 +20,28 @@
 та підтримувати складний кластерний сервіс із повним життєвим циклом (від ADR до продакшн-релізів
 та автоскейлу).
 
-Сервіс: **PDP Media Pipeline** — ресайз картинок, кадри й транскодинг відео з вебхуками про
-завершення ([README](../README.md), [ADR-001](adr/0001-domain.md)).
+Сервіс: **PDP Media Pipeline** — ресайз картинок, кадри, транскодинг і переклад відео з вебхуками
+про завершення, акаунти й медіатека ([README](../README.md), [ADR-001](adr/0001-domain.md)).
 
 ---
 
 ## Цілі PDP
 
 - [x] **Архітектура:** спроєктувати сервіси з API, чергами та воркерами. Gateway, Metadata,
-      Scheduler і воркери через NATS JetStream, 15 ADR ([docs/adr](adr/README.md)).
+      Scheduler, воркери через NATS JetStream і Python-сервіс `audio-separate`; 16 ADR
+      ([docs/adr](adr/README.md)).
 - [ ] **Надійність** — **в процесі**: ідемпотентність, ретраї з DLQ, fault tolerance.
   - [x] ідемпотентність, outbox та inbox, ретраї з jitter, DLQ і redrive
         ([ADR-006](adr/0006-idempotency-and-delivery.md), [ADR-007](adr/0007-retries-and-dlq.md));
   - [x] rollout і зупинка пода не губять задач ([ADR-012](adr/0012-autoscaling-and-graceful-shutdown.md));
-  - [ ] fault tolerance під chaos-сценаріями (pod kill, затримки, OOM) — Етап 6.
+  - [x] дубляж: чекпоінти кроків, circuit breaker провайдера; под, убитий посеред задачі, не губить
+        її й не платить удруге за готовий крок (`test/dub-kill.int-spec.ts`,
+        [ADR-016](adr/0016-video-dub.md));
+  - [ ] fault tolerance під chaos-сценаріями (pod kill, затримки, OOM) для всієї системи — Етап 6.
 - [ ] **Продуктивність** — **в процесі**: скейл (горизонтальний), контроль RPS і квот, стабільність
       під навантаженням.
-  - [x] контроль RPS і квот, backpressure ([звіт Етапу 2](../perf/reports/stage-2.md));
+  - [x] контроль RPS і квот, backpressure ([звіт Етапу 2](../perf/reports/stage-2.md)); квоти
+        сховища і хвилин дубляжу на користувача (Етапи 5c і 5d);
   - [x] горизонтальний скейл воркерів за лагом черги, HPA gateway
         ([звіт Етапу 5](../perf/reports/stage-5.md));
   - [ ] 10k jobs/год при P95 < 2 хв, stress і soak — Етап 8.
@@ -53,41 +59,45 @@
 - [x] **Backend:** Node.js, TypeScript, NestJS.
 - [x] **Черги:** NATS (JetStream), Redis + BullMQ. JetStream — у системі; BullMQ — у спайку для
       порівняння ([нотатки](spikes/01-jetstream-vs-bullmq.md), [ADR-002](adr/0002-queue.md));
-      Redis — для rate limiting.
+      Redis — для rate limiting і сесій.
 - [x] **БД:** PostgreSQL / Mongo. PostgreSQL з Drizzle і міграціями; Mongo — у порівнянні
       ([ADR-003](adr/0003-database.md)).
 - [x] **Rate limiting:** GCRA у Redis одним Lua-скриптом, fail-open ([ADR-005](adr/0005-rate-limiting.md)).
 - [x] **Observability:** OpenTelemetry, VictoriaMetrics, Grafana, VictoriaLogs і Pino, плюс Tempo
       для трейсів ([ADR-010](adr/0010-observability.md)).
 - [ ] **Тести** — **в процесі**: Jest, Testcontainers, Pact, dependency-cruiser, clinic.js / 0x (optional).
-  - [x] Jest (unit і Web UI), Testcontainers (інтеграційні з Postgres, NATS, Redis, MinIO),
-        dependency-cruiser у CI;
+  - [x] Jest (unit), Vitest + MSW (Web UI), Testcontainers (інтеграційні з Postgres, NATS, Redis,
+        MinIO), pytest (`audio-separate`), dependency-cruiser у CI;
   - [ ] Pact — Етап 6;
   - [ ] clinic.js і 0x — Етап 8.
 - [ ] **DevOps** — **в процесі**: Docker, Helm, Kubernetes (HPA, PDB, readiness), Argo Rollouts,
       GitHub Actions.
   - [x] Docker (multi-stage, non-root), Helm (`pdp-lib`, umbrella, `values-dev`/`values-prod`),
-        Kubernetes з HPA, KEDA, PDB, probes, GitHub Actions;
+        Kubernetes з HPA, KEDA, PDB, probes, NetworkPolicy для `video-dub` і `audio-separate`,
+        GitHub Actions;
   - [ ] AWS, Terraform, деплой з CI — Етап 5b, [план](plan/stage-5b.md);
   - [ ] Argo Rollouts — Етап 7.
-- [x] **Perf tools:** k6 (7 сценаріїв у `perf/k6`), autocannon.
+- [x] **Perf tools:** k6 (8 сценаріїв у `perf/k6`, з них `login.js` — Етап 5c), autocannon.
 
 ---
 
 ## Сервіси для розробки
 
 - [x] **API-Gateway** (REST/GraphQL): створення jobs, статуси, rate limiting. REST з OpenAPI
-      (`/docs`); GraphQL свідомо не робили. Ще: presigned upload, вебхуки, backpressure.
+      (`/docs`); GraphQL свідомо не робили. Ще: вхід і сесії, медіатека, presigned upload,
+      вебхуки, backpressure, квота дубляжу.
 - [x] **Worker Service:** обробка jobs. Замість PDF — медіа: `image.resize` (sharp),
-      `video.frames` і `video.transcode` (ffmpeg, окремий сервіс), `webhook.deliver`.
+      `video.frames` і `video.transcode` (ffmpeg, окремі сервіси), `video.dub` (розпізнавання,
+      переклад і озвучка, окремий Deployment), `webhook.deliver`.
 - [x] **Metadata Service (PostgreSQL):** jobs, executions, audit, users. Плюс машина станів,
-      outbox, inbox, idempotency keys, вебхуки.
+      outbox, inbox, idempotency keys, сесії, медіатека з квотами, вебхуки.
 - [x] **Scheduler:** розподіл jobs за класами (CPU / IO / priority).
 - [x] **Observability Stack:** traces, metrics, logs, Grafana dashboards (Overview, SLO, Queues,
-      Per-service, Job) як код.
+      Per-service, Job, Dub) як код.
 - [ ] **CI/CD Pipeline** — **в процесі**: GitHub Actions, Helm deploy, Argo Rollouts.
-  - [x] GitHub Actions: lint, typecheck, unit, інтеграційні, Helm, правила алертів, образи, Trivy і
-        audit у режимі звіту;
+  - [x] GitHub Actions: lint, typecheck, dependency-cruiser, unit і Web UI, інтеграційні з порогом
+        покриття, тести `audio-separate`, Helm, правила алертів, образи, Trivy і audit у режимі
+        звіту;
   - [ ] Helm deploy з CI в AWS — Етап 5b;
   - [ ] Argo Rollouts — Етап 7.
 
@@ -102,7 +112,8 @@
 - [x] 20 rps на користувача, 200 rps глобально — частки `429` збігаються з розрахунком
       ([звіт Етапу 2](../perf/reports/stage-2.md));
 - [x] `429` з `Retry-After` (і `RateLimit-*`);
-- [x] P95 < 150 мс — 6.8 мс на `api-baseline`.
+- [x] P95 < 150 мс — 6.8 мс на `api-baseline` (Етап 2). Після входу, сесій і медіатеки (5c–5d)
+      повторно не мірялось; перевірка — у змішаному навантаженні Етапу 8.
 
 **Worker**
 
@@ -114,22 +125,26 @@
 
 **Metadata**
 
-- [x] індексація — індекси під списки за користувачем і статусом, outbox, idempotency keys;
+- [x] індексація — індекси під списки за користувачем і статусом, курсор медіатеки (за
+      користувачем і типом), outbox, idempotency keys;
 - [x] upsert — `ON CONFLICT DO NOTHING` для inbox і `job_executions`; унікальний ключ
       `(user_id, key)` для idempotency keys; перехід статусу, inbox і outbox — в одній транзакції.
 
 **Observability**
 
-- [x] SLO 99% jobs < 5 хв — для `image.resize`; для відео окремі пороги
-      ([ADR-008](adr/0008-video-worker.md), [ADR-011](adr/0011-video-transcode.md));
+- [x] SLO 99% jobs < 5 хв — для `image.resize`; для відео окремі пороги: `video.frames` 95% за
+      5 хв, `video.transcode` 95% за 10 хв, `video.dub` 95% за 15 хв
+      ([ADR-008](adr/0008-video-worker.md), [ADR-011](adr/0011-video-transcode.md),
+      [ADR-016](adr/0016-video-dub.md));
 - [x] latency, throughput, errors і queue depth на дашбордах.
 
 **CI/CD**
 
-- [ ] coverage ≥ 80% — **в процесі**: unit — 44.6% рядків, інтеграційні — близько 84% коду
-      застосунків; блокувальний поріг — Етап 6;
-- [ ] 0 critical у `npm audit` — **в процесі**: `pnpm audit` і Trivy в CI у режимі звіту,
-      блокування — Етап 7;
+- [ ] coverage ≥ 80% — **в процесі**: інтеграційні тести покривають 86.2% рядків коду бекенду
+      (84.4% інструкцій, 83% функцій, 68% гілок), і CI падає нижче 80%; unit — 55.1% рядків;
+      покриття Web UI (Vitest) не вимірюється. Поріг на гілки й unit — Етап 6;
+- [ ] 0 critical у `npm audit` — **в процесі**: зараз 0 critical (3 moderate у dev-залежностях
+      Jest), але `pnpm audit` і Trivy в CI лише звітують; блокування — Етап 7;
 - [ ] lead time < 30 хв — Етап 7;
 - [ ] CFR < 15% — Етап 7.
 
@@ -147,14 +162,19 @@
       ([план](plan/stage-4.md)).
 - [x] **Етап 5 — Kubernetes & Autoscaling:** Helm, HPA, PDB, readiness; KEDA, graceful shutdown,
       `video.transcode` ([план](plan/stage-5.md), [звіт](../perf/reports/stage-5.md)).
-- [ ] **Етап 5c — Акаунти, медіатека, новий UI і SSG** (нове, до 5b) — **в процесі**: вхід за
-      email і паролем, каркас UI і дизайн-система, медіатека з оригіналами й версіями, пререндер
-      публічних сторінок ([план](plan/stages-5c-5d.md#етап-5c-акаунти-медіатека-новий-ui-і-ssg-тижні-1619-25-січня--21-лютого),
-      [звіт входу](../perf/reports/stage-5c.md)). Код 5c.1–5c.5 готовий, ADR 013–015; лишається
-      злиття 5c.4–5c.5 і перевірка критерію в k3d.
-- [ ] **Етап 5d — Переклад відео** (нове, до 5b): `video.dub` — розпізнавання, переклад і озвучка
-      з тим самим таймлайном; UI з прогресом по кроках і транскриптом
-      ([план](plan/stages-5c-5d.md#етап-5d-переклад-відео-тижні-2023-22-лютого--21-березня)).
+- [x] **Етап 5c — Акаунти, медіатека, новий UI і SSG** (нове, до 5b): вхід за email і паролем,
+      каркас UI і дизайн-система, медіатека з оригіналами й версіями, пререндер публічних сторінок
+      ([план](plan/stages-5c-5d.md#етап-5c-акаунти-медіатека-новий-ui-і-ssg-тижні-1619-25-січня--21-лютого),
+      [звіт входу](../perf/reports/stage-5c.md), ADR 013–015). У `main` з 15 жовтня; критерій
+      етапу в k3d (`app.pdp.localhost`) ще треба пройти руками.
+- [ ] **Етап 5d — Переклад відео** (нове, до 5b) — **в процесі**: `video.dub` — розпізнавання,
+      переклад і озвучка з тим самим таймлайном; UI з прогресом по кроках і транскриптом
+      ([план](plan/stages-5c-5d.md#етап-5d-переклад-відео-тижні-2023-22-лютого--21-березня),
+      [спайк](spikes/02-video-dub.md), [ADR-016](adr/0016-video-dub.md)).
+  - [x] 5d.1 конвеєр (бекенд) — у `main` з 18 жовтня;
+  - [x] 5d.2 UI перекладу — код і тести готові, гілка `feature/stage-5d.2-dub-ui`;
+  - [ ] злиття 5d.2 і критерій етапу на справжніх провайдерах (п'ять мов, старт фраз ≤ ~0.5 с,
+        голоси своєї статі, увесь шлях у UI).
 - [ ] **Етап 5b — AWS, домен і перший деплой з CI** (є в PDF-плані, тепер після 5c і 5d) — план
       готовий ([план](plan/stage-5b.md)).
 - [ ] **Етап 6 — Testing:** pod kill, delays, fault tolerance; coverage 80%, Pact.
@@ -175,12 +195,15 @@
 ## Фінальна прожарка
 
 - [ ] **Архітектура** — **в процесі**: захист ADR, trade-offs, демонстрація графів.
-  - [x] 15 ADR з альтернативами й trade-offs ([відповідність номерам PDF](adr/README.md#відповідність-номерам-pdf));
+  - [x] 16 ADR з альтернативами й trade-offs ([відповідність номерам PDF](adr/README.md#відповідність-номерам-pdf));
   - [x] графи: схема потоку в [README](../README.md), дашборди Grafana, графіки звітів;
+        вайрфрейми й інформаційна архітектура UI ([docs/design](design/));
+  - [ ] ADR кластера (EKS чи k3s, у PDF — ADR-010) — Етап 5b;
   - [ ] ADR стратегії деплою і rollback (у PDF — ADR-009) — Етап 7;
   - [ ] C4-діаграми (Context і Container).
 - [ ] **Якість:** coverage, contract, memory профайлінг — Етапи 6 і 8.
 - [ ] **Продуктивність** — **в процесі**: k6 звіти, cost per 1k jobs, план оптимізацій.
-  - [x] k6 звіти Етапів 2 і 5;
+  - [x] k6 звіти Етапів 2, 5 і 5c; вартість хвилини дубляжу (≈ $0.012 API,
+        [спайк 02](spikes/02-video-dub.md#час-і-вартість-хвилини));
   - [ ] cost per 1k jobs і план оптимізацій — Етап 8.
 - [ ] **Q&A:** відповіді на питання лідів, CTO, обговорення bottlenecks та подальшого roadmap.

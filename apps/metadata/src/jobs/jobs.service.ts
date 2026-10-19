@@ -10,6 +10,7 @@ import {
   type CreateJobRequest,
   type CreateJobResponse,
   deadLetterSubject,
+  type DubQuotaDto,
   ImageResizeInputV1,
   isMediaJobType,
   JobCreatedV1,
@@ -44,7 +45,7 @@ import {
 } from '../database/schema';
 import { enqueueEvent } from '../outbox/outbox';
 import { WebhooksService } from '../webhooks/webhooks.service';
-import { assertDubQuota } from './dub-quota';
+import { assertDubQuota, dubQuotaOf } from './dub-quota';
 import { insertJob } from './insert-job';
 import { decodeCursor, encodeCursor, toJobDto } from './job.mapper';
 import {
@@ -88,6 +89,10 @@ export class JobsService {
     this.policy = { maxAttempts: config.get('JOB_MAX_ATTEMPTS', { infer: true }) };
     this.idempotencyTtlHours = config.get('IDEMPOTENCY_TTL_HOURS', { infer: true });
     this.dubQuotaSeconds = config.get('DUB_QUOTA_SECONDS', { infer: true });
+  }
+
+  dubQuota(userId: string): Promise<DubQuotaDto> {
+    return dubQuotaOf(this.pg.db, userId, this.dubQuotaSeconds);
   }
 
   async create(req: CreateJobRequest): Promise<CreateJobResponse> {

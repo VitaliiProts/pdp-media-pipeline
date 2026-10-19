@@ -1,15 +1,19 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { type AssetJob } from '../../../features/assets';
 import { IMAGE_PRESETS, PRESET_LABEL_KEY } from '../../../features/upload';
 import { formatBytes } from '../../../shared/lib/format-bytes';
 import { formatDuration } from '../../../shared/lib/format-duration';
+import { languageName } from '../../../shared/lib/language-name';
 import { buttonClass } from '../../../shared/ui/button/Button';
 import { formatOf, framesOf, type Version, versionsOf } from '../model/versions';
 import styles from './AssetPage.module.css';
 
+type VersionListProps = { assetId: string; jobs: readonly AssetJob[] };
+
 // Browsers ignore `download` on cross-origin links; the signed URL's Content-Disposition names the file.
-export function VersionList({ jobs }: { jobs: readonly AssetJob[] }) {
+export function VersionList({ assetId, jobs }: VersionListProps) {
   const { t, i18n } = useTranslation('assets');
   const { t: tUpload } = useTranslation('upload');
   const framesHeadingId = useId();
@@ -19,6 +23,9 @@ export function VersionList({ jobs }: { jobs: readonly AssetJob[] }) {
   const labelOf = (version: Version): string => {
     if (version.kind === 'rendition') return version.rendition;
     if (version.kind === 'preview') return t('versions.preview');
+    if (version.kind === 'dub') {
+      return t('versions.dub', { language: languageName(version.language, i18n.language) });
+    }
     const preset = IMAGE_PRESETS.find((p) => p.name === version.preset);
     const name = preset ? tUpload(PRESET_LABEL_KEY[preset.name]) : version.preset;
     return t('versions.imageLabel', { name, width: version.width });
@@ -33,18 +40,30 @@ export function VersionList({ jobs }: { jobs: readonly AssetJob[] }) {
       <ul className={styles.versions}>
         {versions.map((version) => {
           const label = labelOf(version);
+          const isVideo = version.kind === 'rendition' || version.kind === 'dub';
           return (
             <li key={version.id} className={styles.version}>
-              {version.kind === 'rendition' ? (
+              {isVideo ? (
                 <span className={styles.thumbPlaceholder} aria-hidden="true">
                   ▶
                 </span>
               ) : (
                 <img className={styles.thumb} src={version.url} alt="" loading="lazy" />
               )}
-              <span className={styles.versionName}>{label}</span>
+              {version.kind === 'dub' ? (
+                <Link
+                  className={styles.versionName}
+                  to={`/library/${assetId}/dubs/${version.jobId}`}
+                >
+                  {label}
+                </Link>
+              ) : (
+                <span className={styles.versionName}>{label}</span>
+              )}
               <span>
-                {t('versions.dimensions', { width: version.width, height: version.height })}
+                {version.kind === 'dub'
+                  ? formatDuration(version.durationSeconds)
+                  : t('versions.dimensions', { width: version.width, height: version.height })}
               </span>
               <span>{formatBytes(version.bytes, i18n.language)}</span>
               <span>{formatOf(version.url)}</span>

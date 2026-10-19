@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ImageResizeOutputV1 } from './image-resize';
 import { type JobType, JobStatusSchema, JobTypeSchema } from './jobs';
 import { JobProgressSchema } from './metadata-api';
+import { DubTargetLanguageSchema } from './video-dub';
 import { VideoFramesOutputV1 } from './video-frames';
 import { VideoTranscodeOutputV1 } from './video-transcode';
 
@@ -70,6 +71,8 @@ export const AssetSummaryDto = AssetDto.extend({
       progress: JobProgressSchema.nullable(),
     })
     .nullable(),
+  /** Languages of the succeeded dubs, in alphabetical order. */
+  dubs: z.array(DubTargetLanguageSchema),
 });
 export type AssetSummaryDto = z.infer<typeof AssetSummaryDto>;
 
@@ -92,6 +95,8 @@ export const ListAssetsQuery = z.object({
     .max(ASSET_SEARCH_MAX_LENGTH)
     .transform((value) => value || undefined)
     .optional(),
+  /** Only files with a succeeded dub. */
+  dubbed: z.stringbool().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
 });
@@ -103,6 +108,13 @@ export const ListAssetsResponse = z.object({
   nextCursor: z.string().nullable(),
 });
 export type ListAssetsResponse = z.infer<typeof ListAssetsResponse>;
+
+/** Job types `previewOf` finds a preview in; a dub has none. */
+export const PREVIEW_JOB_TYPES = [
+  'image.resize',
+  'video.frames',
+  'video.transcode',
+] as const satisfies readonly JobType[];
 
 /**
  * The newest preview-producing output of a job: the smallest resized image, or the frame

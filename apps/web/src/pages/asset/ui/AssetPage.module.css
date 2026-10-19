@@ -58,6 +58,21 @@
   margin: 0;
 }
 
+.underway {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.underway a {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  text-underline-offset: 0.2em;
+}
+
 /* A flex item stretches across the column; the image keeps its own width and ratio instead. */
 .original {
   display: block;

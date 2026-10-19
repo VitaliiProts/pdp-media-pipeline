@@ -1,0 +1,282 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--graphite);
+}
+
+.crumbs li + li::before {
+  content: '/';
+  margin-right: var(--space-2);
+}
+
+.crumbs a {
+  color: inherit;
+  text-underline-offset: 0.2em;
+}
+
+.crumbs a:hover {
+  color: var(--ink);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.quiet {
+  margin: 0;
+  color: var(--graphite);
+}
+
+/* Processing */
+
+.processing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 36rem;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--graphite);
+  counter-increment: step;
+}
+
+.step::before {
+  content: counter(step);
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 50%;
+  font-size: var(--text-sm);
+}
+
+.step[data-state='done'] {
+  color: var(--ink);
+}
+
+.step[data-state='done']::before {
+  content: '✓';
+  border-color: var(--ink);
+}
+
+.step[data-state='current'] {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.step[data-state='current']::before {
+  border-color: var(--ink);
+  background: var(--glow);
+}
+
+.bar {
+  width: 100%;
+}
+
+.failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 36rem;
+}
+
+.problem {
+  margin: 0;
+  color: var(--red);
+}
+
+/* Result */
+
+.result {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.main,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@media (max-width: 60rem) {
+  .result {
+    grid-template-columns: 1fr;
+  }
+}
+
+.player {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.video {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  border-radius: var(--radius-mount);
+  background: var(--film);
+}
+
+.tracks {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.subheading {
+  margin: 0;
+  font-size: var(--text-base);
+}
+
+/* Transcript */
+
+.transcript,
+.speakers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scroller {
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--mount);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-mount);
+}
+
+.lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.lines th {
+  position: sticky;
+  top: 0;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--rule-strong);
+  background: var(--mount);
+  color: var(--graphite);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+}
+
+.lines td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+
+.lines tr[data-current] td {
+  background: var(--tone-progress-wash);
+}
+
+.seek {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.gap {
+  color: var(--graphite);
+  font-style: italic;
+}
+
+/* Speakers */
+
+.speakerList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.speaker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.speakerName {
+  margin: 0;
+}
+
+.speakerFields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

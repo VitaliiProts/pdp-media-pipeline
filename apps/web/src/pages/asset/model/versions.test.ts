@@ -1,5 +1,6 @@
-import { type AssetFrame, type AssetJob } from '../../../features/assets';
-import { formatOf, framesOf, playableOf, versionsOf } from './versions';
+import { type AssetFrame, type AssetJob, playableOf } from '../../../features/assets';
+import { dubJob, TEST_DUB } from '../../../test/dub-fixtures';
+import { formatOf, framesOf, versionsOf } from './versions';
 
 const frame = (atSeconds: number, name: string): AssetFrame => ({
   atSeconds,
@@ -87,6 +88,23 @@ describe('versions of a file', () => {
       ],
       poster: 'http://storage.test/preview.jpg',
     });
+  });
+
+  it('counts each finished dub as a version, not an unfinished one', () => {
+    const jobs = [dubJob({ id: 'd2', status: 'running', dub: undefined }), dubJob({ id: 'd1' })];
+    expect(versionsOf(jobs)).toEqual([
+      {
+        id: 'd1:dub',
+        kind: 'dub',
+        jobId: 'd1',
+        language: 'de',
+        durationSeconds: TEST_DUB.durationSeconds,
+        bytes: TEST_DUB.video.bytes,
+        url: TEST_DUB.video.url,
+        downloadUrl: TEST_DUB.video.downloadUrl,
+      },
+    ]);
+    expect(playableOf(jobs)).toEqual({ renditions: [], poster: null });
   });
 
   it('takes frames from the newest frames job', () => {

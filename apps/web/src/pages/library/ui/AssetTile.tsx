@@ -5,6 +5,7 @@ import { type AssetSummary, isActiveJobStatus } from '../../../features/assets';
 import { STATUS_LABEL_KEY, STATUS_TONE } from '../../../features/jobs';
 import { formatBytes } from '../../../shared/lib/format-bytes';
 import { formatDuration } from '../../../shared/lib/format-duration';
+import { languageName } from '../../../shared/lib/language-name';
 import { Badge } from '../../../shared/ui/badge/Badge';
 import { Card } from '../../../shared/ui/card/Card';
 import { Progress } from '../../../shared/ui/progress/Progress';
@@ -66,6 +67,14 @@ export function AssetTile({ asset, linkState }: AssetTileProps) {
           />
         )}
         {job && <Badge tone={STATUS_TONE[job.status]}>{tJobs(STATUS_LABEL_KEY[job.status])}</Badge>}
+        {asset.dubs.length > 0 && (
+          <Badge
+            tone="neutral"
+            title={asset.dubs.map((code) => languageName(code, i18n.language)).join(', ')}
+          >
+            {t('tile.dubs', { languages: asset.dubs.map((code) => code.toUpperCase()).join(', ') })}
+          </Badge>
+        )}
         {asset.size !== null && <span>{formatBytes(asset.size, i18n.language)}</span>}
       </span>
     </Card>

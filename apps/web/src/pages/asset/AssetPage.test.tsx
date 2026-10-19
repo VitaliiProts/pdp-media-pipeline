@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw';
 import { type InitialEntry } from 'react-router';
 import { type AssetDetails, type AssetJob, assetsApi, LIVE_POLL_MS } from '../../features/assets';
+import { DUB_JOB_ID, DUB_QUOTA, dubAsset, dubJob, TEST_DUB } from '../../test/dub-fixtures';
 import { TEST_ASSET, testAsset } from '../../test/fixtures';
 import { renderApp } from '../../test/render-app';
 import { server, STORAGE_ORIGIN } from '../../test/server';
@@ -473,6 +474,168 @@ describe('deleting a file', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/library'));
     await waitFor(() => expect(listFetches).toBe(2));
     expect(fileFetches).toBe(1);
+  });
+});
+
+describe('translating a video', () => {
+  async function openTranslate(quota = DUB_QUOTA, asset = dubAsset([])) {
+    const bodies: unknown[] = [];
+    server.use(
+      http.get(`/v1/assets/${ID}`, () => HttpResponse.json(asset)),
+      http.get('/v1/dub-quota', () => HttpResponse.json(quota)),
+      http.post('/v1/jobs', async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ jobId: DUB_JOB_ID }, { status: 202 });
+      }),
+    );
+    const view = renderApp({ signedIn: true, route: `/library/${ID}` });
+    await view.user.click(await screen.findByRole('button', { name: 'Translate' }));
+    const dialog = screen.getByRole('dialog', { name: 'Translate cliffs.mp4' });
+    return { ...view, dialog, bodies };
+  }
+
+  it('starts a dub in the chosen languages and opens its page', async () => {
+    const { user, dialog, bodies, router } = await openTranslate();
+
+    expect(within(dialog).getByText('Length: 0:13')).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText(
+        'Translation time left this month: 20:00 of 30:00, renewed on November 1.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        'The sound and its text are sent to OpenAI for recognition and translation.',
+      ),
+    ).toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByLabelText('Translate into'), 'Spanish');
+    await user.selectOptions(within(dialog).getByLabelText('Spoken language'), 'English');
+    await user.click(within(dialog).getByRole('button', { name: 'Translate' }));
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(`/library/${ID}/dubs/${DUB_JOB_ID}`),
+    );
+    expect(bodies).toEqual([
+      { type: 'video.dub', sourceKey: 'u/1/cliffs', targetLanguage: 'es', sourceLanguage: 'en' },
+    ]);
+  });
+
+  it('warns before starting what the month’s time does not cover', async () => {
+    const { dialog } = await openTranslate({ ...DUB_QUOTA, remainingSeconds: 10 });
+    expect(
+      await within(dialog).findByText('Not enough translation time left this month.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Translate' })).toBeDisabled();
+  });
+
+  it('warns about a video longer than a dub may be', async () => {
+    const { dialog } = await openTranslate(DUB_QUOTA, dubAsset([], { durationSeconds: 95 }));
+    expect(
+      await within(dialog).findByText('Longer than 1:00: too long to translate.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Translate' })).toBeDisabled();
+  });
+
+  it('says so when the gateway refuses for the quota after all', async () => {
+    const { user, dialog } = await openTranslate();
+    server.use(
+      http.post('/v1/jobs', () =>
+        HttpResponse.json(
+          { statusCode: 429, code: 'DUB_QUOTA_EXCEEDED', message: 'quota' },
+          { status: 429 },
+        ),
+      ),
+    );
+    await within(dialog).findByText(/Translation time left/);
+    await user.click(within(dialog).getByRole('button', { name: 'Translate' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Not enough translation time left this month.',
+    );
+    expect(dialog).toHaveAttribute('open');
+  });
+
+  it('offers a retry when the time left cannot be checked', async () => {
+    let calls = 0;
+    server.use(
+      http.get(`/v1/assets/${ID}`, () => HttpResponse.json(dubAsset([]))),
+      http.get('/v1/dub-quota', () => {
+        calls += 1;
+        return calls === 1
+          ? HttpResponse.json({ message: 'boom' }, { status: 500 })
+          : HttpResponse.json(DUB_QUOTA);
+      }),
+    );
+    const { user } = renderApp({ signedIn: true, route: `/library/${ID}` });
+    await user.click(await screen.findByRole('button', { name: 'Translate' }));
+    const dialog = screen.getByRole('dialog', { name: 'Translate cliffs.mp4' });
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Could not check the translation time left.',
+    );
+    expect(within(dialog).getByRole('button', { name: 'Translate' })).toBeDisabled();
+    await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
+    expect(await within(dialog).findByText(/Translation time left/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Translate' })).toBeEnabled();
+  });
+
+  it('offers no translation for a photo', async () => {
+    serve(details());
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+    await screen.findByRole('heading', { level: 1, name: 'harbour.jpg' });
+    expect(screen.queryByRole('button', { name: 'Translate' })).not.toBeInTheDocument();
+  });
+
+  it('leads to a dub still under way', async () => {
+    server.use(
+      http.get(`/v1/assets/${ID}`, () =>
+        HttpResponse.json(
+          dubAsset([
+            dubJob({ status: 'running', progress: 40, progressStep: 'voice', dub: undefined }),
+          ]),
+        ),
+      ),
+    );
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+    expect(
+      await screen.findByRole('link', { name: 'Translating into German: follow the progress' }),
+    ).toHaveAttribute('href', `/library/${ID}/dubs/${DUB_JOB_ID}`);
+  });
+
+  it('lists a finished dub among the versions', async () => {
+    server.use(
+      http.get(`/v1/assets/${ID}`, () =>
+        HttpResponse.json(
+          dubAsset([dubJob({ id: 'd2', status: 'running', dub: undefined }), dubJob()]),
+        ),
+      ),
+    );
+    renderApp({ signedIn: true, route: `/library/${ID}` });
+    const panel = within(await screen.findByRole('tabpanel', { name: 'Versions' }));
+
+    const row = panel.getByRole('listitem');
+    expect(within(row).getByRole('link', { name: 'Translation · German' })).toHaveAttribute(
+      'href',
+      `/library/${ID}/dubs/${DUB_JOB_ID}`,
+    );
+    expect(row).toHaveTextContent('0:13');
+    expect(row).toHaveTextContent('MP4');
+    expect(
+      within(row).getByRole('link', { name: 'Download Translation · German' }),
+    ).toHaveAttribute('href', TEST_DUB.video.downloadUrl);
+    // Only the unfinished dub is under way.
+    expect(screen.getAllByRole('link', { name: /follow the progress/ })).toHaveLength(1);
+  });
+
+  it('links a dub on the jobs tab to its page', async () => {
+    server.use(http.get(`/v1/assets/${ID}`, () => HttpResponse.json(dubAsset([dubJob()]))));
+    const { user } = renderApp({ signedIn: true, route: `/library/${ID}` });
+    await user.click(await screen.findByRole('tab', { name: 'Jobs' }));
+    const panel = screen.getByRole('tabpanel', { name: 'Jobs' });
+    expect(within(panel).getByText('Translation')).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: 'Open the translation' })).toHaveAttribute(
+      'href',
+      `/library/${ID}/dubs/${DUB_JOB_ID}`,
+    );
   });
 });
 

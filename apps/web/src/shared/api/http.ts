@@ -59,14 +59,16 @@ export function toAppError(error: unknown): AppError {
   if (!status) return { kind: 'network' };
   if (status === 401) return { kind: 'unauthorized' };
   const retryAfterS = parseRetryAfter(error.response?.headers['retry-after']);
-  if (status === 429)
+  const code = codeOf(error.response?.data);
+  // A coded 429 without Retry-After is a limit that waiting a few seconds does not lift.
+  if (status === 429 && (retryAfterS !== null || code === null))
     return { kind: 'retryLater', status, retryAfterS: retryAfterS ?? DEFAULT_RETRY_AFTER_S };
   if (status === 503 && retryAfterS !== null) return { kind: 'retryLater', status, retryAfterS };
   return {
     kind: 'http',
     status,
     message: messageOf(error.response?.data) ?? error.message,
-    code: codeOf(error.response?.data),
+    code,
   };
 }
 

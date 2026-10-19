@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { type AssetJob } from '../../../features/assets';
 import { STATUS_LABEL_KEY, STATUS_TONE, TraceLink } from '../../../features/jobs';
 import { Badge } from '../../../shared/ui/badge/Badge';
@@ -10,9 +11,12 @@ const JOB_TYPE_KEY: Partial<Record<string, string>> = {
   'image.resize': 'jobs.type.resize',
   'video.frames': 'jobs.type.frames',
   'video.transcode': 'jobs.type.transcode',
+  'video.dub': 'jobs.type.dub',
 };
 
-export function AssetJobs({ jobs, hasMore }: { jobs: readonly AssetJob[]; hasMore: boolean }) {
+type AssetJobsProps = { assetId: string; jobs: readonly AssetJob[]; hasMore: boolean };
+
+export function AssetJobs({ assetId, jobs, hasMore }: AssetJobsProps) {
   const { t, i18n } = useTranslation('assets');
   const { t: tJobs } = useTranslation('jobs');
   const { t: tWorkspace } = useTranslation('workspace');
@@ -34,6 +38,9 @@ export function AssetJobs({ jobs, hasMore }: { jobs: readonly AssetJob[]; hasMor
               <Badge tone={STATUS_TONE[job.status]}>{tJobs(STATUS_LABEL_KEY[job.status])}</Badge>
               <time dateTime={job.createdAt}>{dateTime.format(new Date(job.createdAt))}</time>
               <span>{tWorkspace('attempt', { count: job.attempts })}</span>
+              {job.type === 'video.dub' && (
+                <Link to={`/library/${assetId}/dubs/${job.id}`}>{t('jobs.openDub')}</Link>
+              )}
               {job.lastError && <p className={styles.jobError}>{job.lastError}</p>}
               <TraceLink jobId={job.id} traceId={job.traceId} createdAt={job.createdAt} />
             </li>

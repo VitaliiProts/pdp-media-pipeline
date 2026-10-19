@@ -16,7 +16,43 @@
     "frames": "Frames",
     "framesDetail": "every 2 s",
     "transcode": "Transcode",
-    "transcodeDetail": "MP4 480p and 720p"
+    "transcodeDetail": "MP4 480p and 720p",
+    "dub": "Translate",
+    "dubDetail": "voice-over in another language, up to 1 minute"
+  },
+  "dub": {
+    "target": "Translate into",
+    "source": "Spoken language",
+    "auto": "Detect automatically",
+    "sameLanguage": "The video is already in this language.",
+    "privacy": "The sound and its text are sent to OpenAI for recognition and translation.",
+    "quota": {
+      "loading": "Checking translation time…",
+      "error": "Could not check the translation time left.",
+      "left": "Translation time left this month: {{left}} of {{limit}}, renewed on {{date}}.",
+      "unmeasured": "A new video holds {{max}} of it until it is translated; then only its length counts."
+    },
+    "confirm": {
+      "title_one": "Translate {{count}} video",
+      "title_other": "Translate {{count}} videos",
+      "summary": "Translation: {{target}}. Original: {{source}}.",
+      "detected": "detected automatically",
+      "measuring": "Reading the length…",
+      "unknownDuration": "Length unknown",
+      "tooLong": "Longer than {{max}}: too long to translate.",
+      "overQuota": "Not enough translation time left this month.",
+      "start": "Upload and translate",
+      "back": "Back"
+    },
+    "dialog": {
+      "title": "Translate {{name}}",
+      "duration": "Length: {{duration}}",
+      "unknownDuration": "The length is not known yet; it is checked before anything is sent.",
+      "start": "Translate",
+      "cancel": "Cancel",
+      "failed": "Could not start the translation.",
+      "retryLater": "Too many requests. Try again in a moment."
+    }
   },
   "dialog": {
     "title": "Upload files",

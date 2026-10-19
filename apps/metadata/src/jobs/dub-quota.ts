@@ -1,7 +1,7 @@
 import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
-import { DUB_MAX_DURATION_SECONDS, type MetadataErrorBody } from '@pdp/contracts';
+import { DUB_MAX_DURATION_SECONDS, type DubQuotaDto, type MetadataErrorBody } from '@pdp/contracts';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { type Tx } from '../database/postgres.service';
+import { type Db, type Tx } from '../database/postgres.service';
 import { assets, jobs, users } from '../database/schema';
 
 const error = (code: MetadataErrorBody['code'], message: string): MetadataErrorBody => ({
@@ -57,7 +57,23 @@ export async function assertDubQuota(
   }
 }
 
-async function usedDubSeconds(tx: Tx, userId: string): Promise<number> {
+/** What `assertDubQuota` would count now; a read without the user lock, for display. */
+export async function dubQuotaOf(
+  db: Db,
+  userId: string,
+  quotaSeconds: number,
+  now = new Date(),
+): Promise<DubQuotaDto> {
+  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId));
+  if (!user) throw new NotFoundException(error('USER_NOT_FOUND', `user ${userId} not found`));
+  return {
+    usedSeconds: await usedDubSeconds(db, userId),
+    limitSeconds: quotaSeconds,
+    resetsAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString(),
+  };
+}
+
+async function usedDubSeconds(tx: Db | Tx, userId: string): Promise<number> {
   const [row] = await tx
     .select({
       used: sql<string>`coalesce(sum(case

@@ -30,6 +30,7 @@
     "rateLimited": "Still rate limited after several retries. Try again in a minute.",
     "queueFull": "The queue stayed full after several retries. The file is uploaded; try again later.",
     "quotaExceeded": "Storage is full. Delete files you no longer need.",
+    "dubQuotaExceeded": "The file is uploaded, but this month's translation time is used up.",
     "deadPermanent": "This file cannot be processed.",
     "deadExhausted": "Every attempt failed."
   },

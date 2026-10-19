@@ -6,6 +6,7 @@ import {
   type ListAssetsQuery,
   type CreateApiKeyRequest,
   CreatedApiKeyDto,
+  DubQuotaDto,
   ListApiKeysResponse,
   type LoginRequest,
   type RegisterRequest,
@@ -89,6 +90,7 @@ export class MetadataClient {
     if (query.kind) params.set('kind', query.kind);
     if (query.status) params.set('status', query.status);
     if (query.q) params.set('q', query.q);
+    if (query.dubbed) params.set('dubbed', 'true');
     if (query.limit !== undefined) params.set('limit', String(query.limit));
     if (query.cursor) params.set('cursor', query.cursor);
     return this.request('GET', `/internal/assets?${params.toString()}`, ListAssetsResponse);
@@ -177,6 +179,14 @@ export class MetadataClient {
 
   getUser(id: string): Promise<UserDto> {
     return this.request('GET', `/internal/users/${encodeURIComponent(id)}`, UserDto);
+  }
+
+  getDubQuota(userId: string): Promise<DubQuotaDto> {
+    return this.request(
+      'GET',
+      `/internal/users/${encodeURIComponent(userId)}/dub-quota`,
+      DubQuotaDto,
+    );
   }
 
   listApiKeys(userId: string): Promise<ListApiKeysResponse> {

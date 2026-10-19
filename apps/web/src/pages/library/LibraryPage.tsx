@@ -95,7 +95,7 @@ export function LibraryPage() {
           action={
             <Button
               onClick={() => {
-                setFilters({ kind: null, status: null, q: '' });
+                setFilters({ kind: null, status: null, q: '', dubbed: false });
                 // The button leaves with its empty state; the cleared search is where to carry on.
                 searchRef.current?.focus();
               }}

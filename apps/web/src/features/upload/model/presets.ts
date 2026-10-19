@@ -12,6 +12,6 @@ export const PRESET_LABEL_KEY = {
   large: 'presets.large',
 } as const satisfies Record<ImagePreset, string>;
 
-/** Frames: a preview and a frame every 2 s. Transcode: 480p and 720p MP4. */
-export const VIDEO_MODES = ['frames', 'transcode'] as const;
+/** Frames: a preview and a frame every 2 s. Transcode: 480p and 720p MP4. Dub: frames, then a translated voice-over. */
+export const VIDEO_MODES = ['frames', 'transcode', 'dub'] as const;
 export type VideoMode = (typeof VIDEO_MODES)[number];

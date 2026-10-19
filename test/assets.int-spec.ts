@@ -321,6 +321,46 @@ describe('media library', () => {
     expect(await idsWith('ready')).toEqual([]);
   });
 
+  it('lists the languages of finished dubs and keeps the preview of an earlier job', async () => {
+    const key = await newUser();
+    const dubbed = await processedImage(key, 'dubbed.png');
+    const plain = await processedImage(key, 'plain.png');
+    // A dub produces no preview; inserted by hand, as no video worker runs here.
+    const { rows } = await pool.query<{ user_id: string }>(
+      'SELECT user_id FROM jobs WHERE id = $1',
+      [dubbed.jobId],
+    );
+    for (const [language, status] of [
+      ['uk', 'succeeded'],
+      ['de', 'succeeded'],
+      ['uk', 'succeeded'],
+      ['fr', 'failed'],
+    ] as const) {
+      await pool.query(
+        `INSERT INTO jobs (user_id, asset_id, type, priority, input, status, finished_at)
+         VALUES ($1, $2, 'video.dub', 5, $3, $4, now())`,
+        [
+          rows[0]!.user_id,
+          dubbed.assetId,
+          { sourceKey: dubbed.sourceKey, targetLanguage: language },
+          status,
+        ],
+      );
+    }
+
+    const { body } = await api<{ items: (Summary & { dubs: string[] })[] }>(key, '/v1/assets');
+    const byId = new Map(body.items.map((a) => [a.id, a]));
+    expect(byId.get(dubbed.assetId)).toMatchObject({
+      dubs: ['de', 'uk'],
+      preview: { width: 200, height: 133 },
+    });
+    expect(byId.get(plain.assetId)?.dubs).toEqual([]);
+
+    const filtered = await api<{ items: Summary[] }>(key, '/v1/assets?dubbed=true');
+    expect(filtered.body.items.map((a) => a.id)).toEqual([dubbed.assetId]);
+    expect((await api(key, '/v1/assets?dubbed=yes')).status).toBe(400);
+  });
+
   it('combines kind, status and name across pages', async () => {
     const key = await newUser();
     const matching: string[] = [];

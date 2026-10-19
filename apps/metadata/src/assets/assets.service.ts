@@ -13,10 +13,13 @@ import {
   type AssetStatus,
   type AssetSummaryDto,
   type CreateAssetRequest,
+  type DubTargetLanguage,
+  DubTargetLanguageSchema,
   type JobStatus,
   type ListAssetsQuery,
   type ListAssetsResponse,
   type MetadataErrorBody,
+  PREVIEW_JOB_TYPES,
   previewOf,
   sourceFactsOf,
 } from '@pdp/contracts';
@@ -144,6 +147,13 @@ export class AssetsService {
       filters.push(inArray(latestJobStatus, JOB_STATUSES_OF[query.status]));
     }
     if (query.q) filters.push(ilike(assets.name, containing(query.q)));
+    if (query.dubbed) {
+      filters.push(sql`EXISTS (
+        SELECT 1 FROM ${jobs}
+        WHERE ${jobs.assetId} = ${assets.id}
+          AND ${jobs.type} = 'video.dub' AND ${jobs.status} = 'succeeded'
+      )`);
+    }
     if (query.cursor) {
       const cursor = decodeCursor(query.cursor);
       if (!cursor) throw new BadRequestException(error('VALIDATION_FAILED', 'invalid cursor'));
@@ -164,11 +174,14 @@ export class AssetsService {
     };
   }
 
-  /** Two queries for the whole page, each reading one job per asset off `jobs_asset_created_idx`. */
+  /**
+   * Three queries for the whole page: the latest and the latest preview-producing job per asset
+   * off `jobs_asset_created_idx`, and the languages of its dubs.
+   */
   private async summaries(page: AssetRow[]): Promise<AssetSummaryDto[]> {
     if (page.length === 0) return [];
     const ids = page.map((a) => a.id);
-    const [latest, succeeded] = await Promise.all([
+    const [latest, succeeded, dubbed] = await Promise.all([
       this.pg.db
         .selectDistinctOn([jobs.assetId], {
           assetId: jobs.assetId,
@@ -187,9 +200,30 @@ export class AssetsService {
           output: jobs.output,
         })
         .from(jobs)
-        .where(and(inArray(jobs.assetId, ids), eq(jobs.status, 'succeeded')))
+        .where(
+          and(
+            inArray(jobs.assetId, ids),
+            eq(jobs.status, 'succeeded'),
+            inArray(jobs.type, [...PREVIEW_JOB_TYPES]),
+          ),
+        )
         .orderBy(jobs.assetId, desc(jobs.createdAt), desc(jobs.id)),
+      this.pg.db
+        .selectDistinct({
+          assetId: jobs.assetId,
+          language: sql<string>`${jobs.input} ->> 'targetLanguage'`,
+        })
+        .from(jobs)
+        .where(
+          and(inArray(jobs.assetId, ids), eq(jobs.type, 'video.dub'), eq(jobs.status, 'succeeded')),
+        ),
     ]);
+    const dubsBy = new Map<string, DubTargetLanguage[]>();
+    for (const { assetId, language } of dubbed) {
+      const parsed = DubTargetLanguageSchema.safeParse(language);
+      if (!assetId || !parsed.success) continue;
+      dubsBy.set(assetId, [...(dubsBy.get(assetId) ?? []), parsed.data].sort());
+    }
     // The last value of an earlier attempt would be stale once the job left `running`.
     const latestBy = new Map(
       latest.map(({ assetId, progress, ...job }) => [
@@ -202,6 +236,7 @@ export class AssetsService {
       ...toAssetDto(row),
       preview: previewBy.get(row.id) ?? null,
       latestJob: latestBy.get(row.id) ?? null,
+      dubs: dubsBy.get(row.id) ?? [],
     }));
   }
 

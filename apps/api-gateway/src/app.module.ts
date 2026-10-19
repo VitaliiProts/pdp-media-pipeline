@@ -19,6 +19,7 @@ import { egressClientProvider } from './common/public-url';
 import { RetryLaterFilter } from './common/retry-later';
 import { type Env, envSchema } from './config';
 import { JobPresenter } from './jobs/job-presenter';
+import { DubQuotaController } from './jobs/dub-quota.controller';
 import { JobsController } from './jobs/jobs.controller';
 import { RateLimitGuard } from './rate-limit/rate-limit.guard';
 import { RateLimiterService } from './rate-limit/rate-limiter.service';
@@ -52,6 +53,7 @@ import { WebhooksController } from './webhooks/webhooks.controller';
     ApiKeysController,
     UploadsController,
     JobsController,
+    DubQuotaController,
     AssetsController,
     WebhooksController,
   ],

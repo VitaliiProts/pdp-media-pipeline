@@ -9,6 +9,7 @@
       "ready": "Ready",
       "failed": "Failed"
     },
+    "dubbed": "With a translation",
     "search": "Search by name",
     "loading": "Loading files…",
     "errorTitle": "Could not load the library",
@@ -32,7 +33,8 @@
     "untitled": "Untitled file",
     "video": "Video",
     "videoWithDuration": "Video · {{duration}}",
-    "progress": "Processing progress"
+    "progress": "Processing progress",
+    "dubs": "Translated: {{languages}}"
   },
   "upload": {
     "remove": "Remove"
@@ -53,7 +55,10 @@
     "type": "Type",
     "uploaded": "Uploaded",
     "downloadOriginal": "Download original",
-    "tabs": "File details"
+    "tabs": "File details",
+    "dubUnderway": "Translating into {{language}}: follow the progress",
+    "dubUnderwayAny": "A translation is under way: follow the progress",
+    "translate": "Translate"
   },
   "delete": {
     "open": "Delete",
@@ -78,6 +83,7 @@
     "none": "Versions will appear once processing is done.",
     "imageLabel": "{{name}} · {{width}} px",
     "preview": "Preview frame",
+    "dub": "Translation · {{language}}",
     "dimensions": "{{width}} × {{height}}",
     "download": "Download",
     "downloadLabel": "Download {{name}}",
@@ -91,7 +97,9 @@
     "type": {
       "resize": "Resize",
       "frames": "Frames",
-      "transcode": "Transcode"
-    }
+      "transcode": "Transcode",
+      "dub": "Translation"
+    },
+    "openDub": "Open the translation"
   }
 }

@@ -35,6 +35,8 @@ export type AssetSummary = Asset & {
     /** Percent, while running; only long job types report it. */
     progress?: number | null;
   } | null;
+  /** Languages of finished dubs, sorted. */
+  dubs: string[];
 };
 
 export type AssetPage = { items: AssetSummary[]; nextCursor: string | null };
@@ -67,18 +69,70 @@ export type AssetRendition = {
 
 type VideoFacts = { durationSeconds: number; width: number; height: number; codec: string };
 
+export type AssetDubSpeaker = {
+  id: string;
+  gender: 'male' | 'female';
+  /** How sure the analysis was, 0–1; the gender is whichever side of 0.5 it fell. */
+  maleProbability: number;
+  voice: string;
+  /** Speech of this speaker in the video. */
+  seconds: number;
+};
+
+/** Seconds from the start of the video; `placed*` is where the dubbed phrase is spoken. */
+export type AssetDubPhrase = {
+  id: string;
+  turn: string;
+  speaker: string;
+  start: number;
+  end: number;
+  source: string;
+  target: string;
+  placedStart: number;
+  placedEnd: number;
+  speed: number;
+  refitted: boolean;
+};
+
+export type AssetDub = {
+  durationSeconds: number;
+  /** Detected, or the one the dub was asked to assume. */
+  sourceLanguage: string;
+  targetLanguage: string;
+  video: { bytes: number } & Download;
+  subtitles: Download;
+  speakers: AssetDubSpeaker[];
+  phrases: AssetDubPhrase[];
+  /** Voice no recognised word covers: shown, never dubbed. */
+  unrecognized: { start: number; end: number }[];
+  stats: {
+    phrases: number;
+    sped: number;
+    refitted: number;
+    overflowed: number;
+    meanEndErrorSeconds: number;
+  };
+};
+
 export type AssetJob = {
   id: string;
   type: string;
   status: AssetJobStatus;
+  /** What the job was asked to do, as sent. */
+  input?: Record<string, unknown>;
   attempts: number;
+  /** `code: message` for the codes a worker knows. */
   lastError: string | null;
   deadReason: 'permanent' | 'exhausted' | null;
   createdAt: string;
   traceId: string | null;
+  /** Percent and the step under way, while running; only long job types report them. */
+  progress?: number | null;
+  progressStep?: string | null;
   results?: AssetImageVersion[];
   video?: VideoFacts & { preview: AssetFrame; frames: AssetFrame[] };
   transcode?: VideoFacts & { preview: AssetFrame; renditions: AssetRendition[] };
+  dub?: AssetDub;
 };
 
 export type AssetDetails = Asset & {
@@ -88,4 +142,10 @@ export type AssetDetails = Asset & {
   jobsNextCursor: string | null;
 };
 
-export type AssetFilters = { kind: AssetKind | null; status: AssetStatus | null; q: string };
+export type AssetFilters = {
+  kind: AssetKind | null;
+  status: AssetStatus | null;
+  q: string;
+  /** Only files with a finished translation. */
+  dubbed: boolean;
+};

@@ -1,5 +1,6 @@
 import { http, storageHttp } from '../../../shared/api/http';
-import { type ImagePreset, type VideoMode } from '../model/presets';
+import { type DubSettings } from '../model/dub';
+import { type ImagePreset } from '../model/presets';
 
 // Mirrors ASSET_NAME_MAX_LENGTH in @pdp/contracts.
 const UPLOAD_NAME_MAX_LENGTH = 255;
@@ -31,13 +32,21 @@ export async function putToStorage(
   });
 }
 
-/** Images are resized to the chosen presets; videos get frames or are transcoded. */
+/** Images are resized to the chosen presets; videos get frames, are transcoded or dubbed. */
 export type JobSpec =
-  { kind: 'image'; presets: readonly ImagePreset[] } | { kind: 'video'; mode: VideoMode };
+  | { kind: 'image'; presets: readonly ImagePreset[] }
+  | { kind: 'video'; mode: 'frames' | 'transcode' }
+  | { kind: 'dub'; dub: DubSettings };
 
 function bodyOf(sourceKey: string, spec: JobSpec) {
-  if (spec.kind === 'image') return { type: 'image.resize', sourceKey, presets: spec.presets };
-  return { type: spec.mode === 'frames' ? 'video.frames' : 'video.transcode', sourceKey };
+  switch (spec.kind) {
+    case 'image':
+      return { type: 'image.resize', sourceKey, presets: spec.presets };
+    case 'video':
+      return { type: spec.mode === 'frames' ? 'video.frames' : 'video.transcode', sourceKey };
+    case 'dub':
+      return { type: 'video.dub', sourceKey, ...spec.dub };
+  }
 }
 
 /**
