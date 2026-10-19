@@ -24,10 +24,12 @@
 - Helm: library-чарт `pdp-lib`, umbrella `pdp` з `values-dev.yaml` і `values-prod.yaml`
   (Ingress для `api.` і `app.`, `TRUST_PROXY_HOPS`, мінімум 2 репліки), чарт `platform`
   (NATS, Redis, MinIO, CloudNativePG, observability). Міграції — Job з хуком
-  `pre-install,pre-upgrade`.
+  `pre-install,pre-upgrade`. Чарти `video-worker` (Deployment `video-dub`) і `audio-separate`
+  з NetworkPolicy (Етап 5d).
 - Автоскейл KEDA за лагом консюмерів, HPA gateway, PDB, anti-affinity, graceful shutdown (ADR-012).
-- CI: `verify`, `test`, `integration`, `audit`, `helm`, `alert-rules`, `docker` (збирає образи
-  без push, Trivy у режимі звіту).
+- CI: `verify`, `test` (Jest і Vitest), `integration` (поріг покриття 80% рядків, інструкцій і
+  функцій), `audio-separate` (ruff і pytest), `audit`, `helm`, `alert-rules`, `docker` (збирає
+  образи без push, Trivy у режимі звіту).
 - `scripts/k8s.sh` для k3d, `scripts/e2e-smoke.sh` для compose і k3d.
 - AWS-акаунт з MFA і бюджетним алертом (Етап 0). Домен куплено в іншого реєстратора.
 
