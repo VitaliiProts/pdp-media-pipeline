@@ -1,13 +1,58 @@
 # Read by scripts/aws.sh and CI, so nothing from here is copied into the repository.
 
-resource "aws_ssm_parameter" "domain" {
-  name  = "/pdp/prod/domain"
-  type  = "String"
-  value = var.domain
+locals {
+  parameters = {
+    domain          = var.domain
+    zone-id         = aws_route53_zone.main.zone_id
+    media-bucket    = aws_s3_bucket.media.bucket
+    ecr-registry    = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
+    vpc-id          = module.vpc.vpc_id
+    public-subnets  = join(",", module.vpc.public_subnets)
+    nodes-sg        = aws_security_group.nodes.id
+    deploy-role-arn = aws_iam_role.deploy.arn
+  }
 }
 
-resource "aws_ssm_parameter" "zone_id" {
-  name  = "/pdp/prod/zone-id"
+resource "aws_ssm_parameter" "base" {
+  for_each = local.parameters
+
+  name  = "/pdp/prod/${each.key}"
   type  = "String"
-  value = aws_route53_zone.main.zone_id
+  value = each.value
+}
+
+moved {
+  from = aws_ssm_parameter.domain
+  to   = aws_ssm_parameter.base["domain"]
+}
+
+moved {
+  from = aws_ssm_parameter.zone_id
+  to   = aws_ssm_parameter.base["zone-id"]
+}
+
+# Written by CI after each push to ECR; `aws.sh up` deploys these tags.
+resource "aws_ssm_parameter" "deployed_tag" {
+  for_each = local.services
+
+  name  = "/pdp/prod/deployed-tag/${each.key}"
+  type  = "String"
+  value = "none"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+# The value never passes through Terraform or its state: put it with
+#   aws ssm put-parameter --name /pdp/prod/openai-api-key --type SecureString --overwrite \
+#     --value "$(read -rs k; echo "$k")"
+resource "aws_ssm_parameter" "openai_api_key" {
+  name  = "/pdp/prod/openai-api-key"
+  type  = "SecureString"
+  value = "unset"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
