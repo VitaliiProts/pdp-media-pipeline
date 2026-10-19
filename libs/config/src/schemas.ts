@@ -18,11 +18,12 @@ export const natsEnvSchema = z.object({
   NATS_URL: z.string().min(1),
 });
 
+/** Without an endpoint and keys the SDK goes to AWS with the pod's role; see `s3Connection`. */
 export const s3EnvSchema = z.object({
-  S3_ENDPOINT: z.url(),
+  S3_ENDPOINT: z.url().optional(),
   S3_REGION: z.string().default('us-east-1'),
-  S3_ACCESS_KEY: z.string().min(1),
-  S3_SECRET_KEY: z.string().min(1),
+  S3_ACCESS_KEY: z.string().min(1).optional(),
+  S3_SECRET_KEY: z.string().min(1).optional(),
   S3_BUCKET: z.string().min(3),
   S3_FORCE_PATH_STYLE: z.stringbool().default(true),
 });

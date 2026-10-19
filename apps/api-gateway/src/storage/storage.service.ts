@@ -9,6 +9,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { s3Connection } from '@pdp/config';
 import { type Env } from '../config';
 
 /** Polling clients get the same GET links for this long, so browsers reuse what they cached. */
@@ -24,18 +25,11 @@ export class StorageService implements OnApplicationShutdown {
 
   constructor(config: ConfigService<Env, true>) {
     this.bucket = config.get('S3_BUCKET', { infer: true });
-    const base = {
-      region: config.get('S3_REGION', { infer: true }),
-      forcePathStyle: config.get('S3_FORCE_PATH_STYLE', { infer: true }),
-      credentials: {
-        accessKeyId: config.get('S3_ACCESS_KEY', { infer: true }),
-        secretAccessKey: config.get('S3_SECRET_KEY', { infer: true }),
-      },
-    };
-    this.internal = new S3Client({ ...base, endpoint: config.get('S3_ENDPOINT', { infer: true }) });
+    const connection = s3Connection(config);
+    this.internal = new S3Client(connection);
     this.signer = new S3Client({
-      ...base,
-      endpoint: config.get('S3_PUBLIC_ENDPOINT', { infer: true }),
+      ...connection,
+      endpoint: config.get('S3_PUBLIC_ENDPOINT', { infer: true }) ?? connection.endpoint,
     });
   }
 

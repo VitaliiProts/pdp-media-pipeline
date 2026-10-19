@@ -233,7 +233,7 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 
 **Код:**
 
-- [ ] S3 без ключів: `libs/config/src/schemas.ts` (endpoint і ключі необовʼязкові, ключі — разом),
+- [x] S3 без ключів: `libs/config/src/schemas.ts` (endpoint і ключі необовʼязкові, ключі — разом),
       `libs/worker-kit/src/object-storage.ts`, `apps/api-gateway/src/config.ts` і
       `storage/storage.service.ts` (`S3_PUBLIC_ENDPOINT` необовʼязковий: без нього presign на
       регіональний endpoint), `apps/audio-separate/audio_separate/{main,storage}.py` (boto3 без

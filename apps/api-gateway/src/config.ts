@@ -19,8 +19,11 @@ export const envSchema = baseEnvSchema.extend({
   ...uploadLimitsEnvSchema.shape,
   ...egressEnvSchema.shape,
   MAX_VIDEO_UPLOAD_BYTES: positiveInt().default(100 * 1024 * 1024),
-  /** Host the client sees; presigned URLs are signed for it, not for the in-cluster endpoint. */
-  S3_PUBLIC_ENDPOINT: z.url(),
+  /**
+   * Host the client sees; presigned URLs are signed for it, not for the in-cluster endpoint.
+   * Unset, they point where the gateway itself goes: `S3_ENDPOINT` or AWS S3 of `S3_REGION`.
+   */
+  S3_PUBLIC_ENDPOINT: z.url().optional(),
   API_KEY_CACHE_TTL_MS: z.coerce.number().int().min(0).default(60_000),
   /** Proxies in front of the gateway whose X-Forwarded-For is trusted for the client IP. */
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),

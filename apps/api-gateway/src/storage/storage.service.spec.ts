@@ -60,3 +60,36 @@ describe('presigned GET links', () => {
     }
   });
 });
+
+describe('in AWS, without an endpoint and keys', () => {
+  const saved = { ...process.env };
+  let storage: StorageService;
+
+  beforeAll(() => {
+    // The default chain reads these first; in EKS the pod's role takes their place.
+    process.env.AWS_ACCESS_KEY_ID = 'AKIAPODROLE';
+    process.env.AWS_SECRET_ACCESS_KEY = 'secret';
+    delete process.env.AWS_PROFILE;
+    storage = new StorageService(
+      new ConfigService<Env, true>({
+        S3_BUCKET: 'pdp-media-186712718120',
+        S3_REGION: 'eu-central-1',
+        S3_FORCE_PATH_STYLE: false,
+      }),
+    );
+  });
+  afterAll(() => {
+    storage.onApplicationShutdown();
+    process.env = saved;
+  });
+
+  it('signs links for the regional S3 host with credentials the SDK found itself', async () => {
+    const url = new URL(await storage.presignPut('uploads/u1/a.jpg', 'image/jpeg', 10, 600));
+
+    expect(url.host).toBe('pdp-media-186712718120.s3.eu-central-1.amazonaws.com');
+    expect(url.pathname).toBe('/uploads/u1/a.jpg');
+    expect(url.searchParams.get('X-Amz-Credential')).toMatch(
+      /^AKIAPODROLE\/\d{8}\/eu-central-1\/s3\/aws4_request$/,
+    );
+  });
+});

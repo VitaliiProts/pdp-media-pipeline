@@ -17,8 +17,7 @@ describe('ObjectStorage (MinIO)', () => {
       endpoint: `http://${minio.getHost()}:${minio.getMappedPort(9000)}`,
       region: 'us-east-1',
       forcePathStyle: true,
-      accessKeyId: 'minioadmin',
-      secretAccessKey: 'minioadmin',
+      credentials: { accessKeyId: 'minioadmin', secretAccessKey: 'minioadmin' },
       bucket: 'media',
     });
     await storage.client.send(new CreateBucketCommand({ Bucket: 'media' }));

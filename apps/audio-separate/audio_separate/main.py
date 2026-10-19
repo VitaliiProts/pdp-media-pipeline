@@ -44,12 +44,16 @@ def main() -> None:
     handler.setFormatter(JsonFormatter())
     logging.basicConfig(level=env("LOG_LEVEL", "info").upper(), handlers=[handler])
 
+    access_key = os.environ.get("S3_ACCESS_KEY") or None
+    secret_key = os.environ.get("S3_SECRET_KEY") or None
+    if (access_key is None) != (secret_key is None):
+        raise SystemExit("S3_ACCESS_KEY and S3_SECRET_KEY are set together or not at all")
     storage = S3Storage(
         endpoint=os.environ.get("S3_ENDPOINT") or None,
         region=env("S3_REGION", "us-east-1"),
         bucket=env("S3_BUCKET"),
-        access_key=env("S3_ACCESS_KEY"),
-        secret_key=env("S3_SECRET_KEY"),
+        access_key=access_key,
+        secret_key=secret_key,
         force_path_style=env("S3_FORCE_PATH_STYLE", "true") == "true",
     )
     state = AppState()
