@@ -334,6 +334,13 @@ down() {
     if kubectl get pv -o name | grep -q .; then
       kubectl wait --for=delete pv --all --timeout=5m
     fi
+    # Once its TXT records are gone, external-dns no longer owns what is left.
+    log "waiting for external-dns to remove the records"
+    local i
+    for i in $(seq 1 18); do
+      [ -z "$(nlb_records)" ] && break
+      sleep 10
+    done
     # The Service keeps a finalizer until the controller has removed the NLB, its target
     # groups and security groups.
     log "removing Traefik and its NLB"
@@ -349,8 +356,14 @@ down() {
   leftovers
 }
 
+nlb_records() {
+  aws route53 list-resource-record-sets --hosted-zone-id "$(param zone-id)" \
+    --query "ResourceRecordSets[?contains(AliasTarget.DNSName || '', 'k8s-traefik')].[Type,Name]" \
+    --output text
+}
+
 leftovers() {
-  local lbs volumes
+  local lbs volumes records
   lbs=$(aws resourcegroupstaggingapi get-resources \
     --resource-type-filters elasticloadbalancing:loadbalancer \
     --tag-filters "Key=elbv2.k8s.aws/cluster,Values=$CLUSTER" \
@@ -360,6 +373,8 @@ leftovers() {
     --query 'Volumes[].VolumeId' --output text)
   [ -z "$lbs" ] || echo "load balancers still billed: $lbs" >&2
   [ -z "$volumes" ] || echo "EBS volumes still billed: $volumes" >&2
+  records=$(nlb_records | tr '\t\n' ' ;')
+  [ -z "$records" ] || echo "records of the removed NLB, delete them in Route 53: $records" >&2
 }
 
 urls() {
