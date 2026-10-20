@@ -280,6 +280,59 @@ KEY=$(kubectl -n pdp exec deploy/metadata -- node dist/seed-user.js --name me | 
 Решта сервісів — через `kubectl -n pdp port-forward`, наприклад `svc/nats 8222` або
 `svc/postgres-rw 5432`.
 
+### Запуск в AWS
+
+Кластер EKS у `eu-central-1` на домені `pdp-media-pipeline.online` ([ADR-017](docs/adr/0017-cluster-in-aws.md),
+[план](docs/plan/stage-5b.md)). Кластер оплачується погодинно, тому піднімається на час роботи
+й видаляється після неї; база RDS між сесіями лише зупиняється, з даними.
+
+Потрібно: AWS CLI v2, Terraform 1.11+, `kubectl`, Helm 4, `jq`, `curl` і доступ до акаунта
+через IAM Identity Center як профіль `pdp` (`~/.aws/config`: `sso_session`,
+`sso_role_name = AdministratorAccess`, `region = eu-central-1`). Скрипти завжди беруть цей
+профіль і власний kubeconfig `~/.kube/pdp-aws`, тож інші акаунти й кластери не зачіпаються.
+
+```bash
+aws sso login --profile pdp
+scripts/aws.sh up          # RDS, EKS, компоненти, платформа, реліз pdp (~30 хв з нуля)
+scripts/aws.sh status      # що запущено, що лишилося, скільки коштує
+scripts/aws.sh grafana     # Grafana на http://localhost:3000
+scripts/aws.sh seed me     # користувач з API-ключем
+scripts/aws.sh down        # застосунок з томами, NLB, кластер; RDS зупиняється (~15 хв)
+```
+
+`up` повторюваний: наступний запуск лише оновлює релізи. Образи бере з ECR за тегами, які
+записав останній деплой з CI; без них зупиняється до будь-яких витрат. Перший `up` створює
+користувача `smoke` і один раз друкує його ключ — його треба внести секретом `SMOKE_API_KEY`
+в environment `aws` репозиторію. Сертифікат Let's Encrypt `down` зберігає в SSM, а `up`
+повертає, тож новий видається не щоразу; поки налагоджується DNS-01 —
+`TLS_ISSUER=letsencrypt-staging scripts/aws.sh up`. Якщо є незавершені задачі, `down` питає
+підтвердження: черга NATS зникає разом з кластером.
+
+| Що                      | Адреса                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| Web UI                  | https://app.pdp-media-pipeline.online                                             |
+| API Gateway і Swagger   | https://api.pdp-media-pipeline.online, https://api.pdp-media-pipeline.online/docs |
+| Переадресація на `app.` | https://pdp-media-pipeline.online, https://www.pdp-media-pipeline.online          |
+| Grafana                 | `scripts/aws.sh grafana`                                                          |
+
+Вартість: близько $0.67 за годину, поки кластер працює (EKS, два вузли `m7i.xlarge`, NLB,
+RDS); без кластера — $4–5 на місяць (диск RDS, зона Route 53, образи в ECR). Зупинений RDS
+AWS сам запускає через 7 днів — `status` показує, коли. Бюджет `pdp-monthly` шле листа при
+перевищенні.
+
+**Деплой з CI.** Після зеленого CI на `main` workflow `Deploy` збирає образи в ECR, записує
+їхні теги в SSM і, якщо кластер запущений, оновлює реліз `pdp` і проганяє
+`scripts/smoke.sh` проти `api.`. Невдалий реліз відкочується, і workflow червоний. Коли
+кластер вимкнений, деплой зелений: нову версію підхопить наступний `up`. Роль деплою
+довіряє лише environment `aws` цього репозиторію, а той пускає лише `main`.
+
+**З нуля в новому акаунті** (один раз): `terraform apply` у `deploy/terraform/bootstrap`
+(бакет для стану), потім у `deploy/terraform/base` з `terraform.tfvars` за зразком
+`terraform.tfvars.example` (мережа, ECR, S3, зона Route 53, RDS, роль деплою, бюджет).
+Nameservers зони (`terraform output name_servers`) — у реєстратора домену. Ключ OpenAI для
+дубляжу — значення параметра SSM `/pdp/prod/openai-api-key` (SecureString), вноситься в
+консолі, не через Terraform; поки там `unset`, `up` попереджає, а дубляжі падають.
+
 ## Перевірка етапів
 
 Команди виконуються з кореня репозиторію при запущеному стеку і заданому `KEY`.
@@ -1188,6 +1241,28 @@ GET з `Content-Disposition: attachment`; посилання стабільні 
 7. Справжні провайдери (платно; образ `audio-separate` ~6 ГБ): відео з мовленням і
    `DUB_PROVIDERS=openai DUB_AUDIO_SEPARATE=http OPENAI_API_KEY=…
 docker compose --profile dub --profile dub-separate up -d --build --wait`.
+
+### Етап 5b. AWS, домен і деплой з CI
+
+**Критерій етапу:** система працює в AWS на `pdp-media-pipeline.online` через HTTPS, merge у
+`main` сам доходить до кластера й проходить smoke-тест, а `down` не лишає платних ресурсів,
+крім базового шару.
+
+Команди — з [Запуску в AWS](#запуск-в-aws), після `scripts/aws.sh up`.
+
+1. Сертифікат prod і переадресація:
+   `curl -sI https://pdp-media-pipeline.online | grep -i location` →
+   `https://app.pdp-media-pipeline.online/`; `curl -s https://api.pdp-media-pipeline.online/health/ready | jq .status`
+   → `"ok"` без `-k`.
+2. Smoke-тест так само, як у CI:
+   `SMOKE_API_KEY=… scripts/smoke.sh https://api.pdp-media-pipeline.online` → `OK`.
+3. https://app.pdp-media-pipeline.online: реєстрація й вхід, завантаження картинки й відео,
+   переклад відео з прогресом, перегляд із субтитрами, медіатека.
+4. `scripts/aws.sh grafana`: дашборди «PDP», трейс одного дубляжу.
+5. Деплой з CI: змерджити зміну в `main` → workflow `Deploy` зелений, нова версія за
+   доменом без ручних кроків. Запуск `Deploy` з іншої гілки не отримує роль AWS.
+6. `scripts/aws.sh down` → наприкінці жодного попередження про NLB, EBS чи DNS-записи;
+   `scripts/aws.sh status` → `cluster none`, `rds stopped`.
 
 ## Конфігурація Етапу 2
 
