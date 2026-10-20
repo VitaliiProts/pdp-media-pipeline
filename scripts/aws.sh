@@ -221,8 +221,9 @@ tls_save() {
   crt=$(kubectl -n traefik get secret pdp-tls -o jsonpath='{.data.tls\.crt}' | base64 -d)
   [ "$crt" = "$(param tls-crt 2>/dev/null || true)" ] && return 0
   log "TLS: keeping the certificate for the next session"
+  # The full chain is over the 4 KB of a standard parameter.
   printf '%s\n' "$crt" | aws ssm put-parameter --name /pdp/prod/tls-crt --type String \
-    --overwrite --value file:///dev/stdin >/dev/null &&
+    --tier Intelligent-Tiering --overwrite --value file:///dev/stdin >/dev/null &&
     kubectl -n traefik get secret pdp-tls -o jsonpath='{.data.tls\.key}' | base64 -d |
     aws ssm put-parameter --name /pdp/prod/tls-key --type SecureString \
       --overwrite --value file:///dev/stdin >/dev/null ||
