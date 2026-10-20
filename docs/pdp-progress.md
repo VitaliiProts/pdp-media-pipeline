@@ -1,6 +1,6 @@
 # Vitalii Prots | PDP: прогрес
 
-Стан на 19 жовтня 2026. Структура — з PDP у Notion; детальний план з датами — PDF
+Стан на 20 жовтня 2026. Структура — з PDP у Notion; детальний план з датами — PDF
 «PDP Media Pipeline — покроковий план реалізації» і [плани етапів](plan/). Числа нижче виміряно
 19 жовтня на коді, що зараз у `main`.
 
@@ -45,7 +45,8 @@
   - [x] горизонтальний скейл воркерів за лагом черги, HPA gateway
         ([звіт Етапу 5](../perf/reports/stage-5.md));
   - [ ] 10k jobs/год при P95 < 2 хв, stress і soak — Етап 8.
-- [ ] **Деплой:** CI/CD, canary і rollback — Етап 7. CI є, деплою в AWS ще немає (Етап 5b).
+- [ ] **Деплой:** CI/CD, canary і rollback — Етап 7. Деплой з CI в AWS є (Етап 5b), canary і
+      rollback — ні.
 - [ ] **Метрики** — **в процесі**: SLO (наприклад, 99% jobs < 5 хв), DLQ < 1%, дублікати < 0.1‰,
       10k jobs/год при P95 < 2 хв.
   - [x] SLO, DLQ і дублікати вимірюються, burn-rate алерти ([ADR-010](adr/0010-observability.md));
@@ -75,7 +76,8 @@
   - [x] Docker (multi-stage, non-root), Helm (`pdp-lib`, umbrella, `values-dev`/`values-prod`),
         Kubernetes з HPA, KEDA, PDB, probes, NetworkPolicy для `video-dub` і `audio-separate`,
         GitHub Actions;
-  - [ ] AWS, Terraform, деплой з CI — Етап 5b, [план](plan/stage-5b.md);
+  - [x] AWS (EKS), Terraform, деплой з CI — Етап 5b, [план](plan/stage-5b.md),
+        [ADR-017](adr/0017-cluster-in-aws.md);
   - [ ] Argo Rollouts — Етап 7.
 - [x] **Perf tools:** k6 (8 сценаріїв у `perf/k6`, з них `login.js` — Етап 5c), autocannon.
 
@@ -98,7 +100,7 @@
   - [x] GitHub Actions: lint, typecheck, dependency-cruiser, unit і Web UI, інтеграційні з порогом
         покриття, тести `audio-separate`, Helm, правила алертів, образи, Trivy і audit у режимі
         звіту;
-  - [ ] Helm deploy з CI в AWS — Етап 5b;
+  - [x] Helm deploy з CI в AWS після CI на `main`, зі smoke-тестом — Етап 5b;
   - [ ] Argo Rollouts — Етап 7.
 
 ---
@@ -177,8 +179,10 @@
         хвилину ([виміри](spikes/02-video-dub.md#конвеєр-5d-на-справжніх-провайдерах-1910));
         мовця, якого крик робить «жінкою», виправляє користувач;
   - [ ] увесь шлях в UI і перевірка на слух — руками.
-- [ ] **Етап 5b — AWS, домен і перший деплой з CI** (є в PDF-плані, тепер після 5c і 5d) — план
-      готовий ([план](plan/stage-5b.md)).
+- [x] **Етап 5b — AWS, домен і перший деплой з CI** (є в PDF-плані, тепер після 5c і 5d): EKS у
+      `eu-central-1` з Terraform, `pdp-media-pipeline.online` з HTTPS, деплой після CI на `main`
+      зі smoke-тестом; кластер піднімається на час роботи (`scripts/aws.sh up` і `down`)
+      ([план](plan/stage-5b.md), [ADR-017](adr/0017-cluster-in-aws.md)). У `main` з 20 жовтня.
 - [ ] **Етап 6 — Testing:** pod kill, delays, fault tolerance; coverage 80%, Pact.
 - [ ] **Етап 7 — CI/CD Canary & Rollback:** GitHub Actions, Trivy, Argo Rollouts.
 - [ ] **Етап 8 — Перформанс & Звіт:** k6 сценарії, bottlenecks, cost per 1k jobs.
@@ -197,10 +201,10 @@
 ## Фінальна прожарка
 
 - [ ] **Архітектура** — **в процесі**: захист ADR, trade-offs, демонстрація графів.
-  - [x] 16 ADR з альтернативами й trade-offs ([відповідність номерам PDF](adr/README.md#відповідність-номерам-pdf));
+  - [x] 17 ADR з альтернативами й trade-offs ([відповідність номерам PDF](adr/README.md#відповідність-номерам-pdf));
   - [x] графи: схема потоку в [README](../README.md), дашборди Grafana, графіки звітів;
         вайрфрейми й інформаційна архітектура UI ([docs/design](design/));
-  - [ ] ADR кластера (EKS чи k3s, у PDF — ADR-010) — Етап 5b;
+  - [x] ADR кластера (EKS чи k3s, у PDF — ADR-010) — [ADR-017](adr/0017-cluster-in-aws.md), EKS;
   - [ ] ADR стратегії деплою і rollback (у PDF — ADR-009) — Етап 7;
   - [ ] C4-діаграми (Context і Container).
 - [ ] **Якість:** coverage, contract, memory профайлінг — Етапи 6 і 8.

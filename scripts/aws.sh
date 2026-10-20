@@ -58,6 +58,10 @@ confirm() {
   read -rp "$1 [y/N] " answer
   case "$answer" in
     y | Y | yes | YES) return 0 ;;
+    '' | n | N | no | NO)
+      echo "not confirmed, nothing changed" >&2
+      return 1
+      ;;
     *)
       echo "not confirmed ('$answer' is not a Latin y), nothing changed" >&2
       return 1

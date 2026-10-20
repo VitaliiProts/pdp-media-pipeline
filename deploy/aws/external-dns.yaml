@@ -15,6 +15,9 @@ extraArgs: [--aws-zone-type=public]
 policy: sync
 registry: txt
 txtOwnerId: pdp
+# Without it the TXT of the apex is a-pdp-media-pipeline.online, outside the zone: external-dns
+# skips it, never owns the apex records and leaves them behind (external-dns#4234).
+txtPrefix: edns-%{record_type}.
 interval: 30s
 
 # The name of its Pod Identity association in the cluster layer.
