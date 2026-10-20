@@ -88,6 +88,7 @@
     "note": "Voiced again from this translation’s recognised speech. It counts towards this month’s translation time.",
     "redub": "Voice again",
     "failed": "Could not start the translation again.",
-    "overQuota": "Not enough translation time left this month."
+    "overQuota": "Not enough translation time left this month.",
+    "overSystemQuota": "The translation time shared by everyone is used up this month."
   }
 }

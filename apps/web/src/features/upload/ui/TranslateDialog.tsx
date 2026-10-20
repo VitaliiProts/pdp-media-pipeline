@@ -34,10 +34,14 @@ type TranslateDialogProps = {
 const BLOCK_KEY = {
   tooLong: 'dub.confirm.tooLong',
   overQuota: 'dub.confirm.overQuota',
+  overSystemQuota: 'dub.confirm.overSystemQuota',
 } as const satisfies Record<DubBlock, string>;
 
 function failureKey(error: AppError | null) {
   if (error?.kind === 'http' && error.code === 'DUB_QUOTA_EXCEEDED') return 'dub.confirm.overQuota';
+  if (error?.kind === 'http' && error.code === 'DUB_SYSTEM_QUOTA_EXCEEDED') {
+    return 'dub.confirm.overSystemQuota';
+  }
   if (error?.kind === 'retryLater') return 'dub.dialog.retryLater';
   return 'dub.dialog.failed';
 }

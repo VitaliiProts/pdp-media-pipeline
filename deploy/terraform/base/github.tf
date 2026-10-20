@@ -88,6 +88,8 @@ data "aws_iam_policy_document" "deploy" {
     resources = [
       aws_ssm_parameter.openai_api_key.arn,
       "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/pdp/prod/postgres-uri",
+      # Written by `aws.sh down`, outside Terraform.
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/pdp/prod/tls-key",
     ]
   }
 }

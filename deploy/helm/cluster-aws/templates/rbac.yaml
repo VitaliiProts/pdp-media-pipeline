@@ -1,0 +1,29 @@
+# CI deploys the `pdp` release as the role `pdp-deploy`. Its EKS access policy
+# (AmazonEKSAdminPolicy in this namespace) covers built-in kinds only; the CRDs the chart
+# renders come from here, through the access entry's Kubernetes group.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pdp-deploy-crds
+  namespace: {{ .Values.appNamespace }}
+rules:
+  - apiGroups: [keda.sh]
+    resources: [scaledobjects]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [traefik.io]
+    resources: [middlewares]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pdp-deploy-crds
+  namespace: {{ .Values.appNamespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pdp-deploy-crds
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: pdp-deploy

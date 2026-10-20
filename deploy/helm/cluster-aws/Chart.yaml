@@ -1,0 +1,5 @@
+apiVersion: v2
+name: cluster-aws
+description: 'PDP Media Pipeline — what EKS needs besides the third-party charts: storage and TLS'
+type: application
+version: 0.1.0

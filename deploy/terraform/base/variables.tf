@@ -9,9 +9,9 @@ variable "domain" {
 }
 
 variable "database_enabled" {
-  description = "Create RDS; it bills by the hour, so this waits for the first cluster session."
+  description = "RDS; between cluster sessions `aws.sh down` stops it rather than destroying it."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "github_repositories" {

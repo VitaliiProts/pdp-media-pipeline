@@ -203,3 +203,7 @@ web:
 
 webhook-receiver:
   enabled: false
+
+# See templates/redirect.yaml.
+redirectToApp:
+  enabled: false

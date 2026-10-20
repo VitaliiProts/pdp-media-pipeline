@@ -19,6 +19,7 @@ import { DubQuotaNote } from './DubQuotaNote';
 const BLOCK_KEY = {
   tooLong: 'dub.confirm.tooLong',
   overQuota: 'dub.confirm.overQuota',
+  overSystemQuota: 'dub.confirm.overSystemQuota',
 } as const satisfies Record<DubBlock, string>;
 
 type DubConfirmProps = {

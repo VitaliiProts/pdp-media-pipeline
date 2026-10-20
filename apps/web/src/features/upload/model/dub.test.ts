@@ -4,6 +4,7 @@ const quota = (remainingSeconds: number): DubQuota => ({
   usedSeconds: 1800 - remainingSeconds,
   limitSeconds: 1800,
   remainingSeconds,
+  systemLimited: false,
   maxVideoSeconds: 60,
   resetsAt: '2026-11-01T00:00:00.000Z',
 });
@@ -24,6 +25,12 @@ describe('dubBlockOf', () => {
     expect(dubBlockOf(10, quota(59), { measured: false })).toBe('overQuota');
     expect(dubBlockOf(null, quota(59), { measured: true })).toBe('overQuota');
     expect(dubBlockOf(null, quota(60), { measured: true })).toBeNull();
+  });
+
+  it('blames the service-wide limit when that is what leaves too little', () => {
+    const shared = { ...quota(15), systemLimited: true };
+    expect(dubBlockOf(20, shared, { measured: true })).toBe('overSystemQuota');
+    expect(dubBlockOf(15, shared, { measured: true })).toBeNull();
   });
 });
 

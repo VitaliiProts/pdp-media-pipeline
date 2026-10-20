@@ -138,7 +138,9 @@ export function Speakers({ dub, jobId, request, file }: SpeakersProps) {
             <p className={styles.problem} role="alert">
               {errorCodeOf(started.error) === 'DUB_QUOTA_EXCEEDED'
                 ? t('speakers.overQuota')
-                : t('speakers.failed')}
+                : errorCodeOf(started.error) === 'DUB_SYSTEM_QUOTA_EXCEEDED'
+                  ? t('speakers.overSystemQuota')
+                  : t('speakers.failed')}
             </p>
           )}
           {target && (

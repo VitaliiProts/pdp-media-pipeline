@@ -30,10 +30,11 @@ class S3Storage:
         endpoint: str | None,
         region: str,
         bucket: str,
-        access_key: str,
-        secret_key: str,
         force_path_style: bool,
+        access_key: str | None = None,
+        secret_key: str | None = None,
     ) -> None:
+        # Without keys boto3 finds credentials itself; in EKS — the pod's role (Pod Identity).
         self.bucket = bucket
         self.client = boto3.client(
             "s3",

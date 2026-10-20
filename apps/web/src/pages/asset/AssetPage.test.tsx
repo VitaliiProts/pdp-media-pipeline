@@ -528,6 +528,23 @@ describe('translating a video', () => {
     expect(within(dialog).getByRole('button', { name: 'Translate' })).toBeDisabled();
   });
 
+  it('tells when the time shared by everyone, not the own, runs short', async () => {
+    const { dialog } = await openTranslate({
+      ...DUB_QUOTA,
+      remainingSeconds: 10,
+      systemLimited: true,
+    });
+    expect(
+      await within(dialog).findByText(
+        'Translation time shared by everyone left this month: 0:10, renewed on November 1.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('Not enough translation time shared by everyone left this month.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Translate' })).toBeDisabled();
+  });
+
   it('warns about a video longer than a dub may be', async () => {
     const { dialog } = await openTranslate(DUB_QUOTA, dubAsset([], { durationSeconds: 95 }));
     expect(
@@ -552,6 +569,23 @@ describe('translating a video', () => {
       'Not enough translation time left this month.',
     );
     expect(dialog).toHaveAttribute('open');
+  });
+
+  it('says so when the service-wide limit refuses after all', async () => {
+    const { user, dialog } = await openTranslate();
+    server.use(
+      http.post('/v1/jobs', () =>
+        HttpResponse.json(
+          { statusCode: 429, code: 'DUB_SYSTEM_QUOTA_EXCEEDED', message: 'quota' },
+          { status: 429 },
+        ),
+      ),
+    );
+    await within(dialog).findByText(/Translation time left/);
+    await user.click(within(dialog).getByRole('button', { name: 'Translate' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Not enough translation time shared by everyone left this month.',
+    );
   });
 
   it('offers a retry when the time left cannot be checked', async () => {

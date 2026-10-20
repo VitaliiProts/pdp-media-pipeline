@@ -65,8 +65,10 @@
   облікових даних AWS. Плюс `audio-separate` в AWS ходить у S3 назовні (`egressPublicHttps`).
 - **Платформа без Postgres і MinIO.** У `platform` — `postgres.enabled` і `minio.enabled`; в AWS
   обидва вимкнені, PVC для NATS, Redis і observability — на `gp3` (EBS CSI).
-- **Grafana за логіном.** Локально Grafana анонімна; на `grafana.pdp-media-pipeline.online` — вхід
-  адміністратора з паролем із Secret.
+- **Grafana без публічної адреси.** Як і локально, анонімна, але лише через
+  `aws.sh grafana` (`kubectl port-forward` на `localhost:3000`): для демо не потрібні ні логін, ні
+  ще один сертифікат. `GRAFANA_URL=http://localhost:3000` — посилання на трейси з UI працюють у
+  того, у кого запущений port-forward.
 - **Розміри під вузли.** `values-prod.yaml` на мінімумах просить 13.7 CPU і 15.3 ГіБ, а два
   `m7i.xlarge` дають ≈7.8 CPU під поди. `values-aws.yaml` ставить по одній репліці, а
   `video-dub` і `audio-separate` масштабує від нуля (див. [бюджет ресурсів](#бюджет-ресурсів)).
@@ -85,19 +87,20 @@
   VTT із S3 з перевіркою CORS.
 - **Ключ провайдера дубляжу.** Не в репозиторії, не в values і не в state Terraform: Terraform
   створює SSM SecureString із заглушкою (`ignore_changes` на значення), справжній ключ вносите ви
-  через `aws ssm put-parameter --overwrite`. Шар `cluster` робить з нього Secret `dub-provider`.
+  через `aws ssm put-parameter --overwrite`. `aws.sh up` робить з нього Secret `dub-provider`
+  (`aws ssm get-parameter` → `kubectl apply`), тож ключ не проходить і через state шару `cluster`.
 - **`video-dub` і `audio-separate`.** Образи 1.9 і 5.9 ГБ у розпакованому вигляді: диск вузла
   80 ГБ замість 20 за замовчуванням. Egress `video-dub` — лише `443` назовні (network policy у
   `vpc-cni`).
 - **Вхід за доменом.** Cookie сесії з `Secure` і без атрибута `Domain` (вже так): вона належить
-  лише `app.pdp-media-pipeline.online` і не потрапляє на `api.` чи `grafana.`. `APP_ORIGINS` —
+  лише `app.pdp-media-pipeline.online` і не потрапляє на `api.`. `APP_ORIGINS` —
   `https://app.pdp-media-pipeline.online`.
 
 ## Прийняті рішення
 
 | Питання          | Рішення                                                                                                                                                                                                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Домен            | `pdp-media-pipeline.online` (GoDaddy) повністю в Route 53: hosted zone у базовому шарі, у GoDaddy — власні nameservers з виходу Terraform. Хости `api.`, `app.`, `grafana.`; корінь і `www.` переадресовують на `app.` (Traefik)                                   |
+| Домен            | `pdp-media-pipeline.online` (GoDaddy) повністю в Route 53: hosted zone у базовому шарі, у GoDaddy — власні nameservers з виходу Terraform. Хости `api.` і `app.`; корінь і `www.` переадресовують на `app.` (Traefik)                                              |
 | Кластер          | EKS, managed node group: 2 × `m7i.xlarge` (4 vCPU, 16 ГБ), on-demand, диск 80 ГБ `gp3`. Обґрунтування й вартість — ADR-017 (у PDF — ADR-010). k3s на EC2 і EKS Auto Mode — в альтернативах                                                                         |
 | Розміщення       | По одній репліці кожного сервісу; `video-dub` 0–2 і `audio-separate` 0–1 з масштабуванням від нуля: перший дубляж після простою чекає на старт пода (≈1–2 хв, перше витягування образу на вузол — довше)                                                           |
 | Режим роботи     | Кластер піднімається під роботу й демо і знищується; постійний лише дешевий базовий шар. RDS між сесіями зупиняється                                                                                                                                               |
@@ -111,7 +114,7 @@
 | Образи           | ECR, 8 репозиторіїв (без `webhook-receiver`), теги незмінні. Сервіси — тег SHA коміту, зберігаються 10 останніх. `audio-separate` — тег за вмістом `apps/audio-separate` (`git rev-parse HEAD:apps/audio-separate`), збирається лише коли змінився, зберігаються 3 |
 | Витрати OpenAI   | Загальний ліміт секунд дубляжу на місяць на всю систему в Metadata (`DUB_SYSTEM_QUOTA_SECONDS`); в AWS — 18 000 с (300 хв, ≈ $5.4 на місяць). Квота на користувача лишається                                                                                       |
 | Локальний доступ | IAM Identity Center (інстанс організації, один регіон), профіль `pdp`; без IAM-ключів                                                                                                                                                                              |
-| Секрети          | Пароль RDS — `random_password` у Terraform → SSM SecureString; шар `cluster` створює Secret `postgres-app` (ключ `uri`) з тим самим іменем, що дає CloudNativePG локально                                                                                          |
+| Секрети          | Пароль RDS — `random_password` у Terraform → SSM SecureString; `aws.sh up` створює Secret `postgres-app` (ключ `uri`) з тим самим іменем, що дає CloudNativePG локально                                                                                            |
 | CI → AWS         | GitHub OIDC, роль лише для `repo:VitaliiProts/pdp-media-pipeline:environment:aws`; environment `aws` дозволений лише для `main`. Права: push в ECR, `eks:DescribeCluster`, читання `/pdp/prod/*`, access entry лише на namespace `pdp`                             |
 | Параметри        | Terraform пише виходи (домен, бакет, ARN, endpoint RDS) в SSM Parameter Store `/pdp/prod/*`; CI пише туди ж останній задеплоєний тег. `scripts/aws.sh` і CI читають звідти, у репозиторії нічого не копіюється                                                     |
 
@@ -233,108 +236,164 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 
 **Код:**
 
-- [ ] S3 без ключів: `libs/config/src/schemas.ts` (endpoint і ключі необовʼязкові, ключі — разом),
+- [x] S3 без ключів: `libs/config/src/schemas.ts` (endpoint і ключі необовʼязкові, ключі — разом),
       `libs/worker-kit/src/object-storage.ts`, `apps/api-gateway/src/config.ts` і
       `storage/storage.service.ts` (`S3_PUBLIC_ENDPOINT` необовʼязковий: без нього presign на
       регіональний endpoint), `apps/audio-separate/audio_separate/{main,storage}.py` (boto3 без
       ключів бере облікові дані сам). Тести на обидва режими: з MinIO і без ключів.
-- [ ] TLS до RDS: `DATABASE_URL` з `sslmode=verify-full&sslrootcert=/etc/rds/ca.pem` у Metadata і
-      Job міграцій; тест розбору URL. Справжня перевірка — на RDS.
-- [ ] Загальний ліміт дубляжу:
+- [x] TLS до RDS: `DATABASE_URL` з `sslmode=verify-full&sslrootcert=/etc/rds/ca.pem` у Metadata і
+      Job міграцій. Код не змінюється: `pg` (`pg-connection-string` 2.14) сам читає CA з
+      `sslrootcert` і перевіряє ланцюжок та імʼя хоста. Перевірено 19 жовтня на Postgres 17 з TLS
+      у Docker: свій CA — TLS 1.3, чужий CA — `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, IP замість імені з
+      сертифіката — `ERR_TLS_CERT_ALTNAME_INVALID`. Справжня перевірка — на RDS.
+- [x] Загальний ліміт дубляжу:
   - `DUB_SYSTEM_QUOTA_SECONDS` у `apps/metadata/src/config.ts`, `0` — без ліміту (локально нічого
     не змінюється);
   - `assertDubQuota` після блокування користувача бере `pg_advisory_xact_lock` ліміту системи й
     рахує ті самі секунди по всіх користувачах; понад ліміт — `429` з кодом
     `DUB_SYSTEM_QUOTA_EXCEEDED` (`libs/contracts`). Блокування одне на всю систему: дубляжі
     створюються рідко, черга на ньому — мілісекунди;
-  - `GET /v1/dub-quota` додає `systemLimitReached`; діалог перекладу показує «ліміт перекладу на
-    цей місяць вичерпано, оновиться …» і не дає почати;
-  - тести: інтеграційний на Postgres (два користувачі разом перевищують ліміт, паралельні
-    створення не проходять обидва), gateway пропускає код, Vitest на діалог.
-- [ ] `pdp-lib`: ServiceAccount на сервіс; у `_network.tpl` — `egressPodIdentity`
-      (`169.254.170.23/32:80`); тести рендеру в `helm-check.sh`.
+  - `GET /v1/dub-quota`: `remainingSeconds` — менший із двох залишків, `systemLimited` — коли це
+    спільний; діалоги перекладу показують залишок спільного часу і «спільного для всіх часу не
+    вистачає», кнопка неактивна;
+  - тести: інтеграційний на Postgres (два користувачі разом перевищують ліміт; поки тест тримає
+    блокування, жоден із двох паралельних запитів не завершується, потім проходить один — без
+    блокування в коді тест падає), Vitest на модель і діалог.
+- [x] `pdp-lib`: ServiceAccount на сервіс (імʼя — як у сервісу, токен API не монтується); у
+      `_network.tpl` — `egressPodIdentity` (`169.254.170.23/32:80`). Рендер перевіряє
+      `helm-check.sh` разом з AWS-профілем.
 
 **Helm:**
 
-- [ ] `platform/values-aws.yaml`: без Postgres і MinIO, PVC на `gp3`, Grafana з логіном і Ingress
-      `grafana.pdp-media-pipeline.online`.
-- [ ] `pdp/values-aws.yaml` поверх `values-prod.yaml`: реєстр ECR, тег `audio-separate` окремо,
-      хости `api.`, `app.` і Ingress кореня з `www.` з Middleware `redirectRegex` на `app.`,
-      анотації cert-manager, S3 через роль (лише бакет і регіон),
-      `DATABASE_URL` з Secret `postgres-app` і CA-бандл з ConfigMap, мінімуми й максимуми з
-      [бюджету](#бюджет-ресурсів), `video-dub` 0–2 і `audio-separate` 0–1 з
-      `egressPublicHttps` і `egressPodIdentity`, `TRUST_PROXY_HOPS=1`,
-      `DUB_SYSTEM_QUOTA_SECONDS=18000`, `GRAFANA_URL`.
-- [ ] `helm-check.sh` рендерить AWS-профіль і перевіряє суму requests на мінімумах (≤ 3 CPU для
-      `pdp` і платформи разом), щоб нова репліка не зламала розміщення непомітно.
-- [ ] k3d з тими ж мінімумами: `video-dub` і `audio-separate` стартують з нуля на перший дубляж —
-      заміряти, скільки чекає задача.
+- [x] `platform/values-aws.yaml`: без Postgres, MinIO та Ingress платформи, PVC — на StorageClass
+      за замовчуванням (`gp3`), Grafana без Ingress, `vmalert` посилається на `localhost:3000`.
+- [x] `pdp/values-aws.yaml` поверх `values-prod.yaml`: реєстр ECR, хости `api.`, `app.` і
+      Ingress кореня з `www.` з Middleware `redirectRegex` на `app.` (`templates/redirect.yaml`),
+      анотації Traefik на `websecure` з TLS, S3 через роль (лише бакет і регіон, без endpoint і
+      ключів), `DATABASE_URL` з Secret `postgres-app` і ConfigMap `rds-ca` у `/etc/rds` для
+      Metadata і Job міграцій, мінімуми й максимуми з [бюджету](#бюджет-ресурсів), `video-dub`
+      0–2 і `audio-separate` 0–1 з `egressPodIdentity` (`audio-separate` — ще
+      `egressPublicHttps` до S3), `DUB_SYSTEM_QUOTA_SECONDS=18000`,
+      `GRAFANA_URL=http://localhost:3000`. Теги образів (і окремий для `audio-separate`) дає
+      `aws.sh`. Requests на мінімумах: 2.33 CPU і 2.25 ГіБ сервіси, 0.37 CPU і 0.75 ГіБ
+      платформа.
+- [x] `helm-check.sh` рендерить AWS-профіль і падає, якщо щось ще посилається на MinIO або
+      `video-dub` і `audio-separate` не мають `egressPodIdentity`. Розміщення на двох вузлах і
+      холодний старт перевіряються на першому `up`, без окремих замірів у k3d.
 
 **Terraform, шар `cluster`:**
 
-- [ ] EKS (остання версія зі standard support на момент `apply`), публічний endpoint API з
-      автентифікацією IAM; node group 2 × `m7i.xlarge`, диск 80 ГБ `gp3`, група `pdp-nodes` з
-      базового шару.
-- [ ] Addons: `vpc-cni` з network policy, `coredns`, `kube-proxy`, `aws-ebs-csi-driver`,
-      `eks-pod-identity-agent`; StorageClass `gp3` за замовчуванням.
-- [ ] Access entries: адміністратор (роль SSO, ARN через data-джерело `aws_iam_roles`) і роль
-      деплою (namespace `pdp`).
-- [ ] Pod Identity: gateway, воркери, `video-*`, `audio-separate` → бакет медіа (воркер — ще
-      `s3:DeleteObject`); external-dns і cert-manager → лише зона `pdp-media-pipeline.online`; LB
-      Controller; EBS CSI.
-- [ ] Helm-релізи кластерних компонентів: AWS Load Balancer Controller, Traefik (Service на NLB,
-      proxy protocol), cert-manager з `letsencrypt-staging` і `letsencrypt-prod`, external-dns
-      (`domainFilters: [pdp-media-pipeline.online]`, `policy: sync` лише в цій зоні), KEDA,
-      metrics-server.
-- [ ] Secret `postgres-app`, Secret `dub-provider` (з SSM), ConfigMap з CA-бандлом RDS у
-      namespace `pdp`.
+Лише ресурси AWS. Helm-релізи й об'єкти Kubernetes ставить `aws.sh up`: провайдери `helm` і
+`kubernetes` в одному `apply` з кластером, якого ще немає на `plan`, ненадійні, а Secret з
+ключем OpenAI, зроблений Terraform, лишив би ключ у state.
+
+- [x] EKS 1.37 (`terraform-aws-modules/eks` 21.29.0) — найновіша зі standard support, до грудня
+      2027; публічний endpoint API з автентифікацією IAM (`authentication_mode = API`), без
+      IRSA, без власного KMS-ключа й логів control plane в CloudWatch; node group 2 ×
+      `m7i.xlarge` (AL2023, максимум 3 на час оновлення), диск 80 ГБ `gp3`, групи вузлів —
+      `pdp-nodes` з базового шару й група модуля з тегом `kubernetes.io/cluster/pdp` (LB
+      Controller вимагає рівно одну таку). Що базовий шар віддав, шар читає з SSM `/pdp/prod/*`,
+      не з його state.
+- [x] Addons: `vpc-cni` з network policy, `kube-proxy` і `eks-pod-identity-agent` до вузлів,
+      `coredns` і `aws-ebs-csi-driver` після; `bootstrap_self_managed_addons = false`.
+- [x] Access entries: адміністратор (роль SSO, ARN без шляху через `aws_iam_roles`) —
+      `AmazonEKSClusterAdminPolicy`; роль деплою — `AmazonEKSAdminPolicy` лише в namespace `pdp`
+      (чи вистачає прав на ресурси CRD — `ScaledObject`, `Middleware` — перевіряється в 5b.3).
+- [x] Pod Identity (`terraform-aws-modules/eks-pod-identity` 2.10.0): `pdp-media` для gateway,
+      `video-*`, `audio-separate` (`ListBucket`, `Get/PutObject`, `AbortMultipartUpload`),
+      `pdp-media-purge` для трьох класів воркерів (те саме й `DeleteObject`); external-dns і
+      cert-manager — лише зона `pdp-media-pipeline.online`; LB Controller; EBS CSI.
+- [x] Trivy: чотири прийняті знахідки позначені в `eks.tf` з причиною — публічний API (два
+      правила), egress вузлів, шифрування Secrets ключем AWS.
+- [x] `validate` і `plan` проти акаунта: 63 ресурси, без `apply`.
 
 **`scripts/aws.sh`:**
 
-- [ ] `up`: перевірка `aws sts get-caller-identity` (інакше підказка `aws sso login`), `apply`
-      для `base` і `cluster`, старт RDS, платформа, реліз `pdp` з тегом з `/pdp/prod/deployed-tag`,
-      створення smoke-користувача, якщо його немає.
-- [ ] `down`: попередження, якщо в черзі є задачі; видалити релізи (NLB і EBS зникають разом зі
-      Service і PVC), дочекатися, поки LB видалиться, `destroy` шару `cluster`, зупинити RDS.
-- [ ] `status`: що працює, стан RDS (і коли він сам стартує), скільки коштує година.
+Профіль завжди `pdp`, власний kubeconfig `~/.kube/pdp-aws` (контексти інших кластерів не
+чіпаються). Значення секретів ідуть у `kubectl` лише через stdin і файлові дескриптори, не
+через аргументи. Версії чартів зафіксовані в скрипті; `helm-check.sh` перевіряє values
+компонентів (`deploy/aws/*.yaml`) схемами цих чартів тих самих версій.
+
+- [x] Чарт `deploy/helm/cluster-aws`: StorageClass `gp3` за замовчуванням (том зникає разом з
+      PVC), `ClusterIssuer` `letsencrypt-staging` і `letsencrypt-prod` (DNS-01 у Route 53), один
+      `Certificate` (ECDSA) на `pdp-media-pipeline.online` і `*.pdp-media-pipeline.online` у
+      namespace `traefik` — `TLSStore` `default`, тож Ingress сервісів без секції `tls`.
+      Видавець — `TLS_ISSUER`, за замовчуванням prod.
+- [x] Релізи компонентів: metrics-server 3.14.0, AWS Load Balancer Controller 3.6.0 (`vpcId` і
+      `clusterName` явно: подам IMDS недоступний), cert-manager v1.21.2, Traefik 42.0.0 (NLB
+      `ip`-цілі, proxy protocol від `10.40.0.0/16`, `web` → `websecure` постійною
+      переадресацією, `publishedService` для статусу Ingress), external-dns 1.23.0 (джерело
+      `ingress`, `domainFilters`, `policy: sync`, власник TXT `pdp`), KEDA 2.21.0.
+- [x] Сертифікат prod між сесіями: Let's Encrypt дає п'ять сертифікатів на ті самі імена за
+      тиждень, а кожен `up` — новий кластер. `down` кладе ланцюжок у `/pdp/prod/tls-crt`, ключ у
+      `/pdp/prod/tls-key` (SecureString; ECDSA вміщається в стандартний параметр), `up` повертає
+      Secret з анотаціями видавця, і cert-manager його не перевипускає.
+- [x] Secret `postgres-app` (ключ `uri`), Secret `dub-provider` (ключ `openaiApiKey`, попередження,
+      якщо ключ не внесено), обидва з SSM; ConfigMap `rds-ca` (бандл регіону) у namespace `pdp`.
+- [x] `up`: профіль і акаунт (інакше підказка `aws sso login`); теги образів з
+      `/pdp/prod/deployed-tag/*` до будь-яких витрат — без образів у ECR скрипт зупиняється;
+      старт RDS; план базового шару з підтвердженням, `apply` шару `cluster`; компоненти,
+      секрети, платформа, реліз `pdp`; очікування сертифіката. Smoke-користувач — у 5b.3 разом
+      зі `smoke.sh`, до того `aws.sh seed`.
+- [x] `down`: кількість незавершених задач (усі, крім `succeeded` і `dead`) з RDS і
+      підтвердження, якщо вони є; збереження сертифіката; видалення `pdp` і `platform`, PVC і
+      очікування, поки зникнуть PV (EBS); видалення Traefik — Service тримає finalizer, доки
+      контролер не прибере NLB, target groups і security groups; `destroy` шару `cluster`;
+      зупинка RDS; перевірка, що NLB і EBS з тегами кластера не лишилися.
+- [x] `status`: кластер, RDS (і коли зупинено — AWS стартує його через 7 днів), вузли й поди,
+      адреси, вартість, залишки.
+- [x] `grafana`: `kubectl port-forward` на `localhost:3000`; `seed` — як у `k8s.sh`.
+- [x] Базовий шар: `database_enabled` за замовчуванням `true` — RDS створить перший `up` (план
+      зараз: 2 ресурси, інстанс і параметр з URL).
 
 **Перевірити:**
 
 - `https://api.pdp-media-pipeline.online/health/ready`; сертифікат спершу від staging, потім prod;
 - `https://app.pdp-media-pipeline.online`: реєстрація й вхід, завантаження картинки й відео, переклад
   відео з прогресом, перегляд із субтитрами, медіатека;
-- `https://grafana.pdp-media-pipeline.online` за логіном: дашборди, трейси одного дубляжу;
+- `aws.sh grafana`: дашборди, трейси одного дубляжу, посилання на трейс з UI;
 - gateway бачить справжній IP клієнта (`429` за IP для невідомого ключа);
 - з `DUB_SYSTEM_QUOTA_SECONDS=60` другий дубляж отримує `429 DUB_SYSTEM_QUOTA_EXCEEDED`;
-- задачі, що стояли в черзі під час `down`, після `up` доходять до кінця;
+- `down` з незавершеною задачею питає підтвердження: черга NATS зникає з кластером, і
+  автоматичної повторної відправки задач немає, тож така задача лишається у своєму статусі;
 - після `down` у консолі немає NLB, EBS-томів і EC2, `terraform state list` шару `cluster` порожній.
 
-**Коміти:** `feat(config): S3 credentials from the pod role` → `feat(metadata): TLS to Postgres` →
-`feat(metadata): system-wide dub quota` → `feat(web): show the system dub limit` →
+**Коміти:** `feat(config): S3 credentials from the pod role` → `feat(metadata): system-wide dub
+quota` → `feat(web): show the system dub limit` →
 `feat(helm): service accounts and Pod Identity egress` → `feat(helm): AWS profile` →
 `infra(terraform): EKS cluster layer` → `feat(scripts): aws.sh up, down and status`.
 
 ## Підетап 5b.3. Деплой з CI
 
-- [ ] `.github/workflows/deploy.yml`: `workflow_run` після успішного CI на `main` (checkout
-      `head_sha` того запуску) і `workflow_dispatch`; environment `aws`; `concurrency: deploy-aws`
-      без скасування поточного.
-  - OIDC → роль `pdp-deploy`; build і push образів у ECR з тегом SHA (кеш з CI, звільнення диска
-    для великих образів, як у CI); `audio-separate` — лише якщо тега за вмістом ще немає в ECR;
-  - тег пишеться в `/pdp/prod/deployed-tag`, щойно образи в ECR;
-  - якщо кластер не існує — job зелений з повідомленням «кластер вимкнений, образи в ECR», а
-    `aws.sh up` потім розгорне цей тег;
-  - `helm upgrade --install pdp` з `values-prod.yaml` і `values-aws.yaml`, `--atomic --wait`;
-    міграції — той самий хук. Платформу оновлює `aws.sh up`, не CI;
-  - smoke-тест.
+Push образів іде перед першим `aws.sh up`: без образів у ECR `up` зупиняється, а збирати
+x86-образи на Mac з ARM (`audio-separate` — 5.9 ГБ) довго. Перевірки 5b.2 на живому кластері —
+після першого push.
+
+- [x] `.github/workflows/deploy.yml`: `workflow_run` після успішного CI на `main` (лише `push`
+      з цього ж репозиторію — PR з форку теж може мати гілку `main`; checkout `head_sha` того
+      запуску) і `workflow_dispatch`; environment `aws`; `concurrency: deploy-aws` без
+      скасування поточного.
+  - OIDC → роль `pdp-deploy`; build і push у ECR матрицею з 8 образів (кеш CI з `main`,
+    звільнення диска для `audio-separate` і `video-dub`, без provenance-індексу); образ, чий тег
+    уже є в ECR, не збирається — і `audio-separate` з тегом за вмістом, і повторний запуск
+    того самого коміту (теги незмінні);
+  - теги пишуться в `/pdp/prod/deployed-tag/*` окремим job'ом, коли всі образи в ECR;
+  - `scripts/aws.sh release`: якщо кластер не `ACTIVE` — зелений з повідомленням «кластер
+    вимкнений», інакше `helm upgrade --install pdp` з `values-prod.yaml` і `values-aws.yaml`,
+    `--rollback-on-failure` (Helm 4, колишній `--atomic`); міграції — той самий хук. Платформу
+    й компоненти оновлює `aws.sh up`, не CI;
+  - права в кластері: access policy EKS покриває лише вбудовані типи, тож access entry ролі
+    має групу `pdp-deploy`, а `cluster-aws` дає їй `Role` на `ScaledObject` і `Middleware` у
+    namespace `pdp`; `deny` у ролі доповнено ключем сертифіката `/pdp/prod/tls-key`;
+  - [ ] smoke-тест.
 - [ ] `scripts/smoke.sh <base-url>`: `GET /health/ready`, потім одна справжня задача `image.resize`:
       upload через presigned URL, `POST /v1/jobs`, очікування `succeeded` (до 2 хв), `GET` одного
       результату. Ключ — секрет environment `aws` (`SMOKE_API_KEY`); користувача створює
       `aws.sh` один раз, у RDS він переживає перестворення кластера. Окремо — вхід тестовим
       користувачем і `GET /v1/assets`. Дубляж у smoke не входить: він платний і стартує з нуля.
       Падіння — workflow червоний.
-- [ ] Налаштування GitHub (робите ви): environment `aws` з правилом «лише `main`», змінні
-      `AWS_REGION` і `AWS_ROLE_ARN`, секрет `SMOKE_API_KEY`.
+- [ ] Налаштування GitHub (робите ви): environment `aws` з правилом «лише `main`», змінна
+      `AWS_ROLE_ARN` (регіон — у workflow), секрет `SMOKE_API_KEY`.
 - [ ] Перевірити руками: змінити відповідь endpoint'а (наприклад, `version` у `/health/ready`),
       змерджити, побачити нову версію за доменом без ручних кроків; запуск з іншої гілки не
       отримує роль.
@@ -366,4 +425,4 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
 - **Публічний endpoint EKS API** відкритий для IP GitHub-раннерів; захищає IAM-автентифікація й
   мінімальна роль деплою.
 - **Обсяг.** Три PR при 8–10 год/тиждень — щільно. Якщо не вкладається, smoke-тест з
-  медіатекою й Grafana за доменом переходять на початок Етапу 6.
+  медіатекою переходить на початок Етапу 6.

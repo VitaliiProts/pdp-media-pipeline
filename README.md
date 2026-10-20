@@ -174,7 +174,8 @@ flowchart LR
   убитий посеред задачі, продовжують з останнього готового кроку. Ретраї всередині спроби,
   circuit breaker провайдера, коди помилок (`no_speech`, `same_language`, `stt_unavailable` …).
 - **Ліміти.** Хвилина відео на задачу і 30 хв на користувача за місяць (`429 DUB_QUOTA_EXCEEDED`);
-  `GET /v1/dub-quota` показує залишок.
+  за потреби — ще ліміт на всіх разом (`DUB_SYSTEM_QUOTA_SECONDS`, `429 DUB_SYSTEM_QUOTA_EXCEEDED`).
+  `GET /v1/dub-quota` показує менший із залишків і `systemLimited`, коли це спільний.
 - **Web UI.** «Перекласти» в діалозі завантаження і на сторінці файлу, сторінка перекладу з
   кроками, програвачем «переклад / оригінал», транскриптом і виправленням мовців.
 
@@ -1297,24 +1298,25 @@ Supertonic) з `VIDEO_JOB_TYPES=video.dub`. У compose — `--profile dub`, фе
 `dub_breaker_state`, `dub_phrases_total`, `dub_phrases_adjusted_total{adjustment}`,
 `dub_cost_usd_total`; SLO 95% за 15 хв; дашборд **Dub**; алерт `DubProviderCircuitOpen`.
 
-| Змінна (video-dub)             | За замовчуванням             | Що робить                                                                       |
-| ------------------------------ | ---------------------------- | ------------------------------------------------------------------------------- |
-| `DUB_PROVIDERS`                | `openai` (compose: `fake`)   | Розпізнавання й переклад; `fake` не потребує ключа                              |
-| `OPENAI_API_KEY`               | —                            | Секрет `dub-provider` / `openaiApiKey`; без нього под не стартує                |
-| `DUB_TRANSLATE_MODEL`          | `gpt-5-mini`                 | Модель перекладу й підгонки                                                     |
-| `DUB_REASONING_EFFORT`         | `low`                        | `reasoning.effort` перекладу                                                    |
-| `DUB_STT_TIMEOUT_MS`           | 60000                        | Одна спроба розпізнавання                                                       |
-| `DUB_TRANSLATE_TIMEOUT_MS`     | 60000                        | Одна спроба перекладу                                                           |
-| `DUB_REFIT_TIMEOUT_MS`         | 30000                        | Одна спроба підгонки фраз, що не влізли                                         |
-| `DUB_TTS`                      | `supertonic`                 | `fake` — без моделі, для тестів                                                 |
-| `SUPERTONIC_ASSETS_DIR`        | `/opt/supertonic`            | `onnx/` і `voice_styles/`, вбудовані в образ                                    |
-| `SUPERTONIC_THREADS`           | 2                            | Потоки ONNX: ліміт CPU пода                                                     |
-| `SUPERTONIC_STEPS`             | 8                            | Кроки дифузії на фразу                                                          |
-| `DUB_AUDIO_SEPARATE`           | `http` (compose: `fake`)     | `fake` робить усю доріжку і голосом, і фоном                                    |
-| `AUDIO_SEPARATE_URL`           | `http://audio-separate:3000` | Адреса сервісу розділення                                                       |
-| `AUDIO_SEPARATE_TIMEOUT_MS`    | 300000                       | Один виклик разом з очікуванням зайнятого пода                                  |
-| `DUB_MAX_DURATION_SECONDS`     | 60                           | Максимальна тривалість відео для дубляжу                                        |
-| `DUB_QUOTA_SECONDS` (metadata) | 1800 (30 хв)                 | Секунд дубляжу на користувача за місяць (UTC); понад — `429 DUB_QUOTA_EXCEEDED` |
+| Змінна (video-dub)                    | За замовчуванням             | Що робить                                                                       |
+| ------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------- |
+| `DUB_PROVIDERS`                       | `openai` (compose: `fake`)   | Розпізнавання й переклад; `fake` не потребує ключа                              |
+| `OPENAI_API_KEY`                      | —                            | Секрет `dub-provider` / `openaiApiKey`; без нього под не стартує                |
+| `DUB_TRANSLATE_MODEL`                 | `gpt-5-mini`                 | Модель перекладу й підгонки                                                     |
+| `DUB_REASONING_EFFORT`                | `low`                        | `reasoning.effort` перекладу                                                    |
+| `DUB_STT_TIMEOUT_MS`                  | 60000                        | Одна спроба розпізнавання                                                       |
+| `DUB_TRANSLATE_TIMEOUT_MS`            | 60000                        | Одна спроба перекладу                                                           |
+| `DUB_REFIT_TIMEOUT_MS`                | 30000                        | Одна спроба підгонки фраз, що не влізли                                         |
+| `DUB_TTS`                             | `supertonic`                 | `fake` — без моделі, для тестів                                                 |
+| `SUPERTONIC_ASSETS_DIR`               | `/opt/supertonic`            | `onnx/` і `voice_styles/`, вбудовані в образ                                    |
+| `SUPERTONIC_THREADS`                  | 2                            | Потоки ONNX: ліміт CPU пода                                                     |
+| `SUPERTONIC_STEPS`                    | 8                            | Кроки дифузії на фразу                                                          |
+| `DUB_AUDIO_SEPARATE`                  | `http` (compose: `fake`)     | `fake` робить усю доріжку і голосом, і фоном                                    |
+| `AUDIO_SEPARATE_URL`                  | `http://audio-separate:3000` | Адреса сервісу розділення                                                       |
+| `AUDIO_SEPARATE_TIMEOUT_MS`           | 300000                       | Один виклик разом з очікуванням зайнятого пода                                  |
+| `DUB_MAX_DURATION_SECONDS`            | 60                           | Максимальна тривалість відео для дубляжу                                        |
+| `DUB_QUOTA_SECONDS` (metadata)        | 1800 (30 хв)                 | Секунд дубляжу на користувача за місяць (UTC); понад — `429 DUB_QUOTA_EXCEEDED` |
+| `DUB_SYSTEM_QUOTA_SECONDS` (metadata) | 0 (без ліміту)               | Те саме на всіх користувачів разом; понад — `429 DUB_SYSTEM_QUOTA_EXCEEDED`     |
 
 | Змінна (audio-separate)                | За замовчуванням      | Що робить                                                     |
 | -------------------------------------- | --------------------- | ------------------------------------------------------------- |

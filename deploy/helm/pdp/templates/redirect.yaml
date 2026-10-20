@@ -1,0 +1,41 @@
+{{/*
+The bare domain and www. answer with a permanent redirect to the Web UI (Traefik only).
+*/}}
+{{- with .Values.redirectToApp }}
+{{- if .enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-app
+spec:
+  redirectRegex:
+    regex: ^https?://[^/]+(.*)$
+    replacement: https://{{ .target }}${1}
+    permanent: true
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: redirect-to-app
+  annotations:
+    {{- with .annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $.Release.Namespace }}-redirect-to-app@kubernetescrd
+spec:
+  rules:
+    {{- range .hosts }}
+    # Traefik answers before any backend is called; the Service only satisfies the schema.
+    - host: {{ . }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  name: http
+    {{- end }}
+{{- end }}
+{{- end }}

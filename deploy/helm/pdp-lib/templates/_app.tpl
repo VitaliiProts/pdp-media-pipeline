@@ -1,6 +1,9 @@
 {{/*
-Deployment, Service, PodDisruptionBudget, optional autoscaler (_scaling.tpl), NetworkPolicy
-(_network.tpl) and Ingress of one service. A service chart only needs `{{ include "pdp-lib.app" . }}` and its values.yaml.
+ServiceAccount, Deployment, Service, PodDisruptionBudget, optional autoscaler (_scaling.tpl),
+NetworkPolicy (_network.tpl) and Ingress of one service. A service chart only needs `{{ include "pdp-lib.app" . }}` and its values.yaml.
+
+The ServiceAccount is the service's own, so an EKS Pod Identity association can give it an
+AWS role. Its API token stays unmounted: the Pod Identity webhook projects a token of its own.
 
 `shutdownGraceSeconds` (workers) sets WORKER_SHUTDOWN_GRACE_MS and a termination grace
 15 s longer: 5 s for aborted jobs to hand themselves back, the rest for NATS and HTTP.
@@ -9,6 +12,14 @@ Deployment, Service, PodDisruptionBudget, optional autoscaler (_scaling.tpl), Ne
 {{- $name := include "pdp-lib.name" . -}}
 {{- $port := .Values.containerPort | default 3000 -}}
 {{- $probes := .Values.probes | default dict -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "pdp-lib.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,6 +44,7 @@ spec:
       labels:
         {{- include "pdp-lib.labels" . | nindent 8 }}
     spec:
+      serviceAccountName: {{ $name }}
       automountServiceAccountToken: false
       # Service links would add NATS_PORT=tcp://... and the like to every container.
       enableServiceLinks: false
@@ -136,6 +148,10 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "pdp-lib.labels" $ | nindent 4 }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   {{- with .className }}
   ingressClassName: {{ . }}

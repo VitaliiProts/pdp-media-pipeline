@@ -15,13 +15,16 @@ export function DubQuotaNote() {
       day: 'numeric',
       month: 'long',
     }).format(new Date(quota.data.resetsAt));
+    const left = formatDuration(quota.data.remainingSeconds);
     return (
       <p className={styles.note}>
-        {t('dub.quota.left', {
-          left: formatDuration(quota.data.remainingSeconds),
-          limit: formatDuration(quota.data.limitSeconds),
-          date: resets,
-        })}
+        {quota.data.systemLimited
+          ? t('dub.quota.systemLeft', { left, date: resets })
+          : t('dub.quota.left', {
+              left,
+              limit: formatDuration(quota.data.limitSeconds),
+              date: resets,
+            })}
       </p>
     );
   }

@@ -105,7 +105,7 @@ export class JobsController {
   @ApiTooManyRequestsResponse({
     description:
       'Rate limit exceeded (see Retry-After), or code DUB_QUOTA_EXCEEDED: the dub seconds of ' +
-      'this month are used up',
+      'this month are used up; DUB_SYSTEM_QUOTA_EXCEEDED: those of the whole service are',
   })
   async create(
     @UserId() userId: string,

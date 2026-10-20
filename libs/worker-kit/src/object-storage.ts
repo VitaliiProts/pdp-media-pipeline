@@ -14,20 +14,14 @@ import {
 } from '@aws-sdk/client-s3';
 import { Module, type OnApplicationShutdown, type Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { type s3EnvSchema } from '@pdp/config';
+import { type S3Connection, type S3Env, s3Connection } from '@pdp/config';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { type z } from 'zod';
 import { PermanentError } from './permanent-error';
 
-export interface ObjectStorageOptions {
-  endpoint: string;
-  region: string;
-  forcePathStyle: boolean;
-  accessKeyId: string;
-  secretAccessKey: string;
+export interface ObjectStorageOptions extends S3Connection {
   bucket: string;
 }
 
@@ -36,17 +30,9 @@ export class ObjectStorage implements OnApplicationShutdown {
   readonly client: S3Client;
   readonly bucket: string;
 
-  constructor(options: ObjectStorageOptions) {
-    this.bucket = options.bucket;
-    this.client = new S3Client({
-      endpoint: options.endpoint,
-      region: options.region,
-      forcePathStyle: options.forcePathStyle,
-      credentials: {
-        accessKeyId: options.accessKeyId,
-        secretAccessKey: options.secretAccessKey,
-      },
-    });
+  constructor({ bucket, ...connection }: ObjectStorageOptions) {
+    this.bucket = bucket;
+    this.client = new S3Client(connection);
   }
 
   async getObject(key: string, maxBytes: number): Promise<Buffer> {
@@ -172,18 +158,12 @@ export class ObjectStorage implements OnApplicationShutdown {
   }
 }
 
-type S3Env = z.infer<typeof s3EnvSchema>;
-
 const objectStorageProvider: Provider = {
   provide: ObjectStorage,
   inject: [ConfigService],
   useFactory: (config: ConfigService<S3Env, true>) =>
     new ObjectStorage({
-      endpoint: config.get('S3_ENDPOINT', { infer: true }),
-      region: config.get('S3_REGION', { infer: true }),
-      forcePathStyle: config.get('S3_FORCE_PATH_STYLE', { infer: true }),
-      accessKeyId: config.get('S3_ACCESS_KEY', { infer: true }),
-      secretAccessKey: config.get('S3_SECRET_KEY', { infer: true }),
+      ...s3Connection(config),
       bucket: config.get('S3_BUCKET', { infer: true }),
     }),
 };

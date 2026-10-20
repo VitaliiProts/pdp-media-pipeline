@@ -32,5 +32,7 @@ export const envSchema = baseEnvSchema.extend({
     .int()
     .min(0)
     .default(30 * 60),
+  /** The same, summed over all users: open registration must not multiply the bill. 0 = none. */
+  DUB_SYSTEM_QUOTA_SECONDS: z.coerce.number().int().min(0).default(0),
 });
 export type Env = z.infer<typeof envSchema>;

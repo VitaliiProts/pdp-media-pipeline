@@ -68,7 +68,7 @@ resource "aws_db_instance" "main" {
   final_snapshot_identifier  = "pdp-final"
 }
 
-# The cluster layer turns this into the `postgres-app` Secret (key `uri`), the name
+# `aws.sh up` turns this into the `postgres-app` Secret (key `uri`), the name
 # CloudNativePG gives it locally.
 resource "aws_ssm_parameter" "database_uri" {
   count = var.database_enabled ? 1 : 0

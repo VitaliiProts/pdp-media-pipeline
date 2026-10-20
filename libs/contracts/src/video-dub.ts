@@ -109,6 +109,8 @@ export type VideoDubOutputV1 = z.infer<typeof VideoDubOutputV1>;
 export const DubQuotaDto = z.object({
   usedSeconds: z.number().int().min(0),
   limitSeconds: z.number().int().min(0),
+  /** What all users together may still dub this month; `null` without a system-wide limit. */
+  systemRemainingSeconds: z.number().int().min(0).nullable(),
   /** Start of the next month, when the count starts over. */
   resetsAt: z.iso.datetime(),
 });
