@@ -90,8 +90,11 @@ module "eks" {
         }
       }
     }
+    # The access policy covers built-in kinds only; the group gets the chart's CRDs
+    # (deploy/helm/cluster-aws/templates/rbac.yaml).
     deploy = {
-      principal_arn = local.base["deploy-role-arn"]
+      principal_arn     = local.base["deploy-role-arn"]
+      kubernetes_groups = ["pdp-deploy"]
       policy_associations = {
         pdp = {
           policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy"

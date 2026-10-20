@@ -1,0 +1,118 @@
+name: Deploy
+
+# After a green CI on main: the images to ECR, their tags to SSM, and the `pdp` release when
+# the cluster runs (Stage 5b.3, docs/plan/stage-5b.md). With the cluster off the run is still
+# green: `scripts/aws.sh up` deploys the tags later.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time, and a running one is never cut off halfway through a Helm upgrade.
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: eu-central-1
+  # The commit CI verified, not whatever main points to by now.
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  images:
+    # Pushes only: a pull request from a fork may come from a branch named main too.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    # The role trusts this environment, and the environment admits only main.
+    environment: aws
+    strategy:
+      matrix:
+        app: [api-gateway, metadata, scheduler, worker, video-worker, web, audio-separate]
+        include:
+          - app: video-dub
+            dockerfile: video-worker
+            target: dub
+    steps:
+      - name: Free disk space
+        if: matrix.app == 'audio-separate' || matrix.app == 'video-dub'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          docker image prune --all --force
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      # audio-separate is tagged by the content of its directory, so a commit that leaves it
+      # alone pushes nothing: every build is ~2.3 GB of new layers.
+      - name: Tag
+        id: tag
+        run: |
+          if [ '${{ matrix.app }}' = audio-separate ]; then
+            echo "tag=$(git rev-parse HEAD:apps/audio-separate)" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$SHA" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      # Tags are immutable: a rerun of the same commit finds its images already there.
+      - name: Already in ECR
+        id: present
+        run: |
+          if aws ecr describe-images --repository-name 'pdp/${{ matrix.app }}' \
+            --image-ids 'imageTag=${{ steps.tag.outputs.tag }}' >/dev/null 2>&1; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "pdp/${{ matrix.app }}:${{ steps.tag.outputs.tag }} is already in ECR"
+          fi
+      - if: steps.present.outputs.present != 'true'
+        uses: docker/setup-buildx-action@v3
+      # The layer cache CI wrote on main; no provenance index, so ECR holds plain images.
+      - if: steps.present.outputs.present != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.dockerfile || matrix.app }}/Dockerfile
+          target: ${{ matrix.target }}
+          push: true
+          provenance: false
+          tags: ${{ steps.ecr.outputs.registry }}/pdp/${{ matrix.app }}:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+
+  release:
+    needs: images
+    runs-on: ubuntu-latest
+    environment: aws
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      # Only once every image is in ECR, so the tags in SSM always name a complete set.
+      - name: Deployed tags
+        run: |
+          for app in api-gateway metadata scheduler worker video-worker video-dub web; do
+            aws ssm put-parameter --name "/pdp/prod/deployed-tag/$app" --value "$SHA" \
+              --overwrite >/dev/null
+          done
+          aws ssm put-parameter --name /pdp/prod/deployed-tag/audio-separate \
+            --value "$(git rev-parse HEAD:apps/audio-separate)" --overwrite >/dev/null
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.3.0
+      - run: scripts/aws.sh release

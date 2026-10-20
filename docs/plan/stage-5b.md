@@ -369,25 +369,31 @@ Push образів іде перед першим `aws.sh up`: без обра�
 x86-образи на Mac з ARM (`audio-separate` — 5.9 ГБ) довго. Перевірки 5b.2 на живому кластері —
 після першого push.
 
-- [ ] `.github/workflows/deploy.yml`: `workflow_run` після успішного CI на `main` (checkout
-      `head_sha` того запуску) і `workflow_dispatch`; environment `aws`; `concurrency: deploy-aws`
-      без скасування поточного.
-  - OIDC → роль `pdp-deploy`; build і push образів у ECR з тегом SHA (кеш з CI, звільнення диска
-    для великих образів, як у CI); `audio-separate` — лише якщо тега за вмістом ще немає в ECR;
-  - тег пишеться в `/pdp/prod/deployed-tag`, щойно образи в ECR;
-  - якщо кластер не існує — job зелений з повідомленням «кластер вимкнений, образи в ECR», а
-    `aws.sh up` потім розгорне цей тег;
-  - `helm upgrade --install pdp` з `values-prod.yaml` і `values-aws.yaml`, `--atomic --wait`;
-    міграції — той самий хук. Платформу оновлює `aws.sh up`, не CI;
-  - smoke-тест.
+- [x] `.github/workflows/deploy.yml`: `workflow_run` після успішного CI на `main` (лише `push`
+      з цього ж репозиторію — PR з форку теж може мати гілку `main`; checkout `head_sha` того
+      запуску) і `workflow_dispatch`; environment `aws`; `concurrency: deploy-aws` без
+      скасування поточного.
+  - OIDC → роль `pdp-deploy`; build і push у ECR матрицею з 8 образів (кеш CI з `main`,
+    звільнення диска для `audio-separate` і `video-dub`, без provenance-індексу); образ, чий тег
+    уже є в ECR, не збирається — і `audio-separate` з тегом за вмістом, і повторний запуск
+    того самого коміту (теги незмінні);
+  - теги пишуться в `/pdp/prod/deployed-tag/*` окремим job'ом, коли всі образи в ECR;
+  - `scripts/aws.sh release`: якщо кластер не `ACTIVE` — зелений з повідомленням «кластер
+    вимкнений», інакше `helm upgrade --install pdp` з `values-prod.yaml` і `values-aws.yaml`,
+    `--rollback-on-failure` (Helm 4, колишній `--atomic`); міграції — той самий хук. Платформу
+    й компоненти оновлює `aws.sh up`, не CI;
+  - права в кластері: access policy EKS покриває лише вбудовані типи, тож access entry ролі
+    має групу `pdp-deploy`, а `cluster-aws` дає їй `Role` на `ScaledObject` і `Middleware` у
+    namespace `pdp`; `deny` у ролі доповнено ключем сертифіката `/pdp/prod/tls-key`;
+  - [ ] smoke-тест.
 - [ ] `scripts/smoke.sh <base-url>`: `GET /health/ready`, потім одна справжня задача `image.resize`:
       upload через presigned URL, `POST /v1/jobs`, очікування `succeeded` (до 2 хв), `GET` одного
       результату. Ключ — секрет environment `aws` (`SMOKE_API_KEY`); користувача створює
       `aws.sh` один раз, у RDS він переживає перестворення кластера. Окремо — вхід тестовим
       користувачем і `GET /v1/assets`. Дубляж у smoke не входить: він платний і стартує з нуля.
       Падіння — workflow червоний.
-- [ ] Налаштування GitHub (робите ви): environment `aws` з правилом «лише `main`», змінні
-      `AWS_REGION` і `AWS_ROLE_ARN`, секрет `SMOKE_API_KEY`.
+- [ ] Налаштування GitHub (робите ви): environment `aws` з правилом «лише `main`», змінна
+      `AWS_ROLE_ARN` (регіон — у workflow), секрет `SMOKE_API_KEY`.
 - [ ] Перевірити руками: змінити відповідь endpoint'а (наприклад, `version` у `/health/ready`),
       змерджити, побачити нову версію за доменом без ручних кроків; запуск з іншої гілки не
       отримує роль.

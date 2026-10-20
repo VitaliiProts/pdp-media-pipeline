@@ -6,6 +6,7 @@
 #   scripts/aws.sh status    # what runs, what is left behind, what it costs
 #   scripts/aws.sh grafana   # Grafana on http://localhost:3000
 #   scripts/aws.sh seed me   # create a user, print its API key
+#   scripts/aws.sh release   # the app release only, with the tags in SSM (CI after a push)
 #   scripts/aws.sh repos     # add the Helm repositories of the cluster components
 #
 # TLS_ISSUER=letsencrypt-staging scripts/aws.sh up   while DNS-01 is being debugged.
@@ -13,8 +14,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Never the default profile: it may belong to another account.
-export AWS_PROFILE=pdp AWS_REGION=eu-central-1 AWS_PAGER=''
+# Never the default profile: it may belong to another account. CI has the role's
+# credentials in the environment instead.
+[ -n "${GITHUB_ACTIONS:-}" ] || export AWS_PROFILE=pdp
+export AWS_REGION=eu-central-1 AWS_PAGER=''
 # Its own kubeconfig, so contexts of other clusters are never touched.
 export KUBECONFIG="$HOME/.kube/pdp-aws"
 export PATH="$HOME/.local/bin:$PATH"
@@ -35,6 +38,7 @@ METRICS_SERVER_VERSION=3.14.0
 KEDA_VERSION=2.21.0
 
 # ECR repositories (deploy/terraform/base/services.tf) and the releases that run them.
+SERVICES=(api-gateway metadata scheduler worker video-worker video-dub web audio-separate)
 releases_of() {
   case "$1" in
     worker) echo worker-priority worker-cpu worker-io ;;
@@ -58,11 +62,11 @@ apply() { kubectl apply -f - >/dev/null; }
 identity() {
   local account
   if ! account=$(aws sts get-caller-identity --query Account --output text 2>/dev/null); then
-    echo "no AWS session: aws sso login --profile $AWS_PROFILE" >&2
+    echo "no AWS session: aws sso login --profile ${AWS_PROFILE:-pdp}" >&2
     exit 1
   fi
   if [ "$account" != "$ACCOUNT" ]; then
-    echo "profile $AWS_PROFILE is account $account, expected $ACCOUNT" >&2
+    echo "the AWS session is account $account, expected $ACCOUNT" >&2
     exit 1
   fi
 }
@@ -77,9 +81,20 @@ repos() {
   helm repo update >/dev/null
 }
 
-# `--set <release>.image.tag=<tag>` for every release, from the tags CI wrote to SSM.
+# `--set <release>.image.tag=<tag>` for every release, from the tags CI wrote to SSM. By name:
+# the deploy role may not read the whole path, the secrets live under it.
 image_tags() {
-  local name tag svc release missing=''
+  local out name tag svc release missing='' names=()
+  for svc in "${SERVICES[@]}"; do
+    names+=("/pdp/prod/deployed-tag/$svc")
+  done
+  # Checked here: errexit does not reach into a command substitution.
+  out=$(aws ssm get-parameters --names "${names[@]}" \
+    --query 'Parameters[].[Name,Value]' --output text) || return 1
+  if [ "$(printf '%s\n' "$out" | grep -c .)" -ne ${#SERVICES[@]} ]; then
+    echo "SSM has no tag for some of: ${SERVICES[*]}" >&2
+    return 1
+  fi
   while read -r name tag; do
     svc=${name##*/}
     if [ "$tag" = none ]; then
@@ -89,8 +104,7 @@ image_tags() {
     for release in $(releases_of "$svc"); do
       printf -- '--set %s.image.tag=%s ' "$release" "$tag"
     done
-  done < <(aws ssm get-parameters-by-path --path /pdp/prod/deployed-tag \
-    --query 'Parameters[].[Name,Value]' --output text)
+  done <<<"$out"
   if [ -n "$missing" ]; then
     echo "no image in ECR yet for:$missing (CI pushes them from main)" >&2
     return 1
@@ -135,7 +149,8 @@ cluster() {
 
 kubeconfig() {
   mkdir -p "$(dirname "$KUBECONFIG")"
-  aws eks update-kubeconfig --name "$CLUSTER" --alias pdp-aws --profile "$AWS_PROFILE" >/dev/null
+  aws eks update-kubeconfig --name "$CLUSTER" --alias pdp-aws \
+    ${AWS_PROFILE:+--profile "$AWS_PROFILE"} >/dev/null
 }
 
 components() {
@@ -151,6 +166,7 @@ components() {
   helm upgrade --install cert-manager jetstack/cert-manager --version "$CERT_MANAGER_VERSION" \
     -n cert-manager --create-namespace -f deploy/aws/cert-manager.yaml --wait
   kubectl create namespace traefik --dry-run=client -o yaml | apply
+  kubectl create namespace "$NS" --dry-run=client -o yaml | apply
   tls_restore
   helm upgrade --install cluster-aws deploy/helm/cluster-aws -n kube-system \
     --set zoneId="$zone" --set issuer="$TLS_ISSUER" --wait
@@ -197,7 +213,6 @@ tls_save() {
 # Secrets from SSM and the RDS CA bundle (DATABASE_URL verifies the server against it).
 app_config() {
   log "Secrets and the RDS CA bundle"
-  kubectl create namespace "$NS" --dry-run=client -o yaml | apply
   kubectl -n "$NS" create secret generic postgres-app \
     --from-file=uri=<(printf %s "$(secret_param postgres-uri)") --dry-run=client -o yaml | apply
   local key ca
@@ -219,6 +234,7 @@ platform() {
     -f deploy/helm/platform/values-aws.yaml --wait --timeout 10m
 }
 
+# A failed upgrade rolls back, so the cluster keeps serving the previous version.
 app() {
   log "app release"
   local chart
@@ -228,7 +244,20 @@ app() {
   helm dependency update --skip-refresh deploy/helm/pdp >/dev/null
   # shellcheck disable=SC2086
   helm upgrade --install pdp deploy/helm/pdp -n "$NS" -f deploy/helm/pdp/values-prod.yaml \
-    -f deploy/helm/pdp/values-aws.yaml $1 --wait --timeout 15m
+    -f deploy/helm/pdp/values-aws.yaml $1 --rollback-on-failure --timeout 15m
+}
+
+# CI after pushing the images: the platform and the components stay as `up` left them.
+release() {
+  identity
+  local tags
+  tags=$(image_tags)
+  if [ "$(cluster_state)" != ACTIVE ]; then
+    echo "the cluster is off; the images are in ECR and the next up deploys them"
+    return 0
+  fi
+  kubeconfig
+  app "$tags"
 }
 
 up() {
@@ -368,7 +397,7 @@ case "${1:-}" in
     need kubectl
     need curl
     ;;
-  status | grafana | seed)
+  status | grafana | seed | release)
     need aws
     need kubectl
     ;;
@@ -384,8 +413,9 @@ case "${1:-}" in
   status) status ;;
   grafana) grafana ;;
   seed) seed "${2:-me}" ;;
+  release) release ;;
   *)
-    sed -n '2,12p' "$0"
+    sed -n '2,13p' "$0"
     exit 1
     ;;
 esac

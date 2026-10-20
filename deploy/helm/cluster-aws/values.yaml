@@ -9,6 +9,9 @@ zoneId: ''
 # for the same names a week, and failed validations are limited too.
 issuer: letsencrypt-prod
 
+# The namespace of the `pdp` release, which CI deploys (templates/rbac.yaml).
+appNamespace: pdp
+
 # Traefik's namespace: its default TLSStore reads the Secret from there.
 certificateNamespace: traefik
 certificateSecret: pdp-tls
