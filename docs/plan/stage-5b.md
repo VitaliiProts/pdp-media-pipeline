@@ -395,6 +395,9 @@ x86-образи на Mac з ARM (`audio-separate` — 5.9 ГБ) довго. П�
         при установці має 0 реплік (`autoscaling.initialReplicas`), KEDA піднімає його з першим
         дубляжем. Лише при установці: Helm 4 застосовує маніфест server-side і на кожному
         оновленні забирав би репліки в KEDA.
+  - [x] з тієї ж причини перший дубляж стояв у `scheduled`: KEDA підняла обидва поди, а
+        `video-dub` (запит 1 CPU) не вміщався — після `audio-separate` на вузлах лишається ~1.8
+        CPU, але ніде цілого. В AWS запит `video-dub` — 500m, ліміт як і був, 2 CPU.
 - [x] `scripts/smoke.sh <base-url>`: `GET /health/ready`, потім одна справжня задача `image.resize`:
       upload через presigned URL (`perf/k6/fixtures/source.png`), `POST /v1/jobs`, очікування
       `succeeded` (до 2 хв), завантаження одного результату з перевіркою розміру,
