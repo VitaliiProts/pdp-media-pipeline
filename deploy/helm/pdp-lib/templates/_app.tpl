@@ -27,8 +27,12 @@ metadata:
   labels:
     {{- include "pdp-lib.labels" . | nindent 4 }}
 spec:
-  {{- if not (dig "enabled" false (.Values.autoscaling | default dict)) }}
+  {{- $scaling := .Values.autoscaling | default dict }}
+  {{- if not (dig "enabled" false $scaling) }}
   replicas: {{ .Values.replicaCount | default 1 }}
+  {{- else if and .Release.IsInstall (hasKey $scaling "initialReplicas") }}
+  {{- /* Install only: Helm applies server-side, so on upgrades the field would take the replicas back from KEDA. */}}
+  replicas: {{ $scaling.initialReplicas }}
   {{- end }}
   revisionHistoryLimit: 3
   selector:
