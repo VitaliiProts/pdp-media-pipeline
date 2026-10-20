@@ -156,6 +156,14 @@ cluster() {
   tf cluster init -input=false >/dev/null
   tf cluster apply -input=false -auto-approve
   kubeconfig
+  # A fresh access policy takes a few seconds to reach the API server.
+  local i
+  for i in $(seq 1 24); do
+    [ "$(kubectl auth can-i '*' '*' -A 2>/dev/null)" = yes ] && return 0
+    sleep 5
+  done
+  echo "the cluster admin access entry still grants nothing after 2 minutes" >&2
+  return 1
 }
 
 kubeconfig() {
