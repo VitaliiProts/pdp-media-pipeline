@@ -389,6 +389,12 @@ x86-образи на Mac з ARM (`audio-separate` — 5.9 ГБ) довго. П�
     має групу `pdp-deploy`, а `cluster-aws` дає їй `Role` на `ScaledObject` і `Middleware` у
     namespace `pdp`; `deny` у ролі доповнено ключем сертифіката `/pdp/prod/tls-key`;
   - [x] smoke-тест після релізу, якщо кластер `ACTIVE`.
+  - [x] другий `up` завис на ~10 хв: `audio-separate` (2 CPU) стартував першим, і `video-dub`
+        не вмістився на два вузли, а consumer'и, за якими KEDA масштабує обидва, створює лише
+        перший старт `video-dub` — без них KEDA не зводить до нуля нічого. В AWS `audio-separate`
+        при установці має 0 реплік (`autoscaling.initialReplicas`), KEDA піднімає його з першим
+        дубляжем. Лише при установці: Helm 4 застосовує маніфест server-side і на кожному
+        оновленні забирав би репліки в KEDA.
 - [x] `scripts/smoke.sh <base-url>`: `GET /health/ready`, потім одна справжня задача `image.resize`:
       upload через presigned URL (`perf/k6/fixtures/source.png`), `POST /v1/jobs`, очікування
       `succeeded` (до 2 хв), завантаження одного результату з перевіркою розміру,

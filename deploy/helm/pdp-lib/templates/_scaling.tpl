@@ -8,6 +8,9 @@ Replica management of one service (ADR-012), rendered by pdp-lib.app:
 
 With several triggers the HPA takes the largest proposal, not the sum: a pod consuming two
 queues scales on the busier one.
+
+  autoscaling.initialReplicas  replicas at install only (default: the Deployment's 1);
+                               afterwards the scaler owns them.
 */}}
 {{- define "pdp-lib.scaling" -}}
 {{- $name := include "pdp-lib.name" . -}}

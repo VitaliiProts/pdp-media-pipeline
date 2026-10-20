@@ -105,7 +105,9 @@ video-dub:
 audio-separate:
   env: *s3-env
   secretEnv: *no-s3-keys
-  autoscaling: { minReplicas: 0, maxReplicas: 1 }
+  # Not 1 at install: its 2 CPUs would leave no room for video-dub, whose first start creates
+  # the consumers both scale on. KEDA starts it with the first dub.
+  autoscaling: { minReplicas: 0, maxReplicas: 1, initialReplicas: 0 }
   networkPolicy:
     # S3 is outside the cluster here.
     egressPublicHttps: true
