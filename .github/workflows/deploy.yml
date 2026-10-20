@@ -1,8 +1,8 @@
 name: Deploy
 
-# After a green CI on main: the images to ECR, their tags to SSM, and the `pdp` release when
-# the cluster runs (Stage 5b.3, docs/plan/stage-5b.md). With the cluster off the run is still
-# green: `scripts/aws.sh up` deploys the tags later.
+# After a green CI on main: the images to ECR, their tags to SSM, and when the cluster runs,
+# the `pdp` release and scripts/smoke.sh against it (Stage 5b.3, docs/plan/stage-5b.md). With
+# the cluster off the run is still green: `scripts/aws.sh up` deploys the tags later.
 on:
   workflow_run:
     workflows: [CI]
@@ -116,3 +116,13 @@ jobs:
         with:
           version: v4.3.0
       - run: scripts/aws.sh release
+      - name: Smoke test
+        env:
+          SMOKE_API_KEY: ${{ secrets.SMOKE_API_KEY }}
+        run: |
+          state=$(aws eks describe-cluster --name pdp --query cluster.status --output text 2>/dev/null || true)
+          if [ "$state" != ACTIVE ]; then
+            echo "the cluster is off, nothing to test"
+            exit 0
+          fi
+          scripts/smoke.sh https://api.pdp-media-pipeline.online
