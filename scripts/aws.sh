@@ -52,6 +52,18 @@ log() { printf '\n==> %s\n' "$*"; }
 # The platform chart reads deploy/observability through a symlink; Helm notes it on stderr.
 quiet() { "$@" 2> >(grep -v 'symbolic link' >&2); }
 tf() { terraform -chdir="deploy/terraform/$1" "${@:2}"; }
+# Anything but a Latin y/yes is a no, said out loud: a Cyrillic "у" looks the same.
+confirm() {
+  local answer
+  read -rp "$1 [y/N] " answer
+  case "$answer" in
+    y | Y | yes | YES) return 0 ;;
+    *)
+      echo "not confirmed ('$answer' is not a Latin y), nothing changed" >&2
+      return 1
+      ;;
+  esac
+}
 param() { aws ssm get-parameter --name "/pdp/prod/$1" --query Parameter.Value --output text; }
 secret_param() {
   aws ssm get-parameter --name "/pdp/prod/$1" --with-decryption --query Parameter.Value --output text
@@ -131,8 +143,7 @@ base() {
   case "$code" in
     0) ;;
     2)
-      read -rp "Apply these changes to the base layer? [y/N] " answer
-      [ "$answer" = y ] || exit 1
+      confirm "Apply these changes to the base layer?" || exit 1
       tf base apply -input=false "$plan"
       ;;
     *) exit "$code" ;;
@@ -303,8 +314,7 @@ down() {
     jobs=$(active_jobs)
     if [ "$jobs" != 0 ] && [ "${FORCE:-}" != 1 ]; then
       echo "unfinished jobs: $jobs; they stay unfinished, NATS goes with the cluster" >&2
-      read -rp "Destroy the cluster anyway? [y/N] " answer
-      [ "$answer" = y ] || exit 1
+      confirm "Destroy the cluster anyway?" || exit 1
     fi
     tls_save
     # PVCs of StatefulSets outlive their release; the EBS volumes go with them.
