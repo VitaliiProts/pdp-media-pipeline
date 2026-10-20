@@ -52,6 +52,18 @@ log() { printf '\n==> %s\n' "$*"; }
 # The platform chart reads deploy/observability through a symlink; Helm notes it on stderr.
 quiet() { "$@" 2> >(grep -v 'symbolic link' >&2); }
 tf() { terraform -chdir="deploy/terraform/$1" "${@:2}"; }
+# Anything but a Latin y/yes is a no, said out loud: a Cyrillic "у" looks the same.
+confirm() {
+  local answer
+  read -rp "$1 [y/N] " answer
+  case "$answer" in
+    y | Y | yes | YES) return 0 ;;
+    *)
+      echo "not confirmed ('$answer' is not a Latin y), nothing changed" >&2
+      return 1
+      ;;
+  esac
+}
 param() { aws ssm get-parameter --name "/pdp/prod/$1" --query Parameter.Value --output text; }
 secret_param() {
   aws ssm get-parameter --name "/pdp/prod/$1" --with-decryption --query Parameter.Value --output text
@@ -131,8 +143,7 @@ base() {
   case "$code" in
     0) ;;
     2)
-      read -rp "Apply these changes to the base layer? [y/N] " answer
-      [ "$answer" = y ] || exit 1
+      confirm "Apply these changes to the base layer?" || exit 1
       tf base apply -input=false "$plan"
       ;;
     *) exit "$code" ;;
@@ -145,6 +156,13 @@ cluster() {
   tf cluster init -input=false >/dev/null
   tf cluster apply -input=false -auto-approve
   kubeconfig
+  # A fresh access policy takes a few seconds to reach the API server.
+  for _ in $(seq 1 24); do
+    [ "$(kubectl auth can-i '*' '*' -A 2>/dev/null)" = yes ] && return 0
+    sleep 5
+  done
+  echo "the cluster admin access entry still grants nothing after 2 minutes" >&2
+  return 1
 }
 
 kubeconfig() {
@@ -202,8 +220,9 @@ tls_save() {
   crt=$(kubectl -n traefik get secret pdp-tls -o jsonpath='{.data.tls\.crt}' | base64 -d)
   [ "$crt" = "$(param tls-crt 2>/dev/null || true)" ] && return 0
   log "TLS: keeping the certificate for the next session"
+  # The full chain is over the 4 KB of a standard parameter.
   printf '%s\n' "$crt" | aws ssm put-parameter --name /pdp/prod/tls-crt --type String \
-    --overwrite --value file:///dev/stdin >/dev/null &&
+    --tier Intelligent-Tiering --overwrite --value file:///dev/stdin >/dev/null &&
     kubectl -n traefik get secret pdp-tls -o jsonpath='{.data.tls\.key}' | base64 -d |
     aws ssm put-parameter --name /pdp/prod/tls-key --type SecureString \
       --overwrite --value file:///dev/stdin >/dev/null ||
@@ -276,23 +295,43 @@ up() {
   app_config
   platform
   app "$tags"
+  smoke_user
   log "certificate ($TLS_ISSUER)"
   kubectl -n traefik wait certificate/pdp-tls --for=condition=Ready --timeout=10m ||
     echo "not ready yet: kubectl -n traefik describe certificate pdp-tls" >&2
   urls
 }
 
-# NATS and its volume go with the cluster, so jobs still in flight would never finish.
-active_jobs() {
-  # shellcheck disable=SC2016
+# `select count(*)::int as n ...` in RDS, through the metadata pod; the rest are its $1, $2...
+count_of() {
   kubectl -n "$NS" exec deploy/metadata -- node -e '
     const { Client } = require("pg");
     const c = new Client({ connectionString: process.env.DATABASE_URL });
     c.connect()
-      .then(() => c.query("select count(*)::int as n from jobs where status not in ($1, $2)",
-        ["succeeded", "dead"]))
+      .then(() => c.query(process.argv[1], process.argv.slice(2)))
       .then((r) => { console.log(r.rows[0].n); return c.end(); });
-  ' 2>/dev/null || echo unknown
+  ' "$@" 2>/dev/null || echo unknown
+}
+
+# NATS and its volume go with the cluster, so jobs still in flight would never finish.
+active_jobs() {
+  # shellcheck disable=SC2016
+  count_of 'select count(*)::int as n from jobs where status not in ($1, $2)' succeeded dead
+}
+
+# The user of scripts/smoke.sh in CI. Once: it lives in RDS, which outlives the cluster.
+smoke_user() {
+  local n
+  # shellcheck disable=SC2016
+  n=$(count_of 'select count(*)::int as n from users where name = $1' smoke)
+  if [ "$n" = unknown ]; then
+    echo "warning: no smoke user check; later: scripts/aws.sh seed smoke" >&2
+    return 0
+  fi
+  [ "$n" = 0 ] || return 0
+  log "smoke user"
+  echo "its key, shown once: the secret SMOKE_API_KEY of the GitHub environment aws"
+  seed smoke | jq -r .apiKey
 }
 
 down() {
@@ -303,8 +342,7 @@ down() {
     jobs=$(active_jobs)
     if [ "$jobs" != 0 ] && [ "${FORCE:-}" != 1 ]; then
       echo "unfinished jobs: $jobs; they stay unfinished, NATS goes with the cluster" >&2
-      read -rp "Destroy the cluster anyway? [y/N] " answer
-      [ "$answer" = y ] || exit 1
+      confirm "Destroy the cluster anyway?" || exit 1
     fi
     tls_save
     # PVCs of StatefulSets outlive their release; the EBS volumes go with them.
@@ -315,6 +353,12 @@ down() {
     if kubectl get pv -o name | grep -q .; then
       kubectl wait --for=delete pv --all --timeout=5m
     fi
+    # Once its TXT records are gone, external-dns no longer owns what is left.
+    log "waiting for external-dns to remove the records"
+    for _ in $(seq 1 18); do
+      [ -z "$(nlb_records)" ] && break
+      sleep 10
+    done
     # The Service keeps a finalizer until the controller has removed the NLB, its target
     # groups and security groups.
     log "removing Traefik and its NLB"
@@ -330,8 +374,14 @@ down() {
   leftovers
 }
 
+nlb_records() {
+  aws route53 list-resource-record-sets --hosted-zone-id "$(param zone-id)" \
+    --query "ResourceRecordSets[?contains(AliasTarget.DNSName || '', 'k8s-traefik')].[Type,Name]" \
+    --output text
+}
+
 leftovers() {
-  local lbs volumes
+  local lbs volumes records
   lbs=$(aws resourcegroupstaggingapi get-resources \
     --resource-type-filters elasticloadbalancing:loadbalancer \
     --tag-filters "Key=elbv2.k8s.aws/cluster,Values=$CLUSTER" \
@@ -341,6 +391,8 @@ leftovers() {
     --query 'Volumes[].VolumeId' --output text)
   [ -z "$lbs" ] || echo "load balancers still billed: $lbs" >&2
   [ -z "$volumes" ] || echo "EBS volumes still billed: $volumes" >&2
+  records=$(nlb_records | tr '\t\n' ' ;')
+  [ -z "$records" ] || echo "records of the removed NLB, delete them in Route 53: $records" >&2
 }
 
 urls() {
@@ -396,6 +448,7 @@ case "${1:-}" in
     need terraform
     need kubectl
     need curl
+    need jq
     ;;
   status | grafana | seed | release)
     need aws

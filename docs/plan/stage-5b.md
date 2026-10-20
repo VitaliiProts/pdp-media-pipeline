@@ -325,21 +325,24 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
       переадресацією, `publishedService` для статусу Ingress), external-dns 1.23.0 (джерело
       `ingress`, `domainFilters`, `policy: sync`, власник TXT `pdp`), KEDA 2.21.0.
 - [x] Сертифікат prod між сесіями: Let's Encrypt дає п'ять сертифікатів на ті самі імена за
-      тиждень, а кожен `up` — новий кластер. `down` кладе ланцюжок у `/pdp/prod/tls-crt`, ключ у
-      `/pdp/prod/tls-key` (SecureString; ECDSA вміщається в стандартний параметр), `up` повертає
+      тиждень, а кожен `up` — новий кластер. `down` кладе ланцюжок у `/pdp/prod/tls-crt` (рівень
+      `Intelligent-Tiering`: повний ланцюжок prod більший за 4 КБ стандартного параметра, перший
+      `down` його не зберіг), ключ у `/pdp/prod/tls-key` (SecureString), `up` повертає
       Secret з анотаціями видавця, і cert-manager його не перевипускає.
 - [x] Secret `postgres-app` (ключ `uri`), Secret `dub-provider` (ключ `openaiApiKey`, попередження,
       якщо ключ не внесено), обидва з SSM; ConfigMap `rds-ca` (бандл регіону) у namespace `pdp`.
 - [x] `up`: профіль і акаунт (інакше підказка `aws sso login`); теги образів з
       `/pdp/prod/deployed-tag/*` до будь-яких витрат — без образів у ECR скрипт зупиняється;
       старт RDS; план базового шару з підтвердженням, `apply` шару `cluster`; компоненти,
-      секрети, платформа, реліз `pdp`; очікування сертифіката. Smoke-користувач — у 5b.3 разом
-      зі `smoke.sh`, до того `aws.sh seed`.
+      секрети, платформа, реліз `pdp`, користувач `smoke` (5b.3); очікування сертифіката. Після
+      `apply` кластера — очікування, поки access policy адміністратора дійде до API (секунди).
 - [x] `down`: кількість незавершених задач (усі, крім `succeeded` і `dead`) з RDS і
       підтвердження, якщо вони є; збереження сертифіката; видалення `pdp` і `platform`, PVC і
-      очікування, поки зникнуть PV (EBS); видалення Traefik — Service тримає finalizer, доки
-      контролер не прибере NLB, target groups і security groups; `destroy` шару `cluster`;
-      зупинка RDS; перевірка, що NLB і EBS з тегами кластера не лишилися.
+      очікування, поки зникнуть PV (EBS); очікування, поки external-dns прибере записи (перший
+      `down` лишив A і AAAA апексу на видалений NLB, а без своїх TXT external-dns їх уже не
+      чіпає); видалення Traefik — Service тримає finalizer, доки контролер не прибере NLB,
+      target groups і security groups; `destroy` шару `cluster`; зупинка RDS; перевірка, що NLB,
+      EBS з тегами кластера й записи на NLB не лишилися.
 - [x] `status`: кластер, RDS (і коли зупинено — AWS стартує його через 7 днів), вузли й поди,
       адреси, вартість, залишки.
 - [x] `grafana`: `kubectl port-forward` на `localhost:3000`; `seed` — як у `k8s.sh`.
@@ -385,20 +388,23 @@ x86-образи на Mac з ARM (`audio-separate` — 5.9 ГБ) довго. П�
   - права в кластері: access policy EKS покриває лише вбудовані типи, тож access entry ролі
     має групу `pdp-deploy`, а `cluster-aws` дає їй `Role` на `ScaledObject` і `Middleware` у
     namespace `pdp`; `deny` у ролі доповнено ключем сертифіката `/pdp/prod/tls-key`;
-  - [ ] smoke-тест.
-- [ ] `scripts/smoke.sh <base-url>`: `GET /health/ready`, потім одна справжня задача `image.resize`:
-      upload через presigned URL, `POST /v1/jobs`, очікування `succeeded` (до 2 хв), `GET` одного
-      результату. Ключ — секрет environment `aws` (`SMOKE_API_KEY`); користувача створює
-      `aws.sh` один раз, у RDS він переживає перестворення кластера. Окремо — вхід тестовим
-      користувачем і `GET /v1/assets`. Дубляж у smoke не входить: він платний і стартує з нуля.
-      Падіння — workflow червоний.
+  - [x] smoke-тест після релізу, якщо кластер `ACTIVE`.
+- [x] `scripts/smoke.sh <base-url>`: `GET /health/ready`, потім одна справжня задача `image.resize`:
+      upload через presigned URL (`perf/k6/fixtures/source.png`), `POST /v1/jobs`, очікування
+      `succeeded` (до 2 хв), завантаження одного результату з перевіркою розміру,
+      `GET /v1/assets/{id}` — у файлі є ця задача. Ключ — секрет environment `aws`
+      (`SMOKE_API_KEY`); користувача `smoke` створює `aws.sh up` один раз і друкує ключ, у RDS
+      він переживає перестворення кластера. Вхід паролем smoke не перевіряє: це ще один секрет,
+      а сесію покривають інтеграційні тести. Дубляж у smoke не входить: він платний і стартує
+      з нуля. Падіння — workflow червоний. Перевірено проти compose-стека.
 - [ ] Налаштування GitHub (робите ви): environment `aws` з правилом «лише `main`», змінна
       `AWS_ROLE_ARN` (регіон — у workflow), секрет `SMOKE_API_KEY`.
 - [ ] Перевірити руками: змінити відповідь endpoint'а (наприклад, `version` у `/health/ready`),
       змерджити, побачити нову версію за доменом без ручних кроків; запуск з іншої гілки не
       отримує роль.
-- [ ] README: розділ «Запуск в AWS» (передумови, SSO, `aws.sh up/down`, адреси, вартість) і
-      «Етап 5b» у перевірці етапів; план, прогрес і ADR — статус «готово».
+- [x] README: розділ «Запуск в AWS» (передумови, SSO, `aws.sh up/down`, адреси, вартість) і
+      «Етап 5b» у перевірці етапів.
+- [ ] План, прогрес і ADR — статус «готово» після перевірки деплою з CI.
 
 **Коміти:** `feat(scripts): smoke test against a base URL` → `ci: deploy to AWS after CI on main`
 → `docs: running in AWS`.

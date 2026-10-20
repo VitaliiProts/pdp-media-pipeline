@@ -6,7 +6,8 @@ data "aws_ssm_parameter" "base" {
   name = "/pdp/prod/${each.key}"
 }
 
-# Identity Center roles carry a path, but an access entry wants the ARN without it.
+# The role Identity Center creates for the AdministratorAccess permission set. An access entry
+# takes its full ARN, path included (the path-less form is for the aws-auth ConfigMap).
 data "aws_iam_roles" "sso_admin" {
   name_regex  = "^AWSReservedSSO_AdministratorAccess_"
   path_prefix = "/aws-reserved/sso.amazonaws.com/"
@@ -19,5 +20,5 @@ locals {
   public_subnets = split(",", local.base["public-subnets"])
   bucket_arn     = "arn:aws:s3:::${local.base["media-bucket"]}"
   zone_arn       = "arn:aws:route53:::hostedzone/${local.base["zone-id"]}"
-  sso_admin_arn  = "arn:aws:iam::${local.account_id}:role/${one(data.aws_iam_roles.sso_admin.names)}"
+  sso_admin_arn  = one(data.aws_iam_roles.sso_admin.arns)
 }
