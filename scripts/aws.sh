@@ -157,8 +157,7 @@ cluster() {
   tf cluster apply -input=false -auto-approve
   kubeconfig
   # A fresh access policy takes a few seconds to reach the API server.
-  local i
-  for i in $(seq 1 24); do
+  for _ in $(seq 1 24); do
     [ "$(kubectl auth can-i '*' '*' -A 2>/dev/null)" = yes ] && return 0
     sleep 5
   done
@@ -296,23 +295,43 @@ up() {
   app_config
   platform
   app "$tags"
+  smoke_user
   log "certificate ($TLS_ISSUER)"
   kubectl -n traefik wait certificate/pdp-tls --for=condition=Ready --timeout=10m ||
     echo "not ready yet: kubectl -n traefik describe certificate pdp-tls" >&2
   urls
 }
 
-# NATS and its volume go with the cluster, so jobs still in flight would never finish.
-active_jobs() {
-  # shellcheck disable=SC2016
+# `select count(*)::int as n ...` in RDS, through the metadata pod; the rest are its $1, $2...
+count_of() {
   kubectl -n "$NS" exec deploy/metadata -- node -e '
     const { Client } = require("pg");
     const c = new Client({ connectionString: process.env.DATABASE_URL });
     c.connect()
-      .then(() => c.query("select count(*)::int as n from jobs where status not in ($1, $2)",
-        ["succeeded", "dead"]))
+      .then(() => c.query(process.argv[1], process.argv.slice(2)))
       .then((r) => { console.log(r.rows[0].n); return c.end(); });
-  ' 2>/dev/null || echo unknown
+  ' "$@" 2>/dev/null || echo unknown
+}
+
+# NATS and its volume go with the cluster, so jobs still in flight would never finish.
+active_jobs() {
+  # shellcheck disable=SC2016
+  count_of 'select count(*)::int as n from jobs where status not in ($1, $2)' succeeded dead
+}
+
+# The user of scripts/smoke.sh in CI. Once: it lives in RDS, which outlives the cluster.
+smoke_user() {
+  local n
+  # shellcheck disable=SC2016
+  n=$(count_of 'select count(*)::int as n from users where name = $1' smoke)
+  if [ "$n" = unknown ]; then
+    echo "warning: no smoke user check; later: scripts/aws.sh seed smoke" >&2
+    return 0
+  fi
+  [ "$n" = 0 ] || return 0
+  log "smoke user"
+  echo "its key, shown once: the secret SMOKE_API_KEY of the GitHub environment aws"
+  seed smoke | jq -r .apiKey
 }
 
 down() {
@@ -336,8 +355,7 @@ down() {
     fi
     # Once its TXT records are gone, external-dns no longer owns what is left.
     log "waiting for external-dns to remove the records"
-    local i
-    for i in $(seq 1 18); do
+    for _ in $(seq 1 18); do
       [ -z "$(nlb_records)" ] && break
       sleep 10
     done
@@ -430,6 +448,7 @@ case "${1:-}" in
     need terraform
     need kubectl
     need curl
+    need jq
     ;;
   status | grafana | seed | release)
     need aws
