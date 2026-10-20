@@ -15,9 +15,12 @@ variable "database_enabled" {
 }
 
 variable "github_repositories" {
-  description = "Repositories whose `aws` environment may deploy."
+  description = <<-EOT
+    Repositories whose `aws` environment may deploy, as their OIDC subject prefix: immutable
+    subjects carry the owner and repository IDs (gh api repos/<owner>/<repo>/actions/oidc/customization/sub).
+  EOT
   type        = list(string)
-  default     = ["VitaliiProts/pdp-media-pipeline"]
+  default     = ["repo:VitaliiProts@25710612/pdp-media-pipeline@1409444046"]
 }
 
 variable "budget_usd" {

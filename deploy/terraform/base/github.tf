@@ -1,6 +1,8 @@
 # CI assumes this role through OIDC, without stored keys. A job that runs in a GitHub
-# environment gets the subject `repo:<owner>/<repo>:environment:<name>`, not the branch, so
-# the trust is on the environment, and the environment admits only `main`.
+# environment gets the subject `<repository prefix>:environment:<name>`, not the branch, so
+# the trust is on the environment, and the environment admits only `main`. The prefix is
+# immutable (`repo:<owner>@<id>/<repo>@<id>`): a renamed or re-created repository of the
+# same name does not inherit the role.
 
 resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
@@ -22,7 +24,7 @@ data "aws_iam_policy_document" "deploy_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [for repo in var.github_repositories : "repo:${repo}:environment:aws"]
+      values   = [for prefix in var.github_repositories : "${prefix}:environment:aws"]
     }
   }
 }
