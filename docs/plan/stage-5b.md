@@ -341,9 +341,9 @@ budget and SSM parameters` → `docs: ADR-017 where the cluster runs`.
       очікування, поки зникнуть PV (EBS); очікування, поки external-dns прибере записи (перший
       `down` лишив A і AAAA апексу на видалений NLB, а без своїх TXT external-dns їх уже не
       чіпає. Другий лишив їх теж: TXT апексу без префікса — `a-pdp-media-pipeline.online`, поза
-      зоною, і external-dns його мовчки пропускає (external-dns#4234); тепер `txtPrefix:
-    edns-%{record_type}.` кладе TXT усередину зони, перевірка — наступним `up` і `down`);
-      видалення Traefik — Service тримає finalizer, доки контролер не прибере NLB,
+      зоною, і external-dns його мовчки пропускає (external-dns#4234); тепер
+      `txtPrefix: edns-%{record_type}.` кладе TXT усередину зони, перевірка — наступним `up` і
+      `down`); видалення Traefik — Service тримає finalizer, доки контролер не прибере NLB,
       target groups і security groups; `destroy` шару `cluster`; зупинка RDS; перевірка, що NLB,
       EBS з тегами кластера й записи на NLB не лишилися.
 - [x] `status`: кластер, RDS (і коли зупинено — AWS стартує його через 7 днів), вузли й поди,
