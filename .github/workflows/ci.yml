@@ -262,3 +262,37 @@ jobs:
           if [ "$code" -ne 0 ]; then
             echo "::warning title=Trivy ${{ matrix.app }}::HIGH/CRITICAL vulnerabilities found, see job summary"
           fi
+
+  # Three browser flows against the compose stack. The images come from the same Dockerfiles and
+  # cache scopes as the `docker` job, so its layers are reused rather than built twice.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/bake-action@v6
+        with:
+          source: .
+          files: e2e/docker-bake.hcl
+      - run: scripts/e2e.sh up
+      - run: scripts/e2e.sh test
+      - name: Compose logs
+        if: failure()
+        run: scripts/e2e.sh logs > compose.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            compose.log
+          if-no-files-found: ignore

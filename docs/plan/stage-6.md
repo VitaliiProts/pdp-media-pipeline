@@ -144,18 +144,24 @@ contracts` → `ci: verify the pacts`.
 
 ## Підетап 6.3. Покриття і E2E
 
-- [ ] Зведене покриття бекенду (unit та інтеграційні разом): поріг 80% рядків, гілки — на
+- [x] Зведене покриття бекенду (unit та інтеграційні разом): поріг 80% рядків, гілки — на
       поточному рівні, щоб не падали.
-- [ ] Покриття Web UI у Vitest: поріг 80% рядків.
-- [ ] Вхід, сесії, медіатека і підгонка дубляжу — не менше 80% кожен; тести там, де бракує.
-- [ ] Playwright у `e2e/`, CI-job `e2e`: `docker compose up` з образів job'а `docker`, фейкові
+- [x] Покриття Web UI у Vitest: поріг 80% рядків.
+- [x] Вхід, сесії, медіатека і підгонка дубляжу — не менше 80% кожен; тести там, де бракує.
+- [x] Playwright у `e2e/`, CI-job `e2e`: `docker compose up` з образів job'а `docker`, фейкові
       провайдери дубляжу й `audio-separate`. Флоу: реєстрація і вхід; завантаження → медіатека →
       видалення; переклад відео з прогресом по кроках.
-- [ ] `@axe-core/playwright` на екранах входу, медіатеки, файлу й перекладу: без `serious` і
+- [x] `@axe-core/playwright` на екранах входу, медіатеки, файлу й перекладу: без `serious` і
       `critical`.
 
-**Коміти:** `ci: merged coverage thresholds` → `test: coverage of login, sessions, library and dub
-fitting` → `test(e2e): three browser flows with axe` → `ci: e2e job`.
+Підсумок: зведене покриття бекенду — 88.9% рядків і 78.4% гілок (поріг гілок 78%), Web UI —
+97.0% і 89.5% (поріг 89%); зони від 97.9% (вхід) до 100% (підгонка дубляжу), тож нових тестів для
+них не знадобилось. Три флоу в Chromium проходять за ~12 с проти compose-стека з фейковими
+провайдерами; axe знайшов одну проблему `serious` — кнопку меню користувача, виправлено. Деталі й
+відхилення від плану — у [stage-6.3-impl.md](stage-6.3-impl.md).
+
+**Коміти:** `ci: merged coverage thresholds` → `fix(web): the account button's name contains its
+visible text` → `test(e2e): three browser flows with axe` → `ci: e2e job`.
 
 ## Завершення етапу
 

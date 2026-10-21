@@ -96,6 +96,6 @@
 
 ### 4. CI
 
-- [ ] Job `e2e` паралельно з `docker`: збірка образів з його кешу, `scripts/e2e.sh`, звіт Playwright і логи
+- [x] Job `e2e` паралельно з `docker`: збірка образів з його кешу, `scripts/e2e.sh`, звіт Playwright і логи
       compose в артефакт при падінні.
-- [ ] Відмітити 6.3 у `stage-6.md`. Коміт `ci: e2e job`.
+- [x] Відмітити 6.3 у `stage-6.md`. Коміт `ci: e2e job`.
