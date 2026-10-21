@@ -95,7 +95,7 @@ openai_mock() {
   kubectl -n "$NS" rollout status deploy/openai-mock --timeout 2m >/dev/null
 }
 
-# Provider timeouts of 10 s, so the slow answers of 08c-openai-slow (15 s) time out.
+# Provider timeouts of 10 s, so the slow answers of 08-openai-slow (15 s) time out.
 dub_on_mock() {
   kubectl -n "$NS" set env deploy/video-dub DUB_PROVIDERS=openai OPENAI_API_KEY=sk-chaos \
     OPENAI_BASE_URL=http://openai-mock:8080/v1 DUB_TTS=fake DUB_AUDIO_SEPARATE=fake \
