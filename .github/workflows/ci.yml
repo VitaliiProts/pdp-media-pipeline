@@ -43,6 +43,14 @@ jobs:
       - run: pnpm test:cov
       - run: pnpm test:web
       - run: pnpm test:tools
+      - run: pnpm test:pact
+      # Providers are verified against the committed pacts in `integration`.
+      - name: Pacts are committed as the consumer tests write them
+        run: |
+          if [ -n "$(git status --porcelain pacts)" ]; then
+            git status --short pacts && git diff pacts
+            exit 1
+          fi
       - name: Coverage summary
         if: always() && hashFiles('coverage/coverage-summary.json') != ''
         run: |

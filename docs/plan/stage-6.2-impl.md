@@ -86,9 +86,10 @@ Testcontainers, scheduler — без інфраструктури. Job `test` п
 
 ### 4. CI і перевірка руками
 
-- [ ] Job `test`: `pnpm test:pact` і `git diff --exit-code pacts/`. Перевірка провайдерів іде в
+- [x] Job `test`: `pnpm test:pact`, після нього `git status --porcelain pacts` порожній (ловить
+      і змінені, і нові файли). Перевірка провайдерів іде в
       `integration` разом з `test:int`.
-- [ ] Перейменувати поле у відповіді Metadata (`toJobDto`) — перевірка провайдера червона;
+- [x] Перейменувати поле у відповіді Metadata (`toJobDto`) — перевірка провайдера червона;
       додати обов'язкове поле в `JobDto` лише на боці споживача — червоний тест споживача.
       Повернути як було.
-- [ ] Відмітити 6.2 у `stage-6.md`. Коміт `ci: verify the pacts`.
+- [x] Відмітити 6.2 у `stage-6.md`. Коміт `ci: verify the pacts`.

@@ -123,14 +123,19 @@ scenarios in k3d`.
 
 ## Підетап 6.2. Pact
 
-- [ ] `@pact-foundation/pact` (специфікація V4), Pact-файли в `pacts/`.
-- [ ] Споживач gateway → провайдер Metadata: задачі, користувачі, сесії, assets.
-- [ ] Споживач `libs/metadata-client` (воркери) → Metadata: переходи стану, прогрес.
-- [ ] Message pacts на схемах `libs/contracts`: `job.created` (Metadata → scheduler), dispatch
+- [x] `@pact-foundation/pact` (специфікація V4), Pact-файли в `pacts/`.
+- [x] Споживач gateway → провайдер Metadata: задачі, користувачі, сесії, assets.
+- [x] Споживач `libs/metadata-client` (воркери) → Metadata: переходи стану, прогрес.
+- [x] Message pacts на схемах `libs/contracts`: `job.created` (Metadata → scheduler), dispatch
       (scheduler → воркери), зокрема `video.dub`.
-- [ ] Перевірка провайдера Metadata на Testcontainers Postgres зі state handlers; запуск у CI-job
+- [x] Перевірка провайдера Metadata на Testcontainers Postgres зі state handlers; запуск у CI-job
       `integration`.
-- [ ] Перевірити руками: змінити поле відповіді Metadata — CI червоний на перевірці провайдера.
+- [x] Перевірити руками: змінити поле відповіді Metadata — CI червоний на перевірці провайдера.
+      Перейменований `lastError` у `toJobDto` дав 22 збої перевірки; обов'язкове поле в `JobDto`
+      лише на боці споживача — 16 червоних тестів споживачів.
+
+Підсумок: 6 Pact-файлів, 44 HTTP-взаємодії і 7 повідомлень (зокрема `asset.deleted` → `worker`);
+план реалізації — [stage-6.2-impl.md](stage-6.2-impl.md).
 
 Web → gateway у Pact не входить: його покривають E2E.
 
