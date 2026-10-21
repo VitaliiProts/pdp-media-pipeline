@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Grafana graphs of the chaos runs for perf/reports/stage-6.md: the Jobs and API rows of the
 // Overview dashboard over each run, from the start of the load to a minute after the queues
-// drained, with the failure window shaded.
+// drained, with the time the failure was active shaded.
 //
 //   GRAFANA_URL=http://grafana.pdp.localhost:19080 node scripts/chaos-graphs.mjs \
 //     [--raw perf/reports/raw/stage-6] [--out perf/reports/stage-6]
@@ -25,12 +25,27 @@ const PANELS = [
 ];
 const AFTER_DRAIN_MS = 60_000;
 
+/**
+ * When the failure stopped: a one-shot experiment ends after its `spec.duration`, a `Schedule`
+ * or an `openai-mock` fault lasts until scripts/chaos.sh removes it.
+ */
+export function faultEnd(timeline, manifest) {
+  const off = Date.parse(timeline['fault-off']);
+  const duration = manifest?.match(/^ {2}duration: (\d+)s$/m);
+  if (!duration || /^kind: Schedule$/m.test(manifest)) return off;
+  return Math.min(off, Date.parse(timeline['fault-on']) + Number(duration[1]) * 1000);
+}
+
 /** The run's time range and its failure as fractions of it. */
-export function graphWindow(timeline) {
+export function graphWindow(timeline, manifest) {
   const from = Date.parse(timeline.start);
   const to = Date.parse(timeline.end) + AFTER_DRAIN_MS;
-  const at = (iso) => (Date.parse(iso) - from) / (to - from);
-  return { from, to, fault: [at(timeline['fault-on']), at(timeline['fault-off'])] };
+  const at = (ms) => (ms - from) / (to - from);
+  return {
+    from,
+    to,
+    fault: [at(Date.parse(timeline['fault-on'])), at(faultEnd(timeline, manifest))],
+  };
 }
 
 async function shoot(page, grafana, { from, to, fault }, path) {
@@ -91,8 +106,11 @@ async function main() {
       reducedMotion: 'reduce',
     });
     for (const run of latestRuns([...byName.keys()])) {
-      const path = join(values.out, `${run.replace(/-\d{8}-\d{6}$/, '')}.png`);
-      await shoot(page, grafana, graphWindow(byName.get(run)), path);
+      const scenario = run.replace(/-\d{8}-\d{6}$/, '');
+      const manifest = join('deploy/chaos', `${scenario}.yaml`);
+      const text = existsSync(manifest) ? readFileSync(manifest, 'utf8') : undefined;
+      const path = join(values.out, `${scenario}.png`);
+      await shoot(page, grafana, graphWindow(byName.get(run), text), path);
       console.log(path);
     }
   } finally {
