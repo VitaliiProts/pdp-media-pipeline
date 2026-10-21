@@ -103,11 +103,13 @@ dub_on_mock() {
   kubectl -n "$NS" rollout status deploy/video-dub --timeout 5m >/dev/null
 }
 
-# Back to values-dev.yaml: fakes inside the process. Run by the EXIT trap.
+# Back to values-dev.yaml: fakes inside the process. Run by the EXIT trap. Waits for the
+# rollout: a run started right after would otherwise share jobs with a pod on the fakes.
 # shellcheck disable=SC2329
 dub_restore() {
   kubectl -n "$NS" set env deploy/video-dub DUB_PROVIDERS=fake OPENAI_API_KEY- OPENAI_BASE_URL- \
-    DUB_TTS- DUB_STT_TIMEOUT_MS- DUB_TRANSLATE_TIMEOUT_MS- DUB_REFIT_TIMEOUT_MS- >/dev/null || true
+    DUB_TTS- DUB_STT_TIMEOUT_MS- DUB_TRANSLATE_TIMEOUT_MS- DUB_REFIT_TIMEOUT_MS- >/dev/null &&
+    kubectl -n "$NS" rollout status deploy/video-dub --timeout 5m >/dev/null || true
 }
 
 # Prints "<userId> <apiKey> <email> <password>".
