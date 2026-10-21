@@ -16,6 +16,15 @@ distributor:
 ingester:
   max_block_duration: 5m
 
+# Live traces are held in memory. After an outage the collector replays its queue at once,
+# which without these limits outgrew the 512Mi limit on every restart (OOMKilled loop).
+overrides:
+  defaults:
+    ingestion:
+      rate_limit_bytes: 3000000
+      burst_size_bytes: 6000000
+      max_traces_per_user: 5000
+
 compactor:
   compaction:
     block_retention: 48h
