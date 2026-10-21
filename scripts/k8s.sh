@@ -5,6 +5,7 @@
 #   scripts/k8s.sh deploy    # rebuild images and upgrade the app release only
 #   scripts/k8s.sh seed me   # create a user, print its API key
 #   scripts/k8s.sh status    # pods and URLs
+#   scripts/k8s.sh chaos-mesh  # Chaos Mesh for scripts/chaos.sh (Stage 6), not part of up
 #   scripts/k8s.sh down      # delete the cluster with its registry and volumes
 #   scripts/k8s.sh repos     # add the Helm repositories of the platform chart
 #
@@ -19,6 +20,7 @@ REGISTRY=localhost:5001
 INGRESS=http://%s.pdp.localhost:19080
 CNPG_VERSION=0.29.1
 KEDA_VERSION=2.21.0
+CHAOS_MESH_VERSION=2.8.5
 # audio-separate (6 GB) is off in values-dev.yaml, so it is neither built nor pushed.
 APPS=(api-gateway metadata scheduler worker video-worker video-dub webhook-receiver web)
 SERVICE_CHARTS=(api-gateway metadata scheduler worker video-worker audio-separate webhook-receiver web)
@@ -41,6 +43,7 @@ repos() {
   helm repo add vm https://victoriametrics.github.io/helm-charts/ --force-update >/dev/null
   helm repo add grafana-community https://grafana-community.github.io/helm-charts --force-update >/dev/null
   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts --force-update >/dev/null
+  helm repo add chaos-mesh https://charts.chaos-mesh.org --force-update >/dev/null
   helm repo update >/dev/null
 }
 
@@ -99,6 +102,20 @@ app() {
     $tags --wait --timeout 10m
 }
 
+# Only namespaces annotated chaos-mesh.org/inject=enabled can be targeted.
+chaos_mesh() {
+  log "Chaos Mesh $CHAOS_MESH_VERSION"
+  helm upgrade --install chaos-mesh chaos-mesh/chaos-mesh --version "$CHAOS_MESH_VERSION" \
+    -n chaos-mesh --create-namespace \
+    --set chaosDaemon.runtime=containerd \
+    --set chaosDaemon.socketPath=/run/k3s/containerd/containerd.sock \
+    --set controllerManager.replicaCount=1 \
+    --set controllerManager.enableFilterNamespace=true \
+    --set dashboard.create=false \
+    --wait --timeout 5m >/dev/null
+  kubectl annotate ns "$NS" chaos-mesh.org/inject=enabled --overwrite >/dev/null
+}
+
 seed() {
   kubectl -n "$NS" exec deploy/metadata -- node dist/seed-user.js --name "${1:-me}"
 }
@@ -136,11 +153,16 @@ case "${1:-}" in
     kubectl config use-context "k3d-$CLUSTER" >/dev/null
     app
     ;;
+  chaos-mesh)
+    kubectl config use-context "k3d-$CLUSTER" >/dev/null
+    repos
+    chaos_mesh
+    ;;
   seed) seed "${2:-me}" ;;
   status) status ;;
   down) k3d cluster delete "$CLUSTER" ;;
   *)
-    sed -n '2,10p' "$0"
+    sed -n '2,11p' "$0"
     exit 1
     ;;
 esac

@@ -72,7 +72,7 @@
 Від неї залежить решта: чи працюють `NetworkChaos` (tc/ipset у вузлі-контейнері k3d на ядрі
 Docker Desktop) і `StressChaos`.
 
-- [ ] `scripts/k8s.sh up` (кластер з образами, ~10 хв).
+- [x] `scripts/k8s.sh up` (кластер з образами, ~10 хв).
 - [ ] Поставити Chaos Mesh руками і дозволити йому namespace `pdp`:
 
   ```bash
@@ -123,7 +123,7 @@ Docker Desktop) і `StressChaos`.
 - [ ] Тест `perf/openai-mock/server.test.mjs` на `node:test`: транскрипція й переклад дають
       `paid: 1`; `PUT /faults {status: 500, rate: 1}` → 500 і `failed: 1`; `delayMs` більше
       за таймаут клієнта (`AbortSignal.timeout`) → `abandoned: 1`. Запуск:
-      `node --test perf/openai-mock`. Спершу тест червоний.
+      `node --test 'perf/openai-mock/*.test.mjs'`. Спершу тест червоний.
 - [ ] Реалізація, тест зелений.
 - [ ] `deploy/chaos/openai-mock.yaml`: Deployment (1 репліка, `node:24-alpine`,
       `command: [node, /app/server.mjs]`, readiness `/health`, ресурси 50m/64Mi), Service
@@ -264,4 +264,26 @@ DUB_TTS=fake DUB_AUDIO_SEPARATE=fake` і ключ `sk-chaos` (secret `dub-provid
 
 ## Результат spike
 
-_(заповнюється після задачі 1)_
+21 жовтня 2026, k3d `rancher/k3s:v1.35.5-k3s1`, Docker Desktop (12 CPU, 12.6 ГБ), Chaos Mesh
+2.8.5. Усі чотири типи працюють, NetworkPolicy як запасний варіант не потрібна.
+
+| Збій                                         | Результат                                                                    |
+| -------------------------------------------- | ---------------------------------------------------------------------------- |
+| `PodChaos pod-kill` `worker-cpu`             | под перестворено за секунди                                                  |
+| `NetworkChaos delay 200ms` без `target`      | запит `worker-cpu` → Metadata 33 → 650 мс (DNS, TCP і запит, кожен +200 мс)  |
+| `NetworkChaos delay` з `target: metadata`    | **не діє**: `AllInjected=True`, а затримки немає                             |
+| `NetworkChaos partition` Postgres → поди app | readiness Metadata падає за ~15 с, повертається після зняття, Postgres живий |
+| `StressChaos memory 2GB` на ліміт 512Mi      | контейнер `worker-cpu` — `OOMKilled`, рестарт                                |
+
+Чому `target` не діє: у мережевому просторі пода-клієнта пакет іде на ClusterIP сервісу, DNAT на
+IP пода робить вузол уже за межами пода, а Chaos Mesh фільтрує за IP подів цілі. Тому:
+
+- **розриви до Postgres, Redis, MinIO** — з боку сервера: `selector` — под сервера, `target` —
+  поди застосунку (`app.kubernetes.io/part-of: pdp-media-pipeline`), `direction: to`. Відповіді
+  сервера йдуть прямо на IP пода, без ClusterIP, тож фільтр спрацьовує, а проби kubelet з вузла —
+  ні, і сервер не перезапускається;
+- **затримка і втрата між сервісами** — без `target`, на весь вихідний трафік подів застосунку.
+
+Перший `helm install` застосунку в `scripts/k8s.sh up` упав на гонці з HPA (`Deployment generation
+is 2, but latest observed generation is 1`), хоча поди піднялися; повторний `scripts/k8s.sh deploy`
+довів реліз до `deployed`. Не з Chaos Mesh; якщо повториться — окреме виправлення.
