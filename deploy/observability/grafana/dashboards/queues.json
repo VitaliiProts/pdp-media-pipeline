@@ -310,7 +310,7 @@
       "gridPos": {
         "x": 0,
         "y": 18,
-        "w": 8,
+        "w": 6,
         "h": 8
       },
       "datasource": {
@@ -362,9 +362,9 @@
       "title": "Dead letters",
       "description": "Jobs moved to JOBS_DLQ, per minute by type and reason. JobDeadLetterShareHigh fires above 1% of finished jobs.",
       "gridPos": {
-        "x": 8,
+        "x": 6,
         "y": 18,
-        "w": 8,
+        "w": 6,
         "h": 8
       },
       "datasource": {
@@ -418,14 +418,94 @@
       ]
     },
     {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Dead-letter share",
+      "description": "Percent of finished jobs that went to JOBS_DLQ over 15 minutes, against the 1% of JobDeadLetterShareHigh and of the stage 6 chaos criterion.",
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["lastNotNull", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "100 * (sum(increase(jobs_dlq_total[15m])) or vector(0)) / sum(increase(jobs_finished_total[15m]))",
+          "legendFormat": "all"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "100 * sum by (type) (increase(jobs_dlq_total[15m])) / sum by (type) (increase(jobs_finished_total[15m]))",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
       "id": 9,
       "type": "timeseries",
       "title": "Duplicates",
       "description": "Deliveries or publishes recognised as already processed, per minute by where they were caught.",
       "gridPos": {
-        "x": 16,
+        "x": 18,
         "y": 18,
-        "w": 8,
+        "w": 6,
         "h": 8
       },
       "datasource": {
