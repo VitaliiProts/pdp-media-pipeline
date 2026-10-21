@@ -26,6 +26,7 @@
     "test:cov": "pnpm build:libs && jest --coverage",
     "test:int": "pnpm build:libs && jest -c jest.int.config.js",
     "test:web": "pnpm --filter @pdp/web test",
+    "test:tools": "node --test 'perf/**/*.test.mjs' 'scripts/*.test.mjs'",
     "dev:web": "pnpm --filter @pdp/web dev"
   },
   "devDependencies": {
