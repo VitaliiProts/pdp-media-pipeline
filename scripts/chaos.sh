@@ -48,6 +48,8 @@ need curl
 need node
 
 log() { printf '%s  %s\n' "$(date +%H:%M:%S)" "$*"; }
+# The run's `start`, `fault-on`, `fault-off` and `end` for scripts/chaos-logs.mjs and chaos-graphs.mjs.
+mark() { printf '%s %s\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$dir/timeline"; }
 psql_in() { kubectl -n "$NS" exec -i postgres-1 -c postgres -- psql -d metadata "$@"; }
 sql() { psql_in -tAc "$1"; }
 
@@ -211,6 +213,7 @@ run() {
   mock DELETE /calls >/dev/null
   mock DELETE /faults >/dev/null
   since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "start $since" >"$dir/timeline"
 
   docker run --rm --user "$(id -u):$(id -g)" \
     --add-host api.pdp.localhost:host-gateway --add-host s3.pdp.localhost:host-gateway \
@@ -227,6 +230,7 @@ run() {
     sleep "$FAULT_AT"
     log "fault on: $file"
     fault_on "$file"
+    mark fault-on
   fi
   wait "$k6" || log "k6 exited with $? (see $dir/k6.txt)"
   kill "$prober" 2>/dev/null || true
@@ -234,10 +238,12 @@ run() {
   rm -f "$dir"/cookies*
   if [[ -n "$file" ]]; then
     fault_off "$file"
+    mark fault-off
     log "fault off"
   fi
 
   drain "$user"
+  mark end
   VM_URL="$VM" node scripts/chaos-audit.mjs --dir "$dir" --scenario "$scenario" --user "$user" \
     --since "$since" | tee -a "$RAW/summary.md"
 }
