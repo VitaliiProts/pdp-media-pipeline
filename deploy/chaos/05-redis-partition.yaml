@@ -1,0 +1,18 @@
+# Scenario 5: Redis unreachable from the app for 60 s, set on the server side as in 04.
+# Expected: the rate limit fails open (ADR-005) and API keys keep working; login and
+# sessions answer 503, not 500, and nobody is signed out.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: redis-partition
+spec:
+  action: partition
+  mode: all
+  selector:
+    labelSelectors: { app.kubernetes.io/name: redis }
+  direction: to
+  target:
+    mode: all
+    selector:
+      labelSelectors: { app.kubernetes.io/part-of: pdp-media-pipeline }
+  duration: 60s

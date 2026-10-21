@@ -1,0 +1,16 @@
+# Scenario 3: the only NATS pod killed every 60 s. Expected: streams survive on the PVC,
+# publishers and consumers reconnect, nothing is lost.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: nats-kill
+spec:
+  schedule: '@every 60s'
+  concurrencyPolicy: Forbid
+  historyLimit: 1
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      labelSelectors: { app.kubernetes.io/name: nats }

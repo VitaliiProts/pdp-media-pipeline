@@ -1,0 +1,17 @@
+# Scenario 10: MinIO unreachable from the app for 60 s, set on the server side as in 04.
+# Expected: storage calls fail and are retried; jobs finish once it is back.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: minio-partition
+spec:
+  action: partition
+  mode: all
+  selector:
+    labelSelectors: { app.kubernetes.io/name: minio }
+  direction: to
+  target:
+    mode: all
+    selector:
+      labelSelectors: { app.kubernetes.io/part-of: pdp-media-pipeline }
+  duration: 60s

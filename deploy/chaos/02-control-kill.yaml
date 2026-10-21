@@ -1,0 +1,46 @@
+# Scenario 2: the control plane killed under load. Expected: clients get 5xx and retry with
+# the same Idempotency-Key; the outbox and the dispatch catch up after the restart.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: control-kill-gateway
+spec:
+  schedule: '@every 30s'
+  concurrencyPolicy: Forbid
+  historyLimit: 1
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      labelSelectors: { app.kubernetes.io/name: api-gateway }
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: control-kill-metadata
+spec:
+  schedule: '@every 60s'
+  concurrencyPolicy: Forbid
+  historyLimit: 1
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      labelSelectors: { app.kubernetes.io/name: metadata }
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: control-kill-scheduler
+spec:
+  schedule: '@every 45s'
+  concurrencyPolicy: Forbid
+  historyLimit: 1
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      labelSelectors: { app.kubernetes.io/name: scheduler }

@@ -95,9 +95,11 @@ openai_mock() {
   kubectl -n "$NS" rollout status deploy/openai-mock --timeout 2m >/dev/null
 }
 
+# Provider timeouts of 10 s, so the slow answers of 08c-openai-slow (15 s) time out.
 dub_on_mock() {
   kubectl -n "$NS" set env deploy/video-dub DUB_PROVIDERS=openai OPENAI_API_KEY=sk-chaos \
-    OPENAI_BASE_URL=http://openai-mock:8080/v1 DUB_TTS=fake DUB_AUDIO_SEPARATE=fake >/dev/null
+    OPENAI_BASE_URL=http://openai-mock:8080/v1 DUB_TTS=fake DUB_AUDIO_SEPARATE=fake \
+    DUB_STT_TIMEOUT_MS=10000 DUB_TRANSLATE_TIMEOUT_MS=10000 DUB_REFIT_TIMEOUT_MS=10000 >/dev/null
   kubectl -n "$NS" rollout status deploy/video-dub --timeout 5m >/dev/null
 }
 
@@ -105,7 +107,7 @@ dub_on_mock() {
 # shellcheck disable=SC2329
 dub_restore() {
   kubectl -n "$NS" set env deploy/video-dub DUB_PROVIDERS=fake OPENAI_API_KEY- OPENAI_BASE_URL- \
-    DUB_TTS- >/dev/null || true
+    DUB_TTS- DUB_STT_TIMEOUT_MS- DUB_TRANSLATE_TIMEOUT_MS- DUB_REFIT_TIMEOUT_MS- >/dev/null || true
 }
 
 # Prints "<userId> <apiKey> <email> <password>".

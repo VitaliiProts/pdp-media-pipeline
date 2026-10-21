@@ -1,0 +1,18 @@
+# Scenario 4: Postgres unreachable from the app for 60 s. Set on the server side: a target
+# selector would miss the client's packets, which still carry the Service's ClusterIP.
+# Expected: Metadata turns unready, the gateway answers 503; afterwards everything finishes.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: postgres-partition
+spec:
+  action: partition
+  mode: all
+  selector:
+    labelSelectors: { cnpg.io/cluster: postgres }
+  direction: to
+  target:
+    mode: all
+    selector:
+      labelSelectors: { app.kubernetes.io/part-of: pdp-media-pipeline }
+  duration: 60s
