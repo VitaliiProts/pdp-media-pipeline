@@ -84,37 +84,38 @@ S3 не перевіряється: ключі результатів детер
 
 ## Підетап 6.1. Chaos у k3d
 
-- [ ] Chaos Mesh у k3d: чарт з версією в `scripts/k8s.sh`, сокет containerd k3s
+- [x] Chaos Mesh у k3d: чарт з версією в `scripts/k8s.sh`, сокет containerd k3s
       (`/run/k3s/containerd/containerd.sock`), лише namespace `pdp`.
-- [ ] Фейковий OpenAI як сервіс (`openai-mock`, за зразком `fakeOpenAi()` з
+- [x] Фейковий OpenAI як сервіс (`openai-mock`, за зразком `fakeOpenAi()` з
       `test/dub-kill.int-spec.ts`): HTTP, лічильники оплачених, неотриманих клієнтом і збійних
       відповідей за кроком, збої за `PUT /faults`. `video-dub` у chaos-прогонах ходить до нього
       через `DUB_PROVIDERS=openai` і `OPENAI_BASE_URL`. У k3d і AWS — лише для chaos, у звичайному
       k3d лишаються фейки в процесі.
-- [ ] Покроковий план: [`stage-6.1-impl.md`](stage-6.1-impl.md).
-- [ ] `perf/k6/chaos.js`: ~5 задач/с, переважно `image.resize`, частка `video.frames` і `video.dub`;
+- [x] Покроковий план: [`stage-6.1-impl.md`](stage-6.1-impl.md).
+- [x] `perf/k6/chaos.js`: ~5 задач/с, переважно `image.resize`, частка `video.frames` і `video.dub`;
       `Idempotency-Key` з префіксом прогону, повтори на таймаутах і `5xx`.
-- [ ] `scripts/chaos-audit.mjs`: перевірки з методики, вихід — JSON у `perf/reports/raw/stage-6/`
+- [x] `scripts/chaos-audit.mjs`: перевірки з методики, вихід — JSON у `perf/reports/raw/stage-6/`
       і рядок таблиці.
-- [ ] `scripts/chaos.sh <сценарій|all>`: застосувати збій, k6 5 хв, зняти збій, дочекатися
+- [x] `scripts/chaos.sh <сценарій|all>`: застосувати збій, k6 5 хв, зняти збій, дочекатися
       порожніх черг (лаг консюмерів 0), аудит. Однаково для k3d і AWS (`--target k3d|aws`).
-- [ ] Сценарії в `deploy/chaos/`:
+- [x] Сценарії в `deploy/chaos/`:
 
-| #   | Збій                                                                                   | Очікування                                                                                      |
-| --- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| 1   | `PodChaos pod-kill` воркерів посеред задачі: `worker-cpu`, `video-worker`, `video-dub` | Повторна доставка, задача завершується, другого ефекту немає                                    |
-| 2   | `PodChaos pod-kill` gateway, Metadata, scheduler                                       | Клієнт отримує `5xx` і повторює з тим самим ключем; outbox і dispatch доходять                  |
-| 3   | `PodChaos pod-kill` NATS                                                               | Повідомлення переживають рестарт на PVC, споживачі перепідключаються                            |
-| 4   | `NetworkChaos partition` до Postgres, 60 с                                             | Gateway `503`, readiness Metadata падає; після відновлення все доходить                         |
-| 5   | `NetworkChaos partition` до Redis                                                      | Rate limit fail-open (ADR-005), API-ключі працюють; вхід і сесії — `503`, а не `500` і не вихід |
-| 6   | `NetworkChaos delay` 200 мс і `loss` 5% між сервісами                                  | P95 росте, задачі не губляться і не дублюються                                                  |
-| 7   | `StressChaos` пам'яті воркера до `OOMKilled`                                           | Повторна доставка, задача завершується                                                          |
-| 8   | Збої в самому `openai-mock`: `500`, `429`, затримка понад таймаут                      | Повтори з backoff, breaker відкривається й закривається, за готовий крок другий раз не платимо  |
-| 9   | `PodChaos pod-failure` `audio-separate` (лише AWS: у k3d його немає)                   | Клієнт чекає до 5 хв, далі повтор задачі; після відновлення дубляж завершується                 |
-| 10  | `NetworkChaos partition` до MinIO                                                      | Повтори, після відновлення задачі завершуються                                                  |
+| #   | Збій                                                                                         | Очікування                                                                                      |
+| --- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 1   | `PodChaos container-kill` воркерів посеред задачі: `worker-cpu`, `video-worker`, `video-dub` | Повторна доставка, задача завершується, другого ефекту немає                                    |
+| 2   | `PodChaos pod-kill` gateway, Metadata, scheduler                                             | Клієнт отримує `5xx` і повторює з тим самим ключем; outbox і dispatch доходять                  |
+| 3   | `PodChaos pod-kill` NATS                                                                     | Повідомлення переживають рестарт на PVC, споживачі перепідключаються                            |
+| 4   | `NetworkChaos partition` до Postgres, 60 с                                                   | Gateway `503`, readiness Metadata падає; після відновлення все доходить                         |
+| 5   | `NetworkChaos partition` до Redis                                                            | Rate limit fail-open (ADR-005), API-ключі працюють; вхід і сесії — `503`, а не `500` і не вихід |
+| 6   | `NetworkChaos delay` 200 мс і `loss` 5% між сервісами                                        | P95 росте, задачі не губляться і не дублюються                                                  |
+| 7   | `StressChaos` пам'яті воркера до `OOMKilled`                                                 | Повторна доставка, задача завершується                                                          |
+| 8   | Збої в самому `openai-mock`: `500`, `429`, затримка понад таймаут                            | Повтори з backoff, breaker відкривається й закривається, за готовий крок другий раз не платимо  |
+| 9   | `PodChaos pod-failure` `audio-separate` (лише AWS: у k3d його немає)                         | Клієнт чекає до 5 хв, далі повтор задачі; після відновлення дубляж завершується                 |
+| 10  | `NetworkChaos partition` до MinIO                                                            | Повтори, після відновлення задачі завершуються                                                  |
 
-- [ ] Для кожного сценарію, що не пройшов: причина, виправлення з тестом, повторний прогін.
-- [ ] Grafana: панелі «DLQ, % проти 1%» і «Перехоплені дублікати за джерелом».
+- [x] Для кожного сценарію, що не пройшов: причина, виправлення з тестом, повторний прогін.
+      Результати й виправлення — у [`perf/reports/stage-6.md`](../../perf/reports/stage-6.md).
+- [x] Grafana: панелі «DLQ, % проти 1%» і «Перехоплені дублікати за джерелом».
 
 **Коміти:** `feat(chaos): Chaos Mesh in k3d and the experiment manifests` → `feat(perf): chaos load
 and the audit` → `feat(scripts): chaos runner` → виправлення окремими комітами → `docs: chaos
