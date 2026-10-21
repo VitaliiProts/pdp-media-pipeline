@@ -1,0 +1,37 @@
+# Laid over docker-compose.yml by scripts/e2e.sh as the `pdp-e2e` project. Only the browser's
+# entry points are published: the Web UI, and MinIO for the presigned upload.
+
+x-fake-dub: &fake-dub
+  DUB_PROVIDERS: fake
+  DUB_TTS: fake
+  DUB_AUDIO_SEPARATE: fake
+  # A value rather than none: docker-compose.yml passes the developer's shell variable through.
+  OPENAI_API_KEY: not-a-key
+
+services:
+  postgres:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  nats:
+    ports: !reset []
+  metadata:
+    ports: !reset []
+  api-gateway:
+    ports: !reset []
+  scheduler:
+    ports: !reset []
+  worker:
+    ports: !reset []
+
+  minio:
+    ports: !override ['${MINIO_HOST_PORT}:9000']
+
+  # With every provider fake, nothing loads onnxruntime: the Alpine image runs video.dub too.
+  video-dub:
+    profiles: !reset []
+    build: !reset null
+    image: pdp/video-worker:dev
+    pull_policy: never
+    ports: !reset []
+    environment: *fake-dub

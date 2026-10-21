@@ -50,11 +50,19 @@
 - **Зона без жодного файлу — помилка**: перенесений файл не має тихо випасти з перевірки.
 - **E2E без кореневого `.env`:** compose запускається з `--env-file e2e/.env`, бо в кореневому
   можуть бути `DUB_PROVIDERS=openai` і ключ OpenAI. Override явно ставить `DUB_PROVIDERS`,
-  `DUB_TTS` і `DUB_AUDIO_SEPARATE` у `fake` і порожній `OPENAI_API_KEY`.
-- **Образи — з кешу job'а `docker`:** job `e2e` іде після нього і збирає ті самі Dockerfile з тим
-  самим `cache-from: type=gha`, тож шари беруться з кешу, а не передаються артефактом у гігабайти.
+  `DUB_TTS` і `DUB_AUDIO_SEPARATE` у `fake`, а `OPENAI_API_KEY` — у заглушку.
+- **Образи — з кешу job'а `docker`:** job `e2e` збирає ті самі Dockerfile з тими самими scope
+  `type=gha` (`e2e/docker-bake.hcl`), тож шари беруться з кешу, а не передаються артефактом у
+  гігабайти. Він не чекає на `docker`: тоді він чекав би й на 6-гігабайтний `audio-separate`.
+- **Дубляж — на Alpine-образі `video-worker`.** З `DUB_TTS=fake` ніщо не завантажує
+  `onnxruntime-node`, тож Debian-образ із Supertonic (1.9 GB) для E2E не потрібен. Справжній
+  синтез голосу перевіряють інтеграційні тести й k3d.
+- **`prefers-reduced-motion: reduce` у браузері.** Застосунок тоді вимикає анімації, і axe міряє
+  контраст за кінцевими кольорами, а не посеред появи діалогу.
 - **Медіа для тестів генерується** в global setup Playwright через `ffmpeg-static`, як в
   інтеграційних тестах: у репозиторії немає бінарних фікстур.
+- **Ключ OpenAI — заглушка `not-a-key`,** а не порожній: `docker-compose.yml` передає змінну з
+  shell розробника, а порожнє значення не проходить перевірку конфігу.
 - **Кожен тест — свій користувач** з унікальним email: тести не залежать один від одного й від
   порядку; ліміти входу в `e2e/.env` підняті, щоб реєстрації з однієї IP не впиралися в них.
 
@@ -76,15 +84,18 @@
 
 ### 3. E2E
 
-- [ ] `e2e/compose.yaml`, `e2e/.env`, `scripts/e2e.sh up|test|down`, `e2e/playwright.config.ts`,
+- [x] `e2e/compose.yaml`, `e2e/.env`, `scripts/e2e.sh up|test|down`, `e2e/playwright.config.ts`,
       global setup з медіа.
-- [ ] Флоу: реєстрація → вихід → вхід; завантаження фото → медіатека → видалення; завантаження
+- [x] Флоу: реєстрація → вихід → вхід; завантаження фото → медіатека → видалення; завантаження
       відео з перекладом → сторінка дубляжу з кроками прогресу → результат.
-- [ ] axe на екранах входу, медіатеки, файлу й перекладу: без `serious` і `critical`.
-- [ ] Коміт `test(e2e): three browser flows with axe`.
+- [x] axe на екранах входу, медіатеки, файлу й перекладу: без `serious` і `critical`.
+- [x] Знахідка axe: кнопка меню користувача мала видимий текст (ініціал і email), якого не було в
+      її доступному імені (`label-content-name-mismatch`, WCAG 2.5.3). Ініціал тепер малює CSS.
+      Коміт `fix(web): the account button's name contains its visible text`.
+- [x] Коміт `test(e2e): three browser flows with axe`.
 
 ### 4. CI
 
-- [ ] Job `e2e` після `docker`: збірка образів з кешу, `scripts/e2e.sh`, звіт Playwright і логи
+- [ ] Job `e2e` паралельно з `docker`: збірка образів з його кешу, `scripts/e2e.sh`, звіт Playwright і логи
       compose в артефакт при падінні.
 - [ ] Відмітити 6.3 у `stage-6.md`. Коміт `ci: e2e job`.

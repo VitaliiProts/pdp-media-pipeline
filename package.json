@@ -8,7 +8,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "build:libs": "pnpm --filter \"./libs/**\" build",
-    "typecheck": "pnpm build:libs && pnpm -r typecheck && tsc -p test/tsconfig.json",
+    "typecheck": "pnpm build:libs && pnpm -r typecheck && tsc -p test/tsconfig.json && tsc -p e2e/tsconfig.json",
     "lint": "pnpm build:libs && eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -30,6 +30,7 @@
     "test:tools": "node --test 'perf/**/*.test.mjs' 'scripts/*.test.mjs'",
     "dev:web": "pnpm --filter @pdp/web dev",
     "test:web:cov": "pnpm --filter @pdp/web test:cov",
+    "test:e2e": "scripts/e2e.sh",
     "coverage": "node scripts/coverage.mjs"
   },
   "devDependencies": {
