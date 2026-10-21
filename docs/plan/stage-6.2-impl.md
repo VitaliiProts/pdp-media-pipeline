@@ -55,25 +55,27 @@ Testcontainers, scheduler — без інфраструктури. Job `test` п
 
 ### 1. Каркас і gateway → Metadata
 
-- [ ] `jest.pact.config.js`, скрипт `test:pact`, `pacts/` у `.prettierignore`.
-- [ ] `test/pact/support/`: зразки DTO з матчерами (`job`, `asset`, `user`, …), спільні для
+- [x] `jest.pact.config.js`, скрипт `test:pact`, `pacts/` у `.prettierignore`.
+- [x] `test/pact/support/`: зразки DTO з матчерами (`job`, `asset`, `user`, …), спільні для
       споживачів.
-- [ ] `test/pact/consumers/api-gateway.pact-spec.ts`: кожен метод `MetadataClient`, який викликає
+- [x] `test/pact/consumers/api-gateway.pact-spec.ts`: кожен метод `MetadataClient`, який викликає
       gateway, плюс помилки, від яких залежить його поведінка: `JOB_NOT_FOUND`,
       `INVALID_CREDENTIALS` (вхід повертає `null`), `EMAIL_TAKEN`, `API_KEY_NOT_FOUND`
       (ключ не знайдено → `null`), повтор з тим самим `Idempotency-Key` (`replayed: true`).
-- [ ] `test/pact/metadata.int-spec.ts`: Metadata на Testcontainers, state handlers, очищення
+- [x] `test/pact/metadata.int-spec.ts`: Metadata на Testcontainers, state handlers, очищення
       таблиць перед взаємодією.
-- [ ] Коміт `test(pact): gateway contract with Metadata`.
+- [x] Коміт `test(pact): gateway contract with Metadata`.
 
 ### 2. Воркери і scheduler → Metadata (HTTP)
 
-- [ ] Спільні взаємодії `JobRunner` (`running`, `succeeded`, `scheduled` на повтор, `dead`,
+- [x] Спільні взаємодії `JobRunner` (`running`, `succeeded`, `scheduled` на повтор, `dead`,
       `JOB_TERMINAL`, `STALE_ATTEMPT`) — функцією, яку викликають обидва воркери.
-- [ ] `worker`: ендпоінт вебхука з секретом і `WEBHOOK_NOT_FOUND`, задачі asset для очищення.
-- [ ] `video-worker`: прогрес із кроком.
-- [ ] `scheduler`: `scheduled` з класом.
-- [ ] Коміт `test(pact): worker and scheduler contracts with Metadata`.
+      `STALE_ATTEMPT` — на запізнілий `dead` замінної спроби: успіх старшої спроби Metadata
+      приймає (перший успіх виграє), а її повторний `scheduled` — дублікат без змін.
+- [x] `worker`: ендпоінт вебхука з секретом і `WEBHOOK_NOT_FOUND`, задачі asset для очищення.
+- [x] `video-worker`: прогрес із кроком.
+- [x] `scheduler`: `scheduled` з класом.
+- [x] Коміт `test(pact): worker and scheduler contracts with Metadata`.
 
 ### 3. Повідомлення
 

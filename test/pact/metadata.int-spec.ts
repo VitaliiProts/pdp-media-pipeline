@@ -41,29 +41,73 @@ describe('metadata honours the contracts of its consumers', () => {
     return { userId, sourceKey: `uploads/${userId}/a.png` };
   };
 
-  const anUploadedImage = async () => {
+  const SOURCES = {
+    'image.resize': { name: 'a.png', contentType: 'image/png' },
+    'video.frames': { name: 'a.mp4', contentType: 'video/mp4' },
+  } as const;
+  type SourceType = keyof typeof SOURCES;
+  const inputOf = (type: SourceType, sourceKey: string) =>
+    type === 'image.resize'
+      ? { sourceKey, presets: ['thumb'] }
+      : { sourceKey, intervalSeconds: 2, maxFrames: 10 };
+
+  const anUploaded = async (type: SourceType) => {
     const state = await aUser();
+    const { name, contentType } = SOURCES[type];
+    const sourceKey = `uploads/${state.userId}/${name}`;
     const { id } = await client.createAsset({
       userId: state.userId,
-      key: state.sourceKey,
-      contentType: 'image/png',
+      key: sourceKey,
+      contentType,
       size: 1024,
-      name: 'a.png',
+      name,
     });
-    return { ...state, assetId: id };
+    return { ...state, sourceKey, assetId: id };
   };
+  const anUploadedImage = () => anUploaded('image.resize');
 
-  const aQueuedImageJob = async (idempotency?: typeof IDEMPOTENCY) => {
-    const state = await anUploadedImage();
+  const aQueuedJob = async (type: SourceType, idempotency?: typeof IDEMPOTENCY) => {
+    const state = await anUploaded(type);
     const { job } = await client.createJob({
       userId: state.userId,
-      type: 'image.resize',
+      type,
       priority: 5,
-      input: { sourceKey: state.sourceKey, presets: ['thumb'] },
+      input: inputOf(type, state.sourceKey),
       idempotency,
     });
     return { ...state, jobId: job.id };
   };
+  const aQueuedImageJob = (idempotency?: typeof IDEMPOTENCY) =>
+    aQueuedJob('image.resize', idempotency);
+
+  const actor = 'worker:pact';
+  const aScheduledJob = async (type: SourceType) => {
+    const state = await aQueuedJob(type);
+    await client.transition(state.jobId, { to: 'scheduled', attempt: 0, actor, class: 'cpu' });
+    return state;
+  };
+  const aRunningJob = async (type: SourceType) => {
+    const state = await aScheduledJob(type);
+    await client.transition(state.jobId, { to: 'running', attempt: 1, actor });
+    return state;
+  };
+
+  /** The states `JobRunner` contracts start from, for every job type a worker runs. */
+  const runnerStates = (type: SourceType) => ({
+    [`a scheduled ${type} job`]: () => aScheduledJob(type),
+    [`a ${type} job running its first attempt`]: () => aRunningJob(type),
+    [`a succeeded ${type} job`]: async () => {
+      const state = await aRunningJob(type);
+      await client.transition(state.jobId, { to: 'succeeded', attempt: 1, actor, output: {} });
+      return state;
+    },
+    [`a ${type} job running its second attempt`]: async () => {
+      const state = await aRunningJob(type);
+      await client.transition(state.jobId, { to: 'scheduled', attempt: 1, actor, error: 'lost' });
+      await client.transition(state.jobId, { to: 'running', attempt: 2, actor });
+      return state;
+    },
+  });
 
   it('verifies every interaction', async () => {
     await new Verifier({
@@ -85,18 +129,12 @@ describe('metadata honours the contracts of its consumers', () => {
         'a queued image job': () => aQueuedImageJob(),
         'a job created with an idempotency key': () => aQueuedImageJob(IDEMPOTENCY),
         'a dead image job': async () => {
-          const state = await aQueuedImageJob();
-          const actor = 'worker:pact';
-          await client.transition(state.jobId, {
-            to: 'scheduled',
-            attempt: 0,
-            actor,
-            class: 'cpu',
-          });
-          await client.transition(state.jobId, { to: 'running', attempt: 1, actor });
+          const state = await aRunningJob('image.resize');
           await client.transition(state.jobId, { to: 'dead', attempt: 1, actor, error: 'broken' });
           return state;
         },
+        ...runnerStates('image.resize'),
+        ...runnerStates('video.frames'),
         'a user with a webhook endpoint': async () => {
           const state = await aUser();
           const { id } = await client.createWebhookEndpoint({

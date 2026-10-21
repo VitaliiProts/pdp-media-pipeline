@@ -1,0 +1,1111 @@
+{
+  "consumer": {
+    "name": "video-worker"
+  },
+  "interactions": [
+    {
+      "description": "a permanent failure of a replaced attempt of a video.frames job",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a video.frames job running its second attempt"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "actor": "worker:pact",
+            "attempt": 1,
+            "error": "unreadable source",
+            "inbox": {
+              "consumer": "video-cpu",
+              "messageId": "dispatch:7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11:0"
+            },
+            "to": "dead"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.inbox.messageId": {
+              "expression": "dispatch:${jobId}:0",
+              "type": "ProviderState"
+            }
+          },
+          "path": {
+            "expression": "/internal/jobs/${jobId}/transitions",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.actor": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.error": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.inbox.messageId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11/transitions"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "code": "STALE_ATTEMPT",
+            "message": "explanation"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.message": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 409
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a permanent failure of a video.frames job",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a video.frames job running its first attempt"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "actor": "worker:pact",
+            "attempt": 1,
+            "error": "unreadable source",
+            "inbox": {
+              "consumer": "video-cpu",
+              "messageId": "dispatch:7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11:0"
+            },
+            "to": "dead"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.inbox.messageId": {
+              "expression": "dispatch:${jobId}:0",
+              "type": "ProviderState"
+            }
+          },
+          "path": {
+            "expression": "/internal/jobs/${jobId}/transitions",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.actor": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.error": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.inbox.messageId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11/transitions"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "applied": true,
+            "job": {
+              "attemptBase": 0,
+              "attempts": 1,
+              "class": "cpu",
+              "createdAt": "2026-10-21T12:00:00.000Z",
+              "deadReason": "permanent",
+              "finishedAt": "2026-10-21T12:00:00.000Z",
+              "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+              "input": {
+                "intervalSeconds": 2,
+                "maxFrames": 10,
+                "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.mp4"
+              },
+              "lastError": "unreadable source",
+              "output": null,
+              "priority": 5,
+              "progress": null,
+              "progressStep": null,
+              "status": "dead",
+              "traceId": null,
+              "type": "video.frames",
+              "updatedAt": "2026-10-21T12:00:00.000Z",
+              "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.job.attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.deadReason": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.finishedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.job.input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.lastError": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a retry of a video.frames job",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a video.frames job running its first attempt"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "actor": "worker:pact",
+            "attempt": 1,
+            "error": "socket hang up",
+            "to": "scheduled"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "path": {
+            "expression": "/internal/jobs/${jobId}/transitions",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.actor": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.error": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11/transitions"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "applied": true,
+            "job": {
+              "attemptBase": 0,
+              "attempts": 1,
+              "class": "cpu",
+              "createdAt": "2026-10-21T12:00:00.000Z",
+              "deadReason": null,
+              "finishedAt": null,
+              "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+              "input": {
+                "intervalSeconds": 2,
+                "maxFrames": 10,
+                "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.mp4"
+              },
+              "lastError": "socket hang up",
+              "output": null,
+              "priority": 5,
+              "progress": null,
+              "progressStep": null,
+              "status": "scheduled",
+              "traceId": null,
+              "type": "video.frames",
+              "updatedAt": "2026-10-21T12:00:00.000Z",
+              "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.job.attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.job.input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.lastError": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "progress of a video.frames job",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a video.frames job running its first attempt"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "attempt": 1,
+            "progress": 40,
+            "step": "translate"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "path": {
+            "expression": "/internal/jobs/${jobId}/progress",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.progress": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.step": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11/progress"
+      },
+      "response": {
+        "status": 204
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "the start of another attempt of a finished video.frames job",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a succeeded video.frames job"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "actor": "worker:pact",
+            "attempt": 2,
+            "class": "cpu",
+            "inbox": {
+              "consumer": "video-cpu",
+              "messageId": "dispatch:7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11:0"
+            },
+            "to": "running"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.inbox.messageId": {
+              "expression": "dispatch:${jobId}:0",
+              "type": "ProviderState"
+            }
+          },
+          "path": {
+            "expression": "/internal/jobs/${jobId}/transitions",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.actor": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.inbox.messageId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11/transitions"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "code": "JOB_TERMINAL",
+            "message": "explanation"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.message": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 409
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "the start of the first attempt of a video.frames job",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a scheduled video.frames job"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "actor": "worker:pact",
+            "attempt": 1,
+            "class": "cpu",
+            "inbox": {
+              "consumer": "video-cpu",
+              "messageId": "dispatch:7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11:0"
+            },
+            "to": "running"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.inbox.messageId": {
+              "expression": "dispatch:${jobId}:0",
+              "type": "ProviderState"
+            }
+          },
+          "path": {
+            "expression": "/internal/jobs/${jobId}/transitions",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.actor": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.inbox.messageId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11/transitions"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "applied": true,
+            "job": {
+              "attemptBase": 0,
+              "attempts": 1,
+              "class": "cpu",
+              "createdAt": "2026-10-21T12:00:00.000Z",
+              "deadReason": null,
+              "finishedAt": null,
+              "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+              "input": {
+                "intervalSeconds": 2,
+                "maxFrames": 10,
+                "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.mp4"
+              },
+              "lastError": null,
+              "output": null,
+              "priority": 5,
+              "progress": null,
+              "progressStep": null,
+              "status": "running",
+              "traceId": null,
+              "type": "video.frames",
+              "updatedAt": "2026-10-21T12:00:00.000Z",
+              "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.job.attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.job.input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "the success of a video.frames job",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a video.frames job running its first attempt"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "actor": "worker:pact",
+            "attempt": 1,
+            "inbox": {
+              "consumer": "video-cpu",
+              "messageId": "dispatch:7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11:0"
+            },
+            "output": {
+              "durationSeconds": 10,
+              "frames": [
+                {
+                  "atSeconds": 0,
+                  "bytes": 8192,
+                  "height": 360,
+                  "key": "results/job/frame-0.webp",
+                  "width": 640
+                }
+              ]
+            },
+            "to": "succeeded"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.inbox.messageId": {
+              "expression": "dispatch:${jobId}:0",
+              "type": "ProviderState"
+            }
+          },
+          "path": {
+            "expression": "/internal/jobs/${jobId}/transitions",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.actor": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.inbox.messageId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.output": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11/transitions"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "applied": true,
+            "job": {
+              "attemptBase": 0,
+              "attempts": 1,
+              "class": "cpu",
+              "createdAt": "2026-10-21T12:00:00.000Z",
+              "deadReason": null,
+              "finishedAt": "2026-10-21T12:00:00.000Z",
+              "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+              "input": {
+                "intervalSeconds": 2,
+                "maxFrames": 10,
+                "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.mp4"
+              },
+              "lastError": null,
+              "output": {
+                "durationSeconds": 10,
+                "frames": [
+                  {
+                    "atSeconds": 0,
+                    "bytes": 8192,
+                    "height": 360,
+                    "key": "results/job/frame-0.webp",
+                    "width": 640
+                  }
+                ]
+              },
+              "priority": 5,
+              "progress": null,
+              "progressStep": null,
+              "status": "succeeded",
+              "traceId": null,
+              "type": "video.frames",
+              "updatedAt": "2026-10-21T12:00:00.000Z",
+              "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.job.attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.finishedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.job.input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.output": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "17.1.4"
+    },
+    "pactRust": {
+      "ffi": "0.5.8",
+      "models": "1.3.16"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "metadata"
+  }
+}

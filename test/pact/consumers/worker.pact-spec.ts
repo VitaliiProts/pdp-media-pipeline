@@ -1,0 +1,85 @@
+import { MatchersV3 } from '@pact-foundation/pact';
+import { ImageResizeInputV1 } from '@pdp/contracts';
+import { describeJobRunner } from '../support/job-runner';
+import {
+  errorBody,
+  EXAMPLE,
+  fromState,
+  job,
+  metadataAt,
+  pactBetween,
+  pathFromState,
+  webhookEndpoint,
+} from '../support/pact';
+
+const { eachLike, like } = MatchersV3;
+
+const pact = pactBetween('worker', 'metadata');
+
+describe('worker → metadata', () => {
+  describeJobRunner(pact, {
+    type: 'image.resize',
+    consumer: 'worker-cpu',
+    inputSchema: ImageResizeInputV1,
+    input: { sourceKey: EXAMPLE.sourceKey, presets: ['thumb'] },
+    output: {
+      results: [
+        { preset: 'thumb', key: 'results/job/thumb.webp', width: 200, height: 133, bytes: 4096 },
+      ],
+    },
+  });
+
+  describe('webhook delivery', () => {
+    it('reads the endpoint with its signing secret', () =>
+      pact
+        .addInteraction()
+        .given('a user with a webhook endpoint')
+        .uponReceiving('a request for a webhook endpoint with its secret')
+        .withRequest(
+          'GET',
+          pathFromState(
+            '/internal/webhooks/${endpointId}',
+            `/internal/webhooks/${EXAMPLE.endpointId}`,
+          ),
+        )
+        .willRespondWith(200, (b) =>
+          b.jsonBody({ ...webhookEndpoint(), secret: like('whsec_secret') }),
+        )
+        .executeTest(async ({ url }) => {
+          const endpoint = await metadataAt(url).getWebhookEndpoint(EXAMPLE.endpointId);
+          expect(endpoint.secret).toBeTruthy();
+        }));
+
+    it('learns that the endpoint was deleted', () =>
+      pact
+        .addInteraction()
+        .uponReceiving('a request for a deleted webhook endpoint')
+        .withRequest('GET', `/internal/webhooks/${EXAMPLE.endpointId}`)
+        .willRespondWith(404, (b) => b.jsonBody(errorBody('WEBHOOK_NOT_FOUND')))
+        .executeTest(async ({ url }) => {
+          await expect(metadataAt(url).getWebhookEndpoint(EXAMPLE.endpointId)).rejects.toEqual(
+            expect.objectContaining({ code: 'WEBHOOK_NOT_FOUND' }),
+          );
+        }));
+  });
+
+  describe('purge of a deleted file', () => {
+    it('lists the jobs of the file', () =>
+      pact
+        .addInteraction()
+        .given('a queued image job')
+        .uponReceiving('a request for a page of the jobs of a file')
+        .withRequest('GET', '/internal/jobs', (b) =>
+          b.query({ userId: fromState('userId'), assetId: fromState('assetId'), limit: '100' }),
+        )
+        .willRespondWith(200, (b) => b.jsonBody({ items: eachLike(job()), nextCursor: null }))
+        .executeTest(async ({ url }) => {
+          const page = await metadataAt(url).listJobs({
+            userId: EXAMPLE.userId,
+            assetId: EXAMPLE.assetId,
+            limit: 100,
+          });
+          expect(page.items.map((j) => j.id)).toEqual([EXAMPLE.jobId]);
+        }));
+  });
+});
