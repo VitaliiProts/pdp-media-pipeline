@@ -21,6 +21,15 @@ export default defineConfig({
     testTimeout: 15_000,
     // Stylesheets stay out of jsdom; `?raw` imports still need their text.
     css: { include: [/\.css\?raw$/] },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/**/*.d.ts'],
+      reporter: ['text-summary', 'json-summary', 'json', 'lcov'],
+      reportsDirectory: 'coverage',
+      // Branches stay at the level they reached, so they only go up.
+      thresholds: { lines: 80, statements: 80, functions: 80, branches: 89 },
+    },
     projects: [
       {
         extends: true,

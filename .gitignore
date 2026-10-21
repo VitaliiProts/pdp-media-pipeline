@@ -3,10 +3,13 @@ dist/
 dist-ssr/
 coverage/
 coverage-int/
+coverage-merged/
 *.tsbuildinfo
 .env
 .env.*
 !.env.example
+# Ports and limits of the e2e stack; it must not read a developer's keys.
+!e2e/.env
 .DS_Store
 *.log
 spikes/**/package-lock.json
@@ -31,3 +34,8 @@ terraform.tfvars
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+
+# Playwright (e2e/): media from the global setup, results and the HTML report
+e2e/.media/
+e2e/test-results/
+e2e/playwright-report/
