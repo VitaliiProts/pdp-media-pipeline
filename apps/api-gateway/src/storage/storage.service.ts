@@ -1,19 +1,20 @@
 import {
   GetObjectCommand,
-  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
   S3ServiceException,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
+import { HttpStatus, Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { s3Connection } from '@pdp/config';
+import { RetryLaterException } from '../common/retry-later';
 import { type Env } from '../config';
 
 /** Polling clients get the same GET links for this long, so browsers reuse what they cached. */
 export const PRESIGN_BUCKET_S = 300;
+const UNAVAILABLE_RETRY_AFTER_S = 5;
 
 @Injectable()
 export class StorageService implements OnApplicationShutdown {
@@ -22,9 +23,11 @@ export class StorageService implements OnApplicationShutdown {
   private readonly internal: S3Client;
   /** Only signs URLs; never sends requests itself. */
   private readonly signer: S3Client;
+  private readonly timeoutMs: number;
 
   constructor(config: ConfigService<Env, true>) {
     this.bucket = config.get('S3_BUCKET', { infer: true });
+    this.timeoutMs = config.get('S3_TIMEOUT_MS', { infer: true });
     const connection = s3Connection(config);
     this.internal = new S3Client(connection);
     this.signer = new S3Client({
@@ -74,21 +77,24 @@ export class StorageService implements OnApplicationShutdown {
     });
   }
 
-  /** Returns the object size, or `null` when it does not exist. */
+  /** Returns the object size, or `null` when it does not exist; 503 when storage is down. */
   async headObject(key: string): Promise<{ size: number } | null> {
     try {
       const head = await this.internal.send(
         new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+        { abortSignal: AbortSignal.timeout(this.timeoutMs) },
       );
       return { size: head.ContentLength ?? 0 };
     } catch (err) {
-      if (err instanceof S3ServiceException && err.$metadata.httpStatusCode === 404) return null;
-      throw err;
+      const status = err instanceof S3ServiceException ? err.$metadata.httpStatusCode : undefined;
+      if (status === 404) return null;
+      if (status !== undefined && status < 500) throw err;
+      throw new RetryLaterException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        'storage is unavailable, retry later',
+        UNAVAILABLE_RETRY_AFTER_S,
+      );
     }
-  }
-
-  async ping(): Promise<void> {
-    await this.internal.send(new HeadBucketCommand({ Bucket: this.bucket }));
   }
 
   onApplicationShutdown(): void {

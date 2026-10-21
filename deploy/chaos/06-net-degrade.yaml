@@ -1,0 +1,15 @@
+# Scenario 6: 200 ms ± 50 ms and 5% loss on everything the app pods send, for 120 s.
+# Expected: P95 grows, no job is lost or done twice.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: net-degrade
+spec:
+  action: netem
+  mode: all
+  selector:
+    labelSelectors: { app.kubernetes.io/part-of: pdp-media-pipeline }
+  direction: to
+  delay: { latency: 200ms, jitter: 50ms }
+  loss: { loss: '5' }
+  duration: 120s

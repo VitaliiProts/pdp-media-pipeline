@@ -2,9 +2,19 @@ import { type DynamicModule, Module, type OnApplicationShutdown } from '@nestjs/
 import { ConfigService } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { HttpRouteInterceptor } from './http-route.interceptor';
 import { shutdownTelemetry } from './telemetry';
 import { jobLogFields } from './tracing';
+
+/** A failed response is an error in the logs too, not only in the metrics. */
+export function httpLogLevel(
+  _req: IncomingMessage,
+  res: ServerResponse,
+  err?: Error,
+): 'error' | 'info' {
+  return err || res.statusCode >= 500 ? 'error' : 'info';
+}
 
 class TelemetryShutdown implements OnApplicationShutdown {
   onApplicationShutdown(): Promise<void> {
@@ -39,6 +49,7 @@ export class ObservabilityModule {
                   'res.headers["set-cookie"]',
                 ],
                 autoLogging: { ignore: (req) => /^\/health\b/.test(req.url ?? '') },
+                customLogLevel: httpLogLevel,
                 transport: pretty
                   ? { target: 'pino-pretty', options: { singleLine: true } }
                   : undefined,

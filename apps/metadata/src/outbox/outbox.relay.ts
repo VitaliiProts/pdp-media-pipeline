@@ -14,6 +14,9 @@ import { outbox } from '../database/schema';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** A publish failure that is already logged with the event's trace and job. */
+class PublishFailed extends Error {}
+
 /**
  * Publishes committed outbox rows to NATS with `Nats-Msg-Id = eventId`.
  * `SKIP LOCKED` lets several replicas share the table without publishing a row twice
@@ -59,9 +62,15 @@ export class OutboxRelay implements OnApplicationBootstrap, BeforeApplicationShu
       if (rows.length === 0) return 0;
 
       for (const row of rows) {
-        const ack = await withStoredTraceContext(row.traceContext, () =>
-          this.nats.publishJson(row.subject, row.payload, row.id),
-        );
+        const ack = await withStoredTraceContext(row.traceContext, async () => {
+          try {
+            return await this.nats.publishJson(row.subject, row.payload, row.id);
+          } catch (err) {
+            const message = `relay failed on ${row.subject} ${row.id}: ${(err as Error).message}`;
+            this.logger.error(message);
+            throw new PublishFailed(message, { cause: err });
+          }
+        });
         if (ack.duplicate) jobMetrics.duplicate('outbox');
       }
       await tx
@@ -83,7 +92,9 @@ export class OutboxRelay implements OnApplicationBootstrap, BeforeApplicationShu
         const published = await this.publishBatch();
         if (published < this.batch) await sleep(this.pollMs);
       } catch (err) {
-        this.logger.error(`relay failed: ${(err as Error).message}`);
+        if (!(err instanceof PublishFailed)) {
+          this.logger.error(`relay failed: ${(err as Error).message}`);
+        }
         await sleep(1000);
       }
     }

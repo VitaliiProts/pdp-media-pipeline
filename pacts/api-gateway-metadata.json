@@ -1,0 +1,2991 @@
+{
+  "consumer": {
+    "name": "api-gateway"
+  },
+  "interactions": [
+    {
+      "description": "a deletion of a file",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user with an uploaded image"
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/internal/assets/${assetId}",
+            "type": "ProviderState"
+          },
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "DELETE",
+        "path": "/internal/assets/0b6f9c2e-3a41-4f7d-9e2b-8c5d1a7f3e20",
+        "query": {
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "contentType": "image/png",
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "durationSeconds": null,
+            "height": null,
+            "id": "0b6f9c2e-3a41-4f7d-9e2b-8c5d1a7f3e20",
+            "key": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png",
+            "kind": "image",
+            "name": "a.png",
+            "size": 1024,
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e",
+            "width": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.key": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.size": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a deletion of a webhook endpoint",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user with a webhook endpoint"
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/internal/webhooks/${endpointId}",
+            "type": "ProviderState"
+          },
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "DELETE",
+        "path": "/internal/webhooks/a2e4c6d8-1b3f-4a5c-8e7d-9f0a1b2c3d4e",
+        "query": {
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "events": [
+              "job.succeeded",
+              "job.dead"
+            ],
+            "id": "a2e4c6d8-1b3f-4a5c-8e7d-9f0a1b2c3d4e",
+            "url": "https://example.com/hooks",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.url": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a lookup of a known API key",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user with a known API key"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "apiKeyHash": "65aff5210fa2f78c54a711c4a36bcca2c2a2a2a536cac9f9ca8e02fe29720e56"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "POST",
+        "path": "/internal/auth/resolve"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a lookup of an unknown API key",
+      "pending": false,
+      "request": {
+        "body": {
+          "content": {
+            "apiKeyHash": "9b48b808f6b46b4e4dc8cbeafb998c690a174c01b7352d9add64d69aea2aa83a"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "POST",
+        "path": "/internal/auth/resolve"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "code": "API_KEY_NOT_FOUND",
+            "message": "explanation"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.message": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a new API key",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "name": "ci",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/internal/api-keys"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "id": "c9d8e7f6-5a4b-4c3d-9e2f-1a0b9c8d7e6f",
+            "key": "pdp_pact-consumer-test-key",
+            "lastUsedAt": null,
+            "name": "ci",
+            "prefix": "pdp_ab12"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.key": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.prefix": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a new job with an idempotency key",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user with an uploaded image"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "idempotency": {
+              "key": "pact-key",
+              "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "input": {
+              "presets": [
+                "thumb"
+              ],
+              "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+            },
+            "priority": 5,
+            "type": "image.resize",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.input.sourceKey": {
+              "expression": "${sourceKey}",
+              "type": "ProviderState"
+            },
+            "$.userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.input.sourceKey": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "job": {
+              "attemptBase": 0,
+              "attempts": 0,
+              "class": null,
+              "createdAt": "2026-10-21T12:00:00.000Z",
+              "deadReason": null,
+              "finishedAt": null,
+              "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+              "input": {
+                "presets": [
+                  "thumb"
+                ],
+                "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+              },
+              "lastError": null,
+              "output": null,
+              "priority": 5,
+              "progress": null,
+              "progressStep": null,
+              "status": "queued",
+              "traceId": null,
+              "type": "image.resize",
+              "updatedAt": "2026-10-21T12:00:00.000Z",
+              "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+            },
+            "replayed": false
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.job.attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.job.input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a new upload",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "contentType": "image/png",
+            "key": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png",
+            "name": "a.png",
+            "size": 1024,
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.key": {
+              "expression": "${sourceKey}",
+              "type": "ProviderState"
+            },
+            "$.userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.key": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/internal/assets"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "contentType": "image/png",
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "durationSeconds": null,
+            "height": null,
+            "id": "0b6f9c2e-3a41-4f7d-9e2b-8c5d1a7f3e20",
+            "key": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png",
+            "kind": "image",
+            "name": "a.png",
+            "size": 1024,
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e",
+            "width": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.key": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.size": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a new webhook endpoint",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "events": [
+              "job.succeeded",
+              "job.dead"
+            ],
+            "url": "https://example.com/hooks",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/internal/webhooks"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "events": [
+              "job.succeeded",
+              "job.dead"
+            ],
+            "id": "a2e4c6d8-1b3f-4a5c-8e7d-9f0a1b2c3d4e",
+            "secret": "whsec_secret",
+            "url": "https://example.com/hooks",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.secret": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.url": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a redrive of a dead job",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a dead image job"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "actor": "user:5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "path": {
+            "expression": "/internal/jobs/${jobId}/redrive",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.actor": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11/redrive"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "attemptBase": 5,
+            "attempts": 5,
+            "class": "cpu",
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "deadReason": null,
+            "finishedAt": null,
+            "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+            "input": {
+              "presets": [
+                "thumb"
+              ],
+              "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+            },
+            "lastError": "broken",
+            "output": null,
+            "priority": 5,
+            "progress": null,
+            "progressStep": null,
+            "status": "queued",
+            "traceId": null,
+            "type": "image.resize",
+            "updatedAt": "2026-10-21T12:00:00.000Z",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.class": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.lastError": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a registration",
+      "pending": false,
+      "request": {
+        "body": {
+          "content": {
+            "email": "pact@example.com",
+            "name": "Pact",
+            "password": "pact-password"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "POST",
+        "path": "/internal/auth/register"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "email": "pact@example.com",
+            "id": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e",
+            "name": "Pact"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.email": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a registration with a taken email",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user who signs in with an email and password"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "email": "pact@example.com",
+            "password": "pact-password"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "POST",
+        "path": "/internal/auth/register"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "code": "EMAIL_TAKEN",
+            "message": "explanation"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.message": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 409
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a repeated job with the same idempotency key",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a job created with an idempotency key"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "idempotency": {
+              "key": "pact-key",
+              "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "input": {
+              "presets": [
+                "thumb"
+              ],
+              "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+            },
+            "priority": 5,
+            "type": "image.resize",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.input.sourceKey": {
+              "expression": "${sourceKey}",
+              "type": "ProviderState"
+            },
+            "$.userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.input.sourceKey": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "job": {
+              "attemptBase": 0,
+              "attempts": 0,
+              "class": null,
+              "createdAt": "2026-10-21T12:00:00.000Z",
+              "deadReason": null,
+              "finishedAt": null,
+              "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+              "input": {
+                "presets": [
+                  "thumb"
+                ],
+                "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+              },
+              "lastError": null,
+              "output": null,
+              "priority": 5,
+              "progress": null,
+              "progressStep": null,
+              "status": "queued",
+              "traceId": null,
+              "type": "image.resize",
+              "updatedAt": "2026-10-21T12:00:00.000Z",
+              "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+            },
+            "replayed": true
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.job.attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.job.input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for a file",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user with an uploaded image"
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/internal/assets/${assetId}",
+            "type": "ProviderState"
+          },
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/internal/assets/0b6f9c2e-3a41-4f7d-9e2b-8c5d1a7f3e20",
+        "query": {
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "contentType": "image/png",
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "durationSeconds": null,
+            "height": null,
+            "id": "0b6f9c2e-3a41-4f7d-9e2b-8c5d1a7f3e20",
+            "key": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png",
+            "kind": "image",
+            "name": "a.png",
+            "size": 1024,
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e",
+            "width": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.key": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.size": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for a file the user does not have",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user"
+        }
+      ],
+      "request": {
+        "generators": {
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/internal/assets/0b6f9c2e-3a41-4f7d-9e2b-8c5d1a7f3e20",
+        "query": {
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "code": "ASSET_NOT_FOUND",
+            "message": "explanation"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.message": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for a job",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a queued image job"
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/internal/jobs/${jobId}",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "attemptBase": 0,
+            "attempts": 0,
+            "class": null,
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "deadReason": null,
+            "finishedAt": null,
+            "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+            "input": {
+              "presets": [
+                "thumb"
+              ],
+              "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+            },
+            "lastError": null,
+            "output": null,
+            "priority": 5,
+            "progress": null,
+            "progressStep": null,
+            "status": "queued",
+            "traceId": null,
+            "type": "image.resize",
+            "updatedAt": "2026-10-21T12:00:00.000Z",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for a user",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user"
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/internal/users/${userId}",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/internal/users/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "email": null,
+            "id": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e",
+            "name": "Pact"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for an unknown job",
+      "pending": false,
+      "request": {
+        "method": "GET",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "code": "JOB_NOT_FOUND",
+            "message": "explanation"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.message": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the API keys of a user",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user"
+        }
+      ],
+      "request": {
+        "generators": {
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/internal/api-keys",
+        "query": {
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "items": [
+              {
+                "createdAt": "2026-10-21T12:00:00.000Z",
+                "id": "c9d8e7f6-5a4b-4c3d-9e2f-1a0b9c8d7e6f",
+                "lastUsedAt": null,
+                "name": "ci",
+                "prefix": "pdp_ab12"
+              }
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.items": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.items[*].createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.items[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.items[*].name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.items[*].prefix": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the deliveries to a webhook endpoint",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user with a webhook endpoint"
+        }
+      ],
+      "request": {
+        "generators": {
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            },
+            "webhookEndpointId": {
+              "expression": "${endpointId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "webhookEndpointId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/internal/jobs",
+        "query": {
+          "types": [
+            "webhook.deliver"
+          ],
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ],
+          "webhookEndpointId": [
+            "a2e4c6d8-1b3f-4a5c-8e7d-9f0a1b2c3d4e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "items": [],
+            "nextCursor": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the dub quota of a user",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user, with no system-wide dub limit"
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/internal/users/${userId}/dub-quota",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/internal/users/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/dub-quota"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "limitSeconds": 600,
+            "resetsAt": "2026-10-21T12:00:00.000Z",
+            "systemRemainingSeconds": null,
+            "usedSeconds": 0
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.limitSeconds": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.resetsAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.usedSeconds": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the files of a user",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a queued image job"
+        }
+      ],
+      "request": {
+        "generators": {
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/internal/assets",
+        "query": {
+          "kind": [
+            "image"
+          ],
+          "limit": [
+            "20"
+          ],
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "items": [
+              {
+                "contentType": "image/png",
+                "createdAt": "2026-10-21T12:00:00.000Z",
+                "dubs": [],
+                "durationSeconds": null,
+                "height": null,
+                "id": "0b6f9c2e-3a41-4f7d-9e2b-8c5d1a7f3e20",
+                "key": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png",
+                "kind": "image",
+                "latestJob": {
+                  "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+                  "progress": null,
+                  "status": "queued",
+                  "type": "image.resize"
+                },
+                "name": "a.png",
+                "preview": null,
+                "size": 1024,
+                "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e",
+                "width": null
+              }
+            ],
+            "nextCursor": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.items": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.items[*].createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.items[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.items[*].key": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.items[*].latestJob.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.items[*].name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.items[*].size": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.items[*].userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the jobs of a file",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a queued image job"
+        }
+      ],
+      "request": {
+        "generators": {
+          "query": {
+            "assetId": {
+              "expression": "${assetId}",
+              "type": "ProviderState"
+            },
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "query": {
+            "assetId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/internal/jobs",
+        "query": {
+          "assetId": [
+            "0b6f9c2e-3a41-4f7d-9e2b-8c5d1a7f3e20"
+          ],
+          "limit": [
+            "10"
+          ],
+          "types": [
+            "image.resize,video.frames,video.transcode,video.dub"
+          ],
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "items": [
+              {
+                "attemptBase": 0,
+                "attempts": 0,
+                "class": null,
+                "createdAt": "2026-10-21T12:00:00.000Z",
+                "deadReason": null,
+                "finishedAt": null,
+                "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+                "input": {
+                  "presets": [
+                    "thumb"
+                  ],
+                  "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+                },
+                "lastError": null,
+                "output": null,
+                "priority": 5,
+                "progress": null,
+                "progressStep": null,
+                "status": "queued",
+                "traceId": null,
+                "type": "image.resize",
+                "updatedAt": "2026-10-21T12:00:00.000Z",
+                "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+              }
+            ],
+            "nextCursor": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.items": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.items[*].attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.items[*].attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.items[*].createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.items[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.items[*].input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.items[*].priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.items[*].updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.items[*].userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the media jobs of a user",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a queued image job"
+        }
+      ],
+      "request": {
+        "generators": {
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/internal/jobs",
+        "query": {
+          "limit": [
+            "20"
+          ],
+          "status": [
+            "queued"
+          ],
+          "types": [
+            "image.resize,video.frames,video.transcode,video.dub"
+          ],
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "items": [
+              {
+                "attemptBase": 0,
+                "attempts": 0,
+                "class": null,
+                "createdAt": "2026-10-21T12:00:00.000Z",
+                "deadReason": null,
+                "finishedAt": null,
+                "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+                "input": {
+                  "presets": [
+                    "thumb"
+                  ],
+                  "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+                },
+                "lastError": null,
+                "output": null,
+                "priority": 5,
+                "progress": null,
+                "progressStep": null,
+                "status": "queued",
+                "traceId": null,
+                "type": "image.resize",
+                "updatedAt": "2026-10-21T12:00:00.000Z",
+                "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+              }
+            ],
+            "nextCursor": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.items": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.items[*].attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.items[*].attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.items[*].createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.items[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.items[*].input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.items[*].priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.items[*].updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.items[*].userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the webhook endpoints of a user",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user with a webhook endpoint"
+        }
+      ],
+      "request": {
+        "generators": {
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/internal/webhooks",
+        "query": {
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "items": [
+              {
+                "createdAt": "2026-10-21T12:00:00.000Z",
+                "events": [
+                  "job.succeeded",
+                  "job.dead"
+                ],
+                "id": "a2e4c6d8-1b3f-4a5c-8e7d-9f0a1b2c3d4e",
+                "url": "https://example.com/hooks",
+                "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+              }
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.items": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.items[*].createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.items[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.items[*].url": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.items[*].userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a revocation of an API key",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user with a second API key"
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/internal/api-keys/${apiKeyId}",
+            "type": "ProviderState"
+          },
+          "query": {
+            "userId": {
+              "expression": "${userId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "query": {
+            "userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "DELETE",
+        "path": "/internal/api-keys/c9d8e7f6-5a4b-4c3d-9e2f-1a0b9c8d7e6f",
+        "query": {
+          "userId": [
+            "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "id": "c9d8e7f6-5a4b-4c3d-9e2f-1a0b9c8d7e6f",
+            "lastUsedAt": null,
+            "name": "ci",
+            "prefix": "pdp_ab12"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.prefix": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a sign-in with a wrong password",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user who signs in with an email and password"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "email": "pact@example.com",
+            "password": "wrong-password"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "POST",
+        "path": "/internal/auth/login"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "code": "INVALID_CREDENTIALS",
+            "message": "explanation"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.message": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 401
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a sign-in with the right password",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a user who signs in with an email and password"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "email": "pact@example.com",
+            "password": "pact-password"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "method": "POST",
+        "path": "/internal/auth/login"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "createdAt": "2026-10-21T12:00:00.000Z",
+            "email": "pact@example.com",
+            "id": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e",
+            "name": "Pact"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "17.1.4"
+    },
+    "pactRust": {
+      "ffi": "0.5.8",
+      "models": "1.3.16"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "metadata"
+  }
+}

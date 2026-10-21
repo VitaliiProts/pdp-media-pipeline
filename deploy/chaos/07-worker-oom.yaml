@@ -1,0 +1,35 @@
+# Scenario 7: memory stress above the limit of a worker pod every 40 s, so the container
+# is OOMKilled mid-job. Expected: the job is redelivered and finishes.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: worker-oom-cpu
+spec:
+  schedule: '@every 40s'
+  concurrencyPolicy: Forbid
+  historyLimit: 1
+  type: StressChaos
+  stressChaos:
+    mode: one
+    selector:
+      labelSelectors: { app.kubernetes.io/name: worker-cpu }
+    stressors:
+      memory: { workers: 1, size: 2GB }
+    duration: 20s
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: worker-oom-frames
+spec:
+  schedule: '@every 40s'
+  concurrencyPolicy: Forbid
+  historyLimit: 1
+  type: StressChaos
+  stressChaos:
+    mode: one
+    selector:
+      labelSelectors: { app.kubernetes.io/name: video-frames }
+    stressors:
+      memory: { workers: 1, size: 3GB }
+    duration: 20s

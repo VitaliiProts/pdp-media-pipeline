@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
 import { createConfigModule } from '@pdp/config';
-import { NatsModule, NatsService } from '@pdp/messaging';
+import { NatsModule } from '@pdp/messaging';
 import { MetadataClient } from '@pdp/metadata-client';
 import { HealthModule, ObservabilityModule } from '@pdp/observability';
 import { AssetsController } from './assets/assets.controller';
@@ -25,7 +25,6 @@ import { RateLimitGuard } from './rate-limit/rate-limit.guard';
 import { RateLimiterService } from './rate-limit/rate-limiter.service';
 import { RedisModule } from './redis/redis.module';
 import { StorageModule } from './storage/storage.module';
-import { StorageService } from './storage/storage.service';
 import { UploadsController } from './uploads/uploads.controller';
 import { WebhooksController } from './webhooks/webhooks.controller';
 
@@ -36,17 +35,10 @@ import { WebhooksController } from './webhooks/webhooks.controller';
     NatsModule.forRoot('api-gateway'),
     RedisModule,
     StorageModule,
-    // Redis is left out on purpose: rate limiting fails open (ADR-005), so a Redis
-    // outage must not take every gateway replica out of the load balancer. Sessions
-    // fail closed, but API keys keep working without Redis (ADR-013).
-    HealthModule.forRootAsync({
-      imports: [StorageModule],
-      inject: [NatsService, StorageService],
-      useFactory: (nats: NatsService, storage: StorageService) => [
-        { name: 'nats', check: () => nats.ping() },
-        { name: 's3', check: () => storage.ping() },
-      ],
-    }),
+    // No dependency is checked: each one degrades on its own, so an outage of one shared by
+    // every replica must not take them all out of the load balancer. Rate limiting (ADR-005)
+    // and the queue depth fail open; sessions (ADR-013), storage and Metadata answer 503.
+    HealthModule.forRootAsync({ useFactory: () => [] }),
   ],
   controllers: [
     AuthController,

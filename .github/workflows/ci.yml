@@ -41,7 +41,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:cov
-      - run: pnpm test:web
+      - run: pnpm test:web:cov
+      - run: pnpm test:tools
+      - run: pnpm test:pact
+      # Providers are verified against the committed pacts in `integration`.
+      - name: Pacts are committed as the consumer tests write them
+        run: |
+          if [ -n "$(git status --porcelain pacts)" ]; then
+            git status --short pacts && git diff pacts
+            exit 1
+          fi
       - name: Coverage summary
         if: always() && hashFiles('coverage/coverage-summary.json') != ''
         run: |
@@ -55,7 +64,9 @@ jobs:
         if: always()
         with:
           name: coverage
-          path: coverage/
+          path: |
+            coverage/
+            apps/web/coverage/
           if-no-files-found: ignore
 
   # Testcontainers: Postgres, NATS, Redis and MinIO on the runner's Docker.
@@ -84,6 +95,34 @@ jobs:
         with:
           name: coverage-int
           path: coverage-int/
+          if-no-files-found: ignore
+
+  # Unit and integration runs together, with the Web UI for the areas that span both.
+  coverage:
+    needs: [test, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Paths in the reports are absolute, and the same on every runner of this workflow.
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-int
+          path: coverage-int
+      - run: pnpm coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-merged
+          path: coverage-merged/
           if-no-files-found: ignore
 
   # The Python service without its ML stack: models are faked, S3 is moto.
@@ -223,3 +262,37 @@ jobs:
           if [ "$code" -ne 0 ]; then
             echo "::warning title=Trivy ${{ matrix.app }}::HIGH/CRITICAL vulnerabilities found, see job summary"
           fi
+
+  # Three browser flows against the compose stack. The images come from the same Dockerfiles and
+  # cache scopes as the `docker` job, so its layers are reused rather than built twice.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/bake-action@v6
+        with:
+          source: .
+          files: e2e/docker-bake.hcl
+      - run: scripts/e2e.sh up
+      - run: scripts/e2e.sh test
+      - name: Compose logs
+        if: failure()
+        run: scripts/e2e.sh logs > compose.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            compose.log
+          if-no-files-found: ignore

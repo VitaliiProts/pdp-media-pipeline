@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   type JobDispatchV1,
   type JobDto,
@@ -46,7 +47,11 @@ function setup() {
   const process = jest.fn<Promise<JobOutput>, [JobContext, z.infer<typeof inputSchema>]>(() =>
     Promise.resolve({ done: true }),
   );
-  const runner = new JobRunner(deps, { workerId: 'w1', retry }).register({
+  const runner = new JobRunner(deps, {
+    workerId: 'w1',
+    retry,
+    transitionRetry: { repeats: 2, delayMs: 1 },
+  }).register({
     type: 'image.resize',
     inputSchema,
     process,
@@ -134,11 +139,49 @@ describe('JobRunner', () => {
     expect(process).not.toHaveBeenCalled();
   });
 
-  it('naks with jittered backoff when metadata is unavailable', async () => {
-    const { deps, process, run } = setup();
-    deps.transition.mockRejectedValueOnce(new MetadataError(0, undefined, 'timeout'));
+  it('naks with jittered backoff when metadata stays unavailable', async () => {
+    const { deps, process, run, targets } = setup();
+    deps.transition.mockRejectedValue(new MetadataError(0, undefined, 'timeout'));
     await expect(run(dispatch(), 2)).resolves.toEqual({ kind: 'nak', delayMs: 1000 });
+    expect(targets()).toEqual(['running@2', 'running@2', 'running@2']);
     expect(process).not.toHaveBeenCalled();
+  });
+
+  // A nak would come back as the next attempt and use one up, though the start may have
+  // been applied; Metadata takes the same (attempt, to) again as a no-op.
+  it('repeats a start that timed out with the same attempt', async () => {
+    const { deps, process, run, targets } = setup();
+    deps.transition.mockRejectedValueOnce(new MetadataError(0, undefined, 'timeout'));
+    await expect(run(dispatch(), 2)).resolves.toEqual({ kind: 'ack' });
+    expect(targets()).toEqual(['running@2', 'running@2', 'succeeded@2']);
+    expect(process).toHaveBeenCalledTimes(1);
+  });
+
+  it('repeats a success report that metadata failed to answer', async () => {
+    const { deps, process, run, targets } = setup();
+    deps.transition
+      .mockImplementationOnce(asRequested)
+      .mockRejectedValueOnce(new MetadataError(503, undefined, 'down'));
+    await expect(run(dispatch())).resolves.toEqual({ kind: 'ack' });
+    expect(targets()).toEqual(['running@1', 'succeeded@1', 'succeeded@1']);
+    expect(process).toHaveBeenCalledTimes(1);
+  });
+
+  it('repeats a retry report and still naks with the retry backoff', async () => {
+    const { deps, process, run, targets } = setup();
+    process.mockRejectedValueOnce(new Error('socket hang up'));
+    deps.transition
+      .mockImplementationOnce(asRequested)
+      .mockRejectedValueOnce(new MetadataError(0, undefined, 'timeout'));
+    await expect(run(dispatch(), 3)).resolves.toEqual({ kind: 'nak', delayMs: 2000 });
+    expect(targets()).toEqual(['running@3', 'scheduled@3', 'scheduled@3']);
+  });
+
+  it('does not repeat a transition metadata rejected', async () => {
+    const { deps, run, targets } = setup();
+    deps.transition.mockRejectedValueOnce(conflict('INVALID_TRANSITION'));
+    await expect(run(dispatch())).resolves.toMatchObject({ kind: 'term' });
+    expect(targets()).toEqual(['running@1']);
   });
 
   it('continues after a duplicate running transition', async () => {
@@ -192,6 +235,42 @@ describe('JobRunner', () => {
     expect(targets()).toEqual(['running@5', 'scheduled@5']);
   });
 
+  it('logs a job that ends in dead as an error once, with the reason', async () => {
+    const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const dead = (deadReason: JobDto['deadReason'], applied = true) =>
+      Promise.resolve({ applied, job: { status: 'dead', deadReason } } as TransitionResponse);
+    const { deps, process, run } = setup();
+    const exhausted = dispatch();
+    const unreadable = dispatch();
+    process
+      .mockRejectedValueOnce(new Error('timed out'))
+      .mockRejectedValueOnce(new PermanentError('unreadable image'))
+      .mockRejectedValueOnce(new PermanentError('unreadable image'))
+      .mockRejectedValueOnce(new Error('socket hang up'));
+    deps.transition
+      .mockImplementationOnce(asRequested)
+      .mockImplementationOnce(() => dead('exhausted'))
+      .mockImplementationOnce(asRequested)
+      .mockImplementationOnce(() => dead('permanent'))
+      .mockImplementationOnce(asRequested)
+      .mockImplementationOnce(() => dead('permanent', false));
+
+    await run(exhausted, 5);
+    await run(unreadable);
+    await run(unreadable, 2);
+    await run(dispatch(), 2);
+
+    expect(errors).toHaveBeenCalledTimes(2);
+    expect(errors).toHaveBeenNthCalledWith(
+      1,
+      `job ${exhausted.jobId} is dead (exhausted) after attempt 5: timed out`,
+    );
+    expect(errors).toHaveBeenNthCalledWith(
+      2,
+      `job ${unreadable.jobId} is dead (permanent) after attempt 1: unreadable image`,
+    );
+  });
+
   it('hands an attempt cut short by shutdown back as interrupted and naks at once', async () => {
     const { process, run, targets, body } = setup();
     const shutdown = new AbortController();
@@ -236,10 +315,10 @@ describe('JobRunner', () => {
     await expect(run(dispatch())).resolves.toEqual({ kind: 'ack' });
   });
 
-  it('naks when metadata is down while reporting success', async () => {
+  it('naks when metadata stays down while reporting success', async () => {
     const { deps, run } = setup();
     deps.transition.mockImplementationOnce(asRequested);
-    deps.transition.mockRejectedValueOnce(new MetadataError(503, undefined, 'down'));
+    deps.transition.mockRejectedValue(new MetadataError(503, undefined, 'down'));
     expect((await run(dispatch())).kind).toBe('nak');
   });
 

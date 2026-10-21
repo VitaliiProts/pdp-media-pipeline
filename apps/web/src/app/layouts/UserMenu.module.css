@@ -27,6 +27,10 @@
   font-weight: var(--weight-bold);
 }
 
+.initial::before {
+  content: attr(data-initial);
+}
+
 .name {
   max-width: 14rem;
   overflow: hidden;

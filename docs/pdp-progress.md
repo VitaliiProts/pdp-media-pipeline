@@ -30,14 +30,16 @@
 - [x] **Архітектура:** спроєктувати сервіси з API, чергами та воркерами. Gateway, Metadata,
       Scheduler, воркери через NATS JetStream і Python-сервіс `audio-separate`; 16 ADR
       ([docs/adr](adr/README.md)).
-- [ ] **Надійність** — **в процесі**: ідемпотентність, ретраї з DLQ, fault tolerance.
+- [x] **Надійність:** ідемпотентність, ретраї з DLQ, fault tolerance.
   - [x] ідемпотентність, outbox та inbox, ретраї з jitter, DLQ і redrive
         ([ADR-006](adr/0006-idempotency-and-delivery.md), [ADR-007](adr/0007-retries-and-dlq.md));
   - [x] rollout і зупинка пода не губять задач ([ADR-012](adr/0012-autoscaling-and-graceful-shutdown.md));
   - [x] дубляж: чекпоінти кроків, circuit breaker провайдера; под, убитий посеред задачі, не губить
         її й не платить удруге за готовий крок (`test/dub-kill.int-spec.ts`,
         [ADR-016](adr/0016-video-dub.md));
-  - [ ] fault tolerance під chaos-сценаріями (pod kill, затримки, OOM) для всієї системи — Етап 6.
+  - [x] fault tolerance під chaos-сценаріями (pod kill, затримки, OOM) для всієї системи: дев'ять
+        сценаріїв у k3d під навантаженням без загублених задач і дублікатів
+        ([звіт Етапу 6](../perf/reports/stage-6.md)); ті самі в AWS — у підсумковій сесії Етапу 8.
 - [ ] **Продуктивність** — **в процесі**: скейл (горизонтальний), контроль RPS і квот, стабільність
       під навантаженням.
   - [x] контроль RPS і квот, backpressure ([звіт Етапу 2](../perf/reports/stage-2.md)); квоти
@@ -50,7 +52,8 @@
 - [ ] **Метрики** — **в процесі**: SLO (наприклад, 99% jobs < 5 хв), DLQ < 1%, дублікати < 0.1‰,
       10k jobs/год при P95 < 2 хв.
   - [x] SLO, DLQ і дублікати вимірюються, burn-rate алерти ([ADR-010](adr/0010-observability.md));
-  - [ ] дублікати < 0.1‰ і DLQ < 1%, доведені під збоями, — Етап 6;
+  - [x] дублікати < 0.1‰ і DLQ < 1%, доведені під збоями: 0 дублікатів, найбільший DLQ — 0.57% при
+        затримці й втраті пакетів у всіх подах ([звіт Етапу 6](../perf/reports/stage-6.md));
   - [ ] 10k jobs/год при P95 < 2 хв — Етап 8.
 
 ---
@@ -69,7 +72,8 @@
 - [ ] **Тести** — **в процесі**: Jest, Testcontainers, Pact, dependency-cruiser, clinic.js / 0x (optional).
   - [x] Jest (unit), Vitest + MSW (Web UI), Testcontainers (інтеграційні з Postgres, NATS, Redis,
         MinIO), pytest (`audio-separate`), dependency-cruiser у CI;
-  - [ ] Pact — Етап 6;
+  - [x] Pact: gateway і воркери проти Metadata, повідомлення NATS (Етап 6); Playwright з axe —
+        три флоу проти compose-стека;
   - [ ] clinic.js і 0x — Етап 8.
 - [ ] **DevOps** — **в процесі**: Docker, Helm, Kubernetes (HPA, PDB, readiness), Argo Rollouts,
       GitHub Actions.
@@ -121,9 +125,9 @@
 
 - [x] дедуп — inbox у Metadata, `Nats-Msg-Id`, детерміновані ключі результатів;
 - [x] maxAttempts + jitter — 5 спроб, exponential backoff з full jitter;
-- [ ] дублікати < 0.1‰ — **в процесі**: лічильник `jobs_duplicates_total` є, панель і методика
-      підрахунку — Етап 6;
-- [ ] DLQ < 1% — **в процесі**: метрика й алерт на частку DLQ є, перевірка під збоями — Етап 6.
+- [x] дублікати < 0.1‰ — 0 на кожному сценарії збою, перехоплені дедупом — на панелі «Duplicates»
+      за джерелом; методика — у [звіті Етапу 6](../perf/reports/stage-6.md);
+- [x] DLQ < 1% — найбільше 0.57% (повільна мережа з втратою пакетів), алерт на частку DLQ.
 
 **Metadata**
 
@@ -142,9 +146,9 @@
 
 **CI/CD**
 
-- [ ] coverage ≥ 80% — **в процесі**: інтеграційні тести покривають 86.2% рядків коду бекенду
-      (84.4% інструкцій, 83% функцій, 68% гілок), і CI падає нижче 80%; unit — 55.1% рядків;
-      покриття Web UI (Vitest) не вимірюється. Поріг на гілки й unit — Етап 6;
+- [x] coverage ≥ 80% — зведене покриття бекенду (unit та інтеграційні) 88.9% рядків і 78.4%
+      гілок, Web UI — 97.0% і 89.5%; CI падає нижче 80% рядків або нижче поточного рівня гілок, а
+      вхід, сесії, медіатека і підгонка дубляжу — не нижче 80% кожен (Етап 6);
 - [ ] 0 critical у `npm audit` — **в процесі**: зараз 0 critical (3 moderate у dev-залежностях
       Jest), але `pnpm audit` і Trivy в CI лише звітують; блокування — Етап 7;
 - [ ] lead time < 30 хв — Етап 7;
@@ -183,7 +187,9 @@
       `eu-central-1` з Terraform, `pdp-media-pipeline.online` з HTTPS, деплой після CI на `main`
       зі smoke-тестом; кластер піднімається на час роботи (`scripts/aws.sh up` і `down`)
       ([план](plan/stage-5b.md), [ADR-017](adr/0017-cluster-in-aws.md)). У `main` з 20 жовтня.
-- [ ] **Етап 6 — Testing:** pod kill, delays, fault tolerance; coverage 80%, Pact.
+- [x] **Етап 6 — Testing:** pod kill, delays, fault tolerance; coverage 80%, Pact; ще E2E у
+      браузері ([план](plan/stage-6.md), [звіт](../perf/reports/stage-6.md)). Пройдено 21 жовтня в
+      k3d, гілки 6.1–6.3 ще не в `main`; ті самі збої в AWS — у підсумковій сесії Етапу 8.
 - [ ] **Етап 7 — CI/CD Canary & Rollback:** GitHub Actions, Trivy, Argo Rollouts.
 - [ ] **Етап 8 — Перформанс & Звіт:** k6 сценарії, bottlenecks, cost per 1k jobs.
 
@@ -193,7 +199,9 @@
 
 - [x] **Checkpoint 1 (після Етапу 3):** базова надійність доведена (MVP jobs, квоти,
       ідемпотентність, DLQ). Матеріал для демо: Етапи 1–3, ADR 001–007.
-- [ ] **Checkpoint 2 (після Етапу 6):** сервіс production-ready (чек логів).
+- [x] **Checkpoint 2 (після Етапу 6):** сервіс production-ready (чек логів): під кожним збоєм
+      помилки видно за сервісами, кожна має задачу, запит або компонент, кожен рядок запиту чи
+      задачі — `trace_id` ([перевірка логів](../perf/reports/stage-6.md#логи-checkpoint-2)).
 - [ ] **Checkpoint 3 (після Етапу 8):** CI/CD.
 
 ---
@@ -207,7 +215,9 @@
   - [x] ADR кластера (EKS чи k3s, у PDF — ADR-010) — [ADR-017](adr/0017-cluster-in-aws.md), EKS;
   - [ ] ADR стратегії деплою і rollback (у PDF — ADR-009) — Етап 7;
   - [ ] C4-діаграми (Context і Container).
-- [ ] **Якість:** coverage, contract, memory профайлінг — Етапи 6 і 8.
+- [ ] **Якість** — **в процесі**: coverage, contract, memory профайлінг.
+  - [x] coverage і контракти — Етап 6;
+  - [ ] memory профайлінг — Етап 8.
 - [ ] **Продуктивність** — **в процесі**: k6 звіти, cost per 1k jobs, план оптимізацій.
   - [x] k6 звіти Етапів 2, 5 і 5c; вартість хвилини дубляжу (≈ $0.012 API,
         [спайк 02](spikes/02-video-dub.md#час-і-вартість-хвилини));

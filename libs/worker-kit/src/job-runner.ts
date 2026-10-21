@@ -18,6 +18,7 @@ import {
 import { MetadataError } from '@pdp/metadata-client';
 import { jobMetrics, traced, withJobContext } from '@pdp/observability';
 import { trace } from '@opentelemetry/api';
+import { setTimeout as delay } from 'node:timers/promises';
 import { type z } from 'zod';
 import { isPermanentError } from './permanent-error';
 import { ProgressReporter } from './progress';
@@ -67,14 +68,24 @@ export interface JobRunnerDeps {
   progress?: (jobId: string, body: ProgressRequest) => Promise<void>;
 }
 
+export interface TransitionRetryOptions {
+  /** Further tries of a transition Metadata did not answer, with the same attempt. */
+  repeats: number;
+  /** Before the first repeat, doubling after it. */
+  delayMs: number;
+}
+
 export interface JobRunnerOptions {
   workerId: string;
   retry: BackoffOptions;
   /** Minimum time between two progress updates of one attempt; 3 s by default. */
   progressIntervalMs?: number;
+  /** 3 repeats after 0.5, 1 and 2 s by default. */
+  transitionRetry?: TransitionRetryOptions;
 }
 
 const DEFAULT_PROGRESS_INTERVAL_MS = 3000;
+const DEFAULT_TRANSITION_RETRY: TransitionRetryOptions = { repeats: 3, delayMs: 500 };
 
 export interface DeliveredMessage {
   data: Uint8Array;
@@ -89,7 +100,9 @@ export interface DeliveredMessage {
  * `dead` (permanent error) or `scheduled` with a jittered `nak` (transient error).
  *
  * Status changes go through Metadata synchronously and the message is acked only after
- * Metadata confirmed the outcome; when Metadata is unavailable it is nak'ed.
+ * Metadata confirmed the outcome. One Metadata did not answer is repeated with the same
+ * attempt, which it applies at most once; only then is the message nak'ed, as a nak comes
+ * back as the next attempt and uses one up even when the change went through.
  *
  * The worker does not decide when to give up: Metadata counts attempts and answers a
  * start or retry over the limit with `dead`, which the worker then acks.
@@ -145,7 +158,7 @@ export class JobRunner {
     };
 
     try {
-      const started = await this.deps.transition(jobId, {
+      const started = await this.transition(jobId, {
         to: 'running',
         attempt,
         actor: this.actor,
@@ -186,7 +199,7 @@ export class JobRunner {
     }
 
     try {
-      await this.deps.transition(jobId, {
+      await this.transition(jobId, {
         to: 'succeeded',
         attempt,
         actor: this.actor,
@@ -196,6 +209,18 @@ export class JobRunner {
       return ack();
     } catch (err) {
       return this.onMetadataError(err, jobId, retryDelay);
+    }
+  }
+
+  private async transition(jobId: string, body: TransitionRequest): Promise<TransitionResponse> {
+    const { repeats, delayMs } = this.options.transitionRetry ?? DEFAULT_TRANSITION_RETRY;
+    for (let n = 0; ; n++) {
+      try {
+        return await this.deps.transition(jobId, body);
+      } catch (err) {
+        if (!(err instanceof MetadataError) || !err.retryable || n >= repeats) throw err;
+        await delay(delayMs * 2 ** n);
+      }
     }
   }
 
@@ -218,6 +243,15 @@ export class JobRunner {
     }
   }
 
+  private logDead(jobId: string, attempt: number, res: TransitionResponse, message: string): void {
+    const { job } = res;
+    // A redelivery of a job that is already dead gets `applied: false`.
+    if (!res.applied || job.status !== 'dead') return;
+    this.logger.error(
+      `job ${jobId} is dead (${job.deadReason ?? 'unknown'}) after attempt ${attempt}: ${message}`,
+    );
+  }
+
   private async onProcessingError(
     err: unknown,
     jobId: string,
@@ -234,22 +268,26 @@ export class JobRunner {
 
     try {
       if (permanent) {
-        await this.deps.transition(jobId, {
+        const res = await this.transition(jobId, {
           to: 'dead',
           attempt,
           actor: this.actor,
           error: message,
           inbox,
         });
+        this.logDead(jobId, attempt, res, message);
         return ack();
       }
-      const res = await this.deps.transition(jobId, {
+      const res = await this.transition(jobId, {
         to: 'scheduled',
         attempt,
         actor: this.actor,
         error: message,
       });
-      if (res.job.status === 'dead') return ack();
+      if (res.job.status === 'dead') {
+        this.logDead(jobId, attempt, res, message);
+        return ack();
+      }
       const delay = this.delayFor(err, retryDelay);
       this.logger.log(`job ${jobId} retries in ${delay}ms`);
       return nak(delay);
@@ -272,7 +310,7 @@ export class JobRunner {
   ): Promise<HandlerResult> {
     this.logger.log(`job ${jobId} attempt ${attempt} interrupted by shutdown, handing it back`);
     try {
-      await this.deps.transition(jobId, {
+      await this.transition(jobId, {
         to: 'scheduled',
         attempt,
         actor: this.actor,

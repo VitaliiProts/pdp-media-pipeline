@@ -1,0 +1,51 @@
+# Scenario 1: a worker crashes mid-job, every 30-45 s per deployment. container-kill is a
+# SIGKILL through the runtime; pod-kill deletes the pod with a grace period in which the
+# worker hands its jobs back (ADR-012), which is not a crash.
+# Expected: the job is redelivered and finishes once; a dub pays for no finished step again.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: worker-kill-cpu
+spec:
+  schedule: '@every 30s'
+  concurrencyPolicy: Forbid
+  historyLimit: 1
+  type: PodChaos
+  podChaos:
+    action: container-kill
+    mode: one
+    containerNames: [worker-cpu]
+    selector:
+      labelSelectors: { app.kubernetes.io/name: worker-cpu }
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: worker-kill-frames
+spec:
+  schedule: '@every 30s'
+  concurrencyPolicy: Forbid
+  historyLimit: 1
+  type: PodChaos
+  podChaos:
+    action: container-kill
+    mode: one
+    containerNames: [video-frames]
+    selector:
+      labelSelectors: { app.kubernetes.io/name: video-frames }
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: worker-kill-dub
+spec:
+  schedule: '@every 45s'
+  concurrencyPolicy: Forbid
+  historyLimit: 1
+  type: PodChaos
+  podChaos:
+    action: container-kill
+    mode: one
+    containerNames: [video-dub]
+    selector:
+      labelSelectors: { app.kubernetes.io/name: video-dub }

@@ -1,0 +1,279 @@
+{
+  "consumer": {
+    "name": "scheduler"
+  },
+  "interactions": [
+    {
+      "description": "a job scheduled after its dispatch",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a queued image job"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "actor": "scheduler",
+            "attempt": 0,
+            "class": "cpu",
+            "to": "scheduled"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "path": {
+            "expression": "/internal/jobs/${jobId}/transitions",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/internal/jobs/7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11/transitions"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "applied": true,
+            "job": {
+              "attemptBase": 0,
+              "attempts": 0,
+              "class": "cpu",
+              "createdAt": "2026-10-21T12:00:00.000Z",
+              "deadReason": null,
+              "finishedAt": null,
+              "id": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+              "input": {
+                "presets": [
+                  "thumb"
+                ],
+                "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+              },
+              "lastError": null,
+              "output": null,
+              "priority": 5,
+              "progress": null,
+              "progressStep": null,
+              "status": "scheduled",
+              "traceId": null,
+              "type": "image.resize",
+              "updatedAt": "2026-10-21T12:00:00.000Z",
+              "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.job.attemptBase": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.attempts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.job.input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.job.priority": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.job.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+                }
+              ]
+            },
+            "$.job.userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "contents": {
+        "content": {
+          "eventId": "3f2e1d0c-9b8a-4c7d-8e6f-5a4b3c2d1e0f",
+          "occurredAt": "2026-10-21T12:00:00.000Z",
+          "payload": {
+            "attemptBase": 0,
+            "input": {
+              "presets": [
+                "thumb"
+              ],
+              "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+            },
+            "jobId": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+            "priority": 5,
+            "type": "image.resize",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "type": "job.created",
+          "version": 1
+        },
+        "contentType": "application/json",
+        "encoded": false
+      },
+      "description": "a job.created event of an image job",
+      "matchingRules": {
+        "body": {
+          "$.eventId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+              }
+            ]
+          },
+          "$.occurredAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+              }
+            ]
+          },
+          "$.payload.attemptBase": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "integer"
+              }
+            ]
+          },
+          "$.payload.input": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.payload.jobId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+              }
+            ]
+          },
+          "$.payload.priority": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "integer"
+              }
+            ]
+          },
+          "$.payload.userId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "subject": "events.job.created.v1"
+      },
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a queued image job"
+        }
+      ],
+      "type": "Asynchronous/Messages"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "17.1.4"
+    },
+    "pactRust": {
+      "ffi": "0.5.8",
+      "models": "1.3.16"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "metadata"
+  }
+}

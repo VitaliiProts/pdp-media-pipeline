@@ -1,0 +1,13 @@
+# Scenario 9, AWS only (audio-separate is off in k3d): its pods fail for 120 s. Expected:
+# the client waits up to AUDIO_SEPARATE_TIMEOUT_MS, then the job is retried; dubs finish
+# after the pods are back.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: audio-separate-failure
+spec:
+  action: pod-failure
+  mode: all
+  selector:
+    labelSelectors: { app.kubernetes.io/name: audio-separate }
+  duration: 120s

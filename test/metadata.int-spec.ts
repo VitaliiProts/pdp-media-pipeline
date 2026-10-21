@@ -72,6 +72,38 @@ describe('metadata (Postgres + NATS)', () => {
     expect(executions).toEqual([{ attempt: 1 }]);
   });
 
+  // A worker repeats a transition it got no answer to (JobRunner): the repeat must neither
+  // use up an attempt nor collide with the inbox entry of the first one.
+  it('answers a repeated retry or success report with the job as the first one left it', async () => {
+    const job = await createJob();
+    const inbox = { consumer: 'worker-cpu', messageId: `${job.id}:0` };
+    await client.transition(job.id, { to: 'running', attempt: 1, actor: 'worker:a', inbox });
+    const retry = { to: 'scheduled', attempt: 1, actor: 'worker:a', error: 'timeout' } as const;
+    await client.transition(job.id, retry);
+
+    await expect(client.transition(job.id, retry)).resolves.toMatchObject({
+      applied: false,
+      job: { status: 'scheduled', attempts: 1 },
+    });
+
+    await client.transition(job.id, { to: 'running', attempt: 2, actor: 'worker:a', inbox });
+    const success = { to: 'succeeded', attempt: 2, actor: 'worker:a', output: {}, inbox } as const;
+    await client.transition(job.id, success);
+    await expect(client.transition(job.id, success)).resolves.toMatchObject({
+      applied: false,
+      job: { status: 'succeeded', attempts: 2 },
+    });
+
+    const { rows } = await pool.query<{ attempt: number; outcome: string }>(
+      'select attempt, outcome from job_executions where job_id = $1 order by attempt',
+      [job.id],
+    );
+    expect(rows).toEqual([
+      { attempt: 1, outcome: 'retry' },
+      { attempt: 2, outcome: 'succeeded' },
+    ]);
+  });
+
   it('lets only one of two racing attempts finish the job', async () => {
     const job = await createJob();
     await client.transition(job.id, { to: 'running', attempt: 1, actor: 'worker:a' });

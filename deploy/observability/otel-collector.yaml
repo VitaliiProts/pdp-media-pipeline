@@ -34,6 +34,10 @@ exporters:
     endpoint: tempo:4317
     tls:
       insecure: true
+    # What piles up while Tempo is down is sent the moment it is back; beyond this it is
+    # dropped rather than flooding Tempo.
+    sending_queue:
+      queue_size: 50
   otlp_http/victorialogs:
     logs_endpoint: http://victorialogs:9428/insert/opentelemetry/v1/logs
     headers:
