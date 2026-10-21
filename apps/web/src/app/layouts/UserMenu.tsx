@@ -73,9 +73,12 @@ export function UserMenu() {
         aria-controls={panelId}
         onClick={() => setOpen((open) => !open)}
       >
-        <span className={styles.initial} aria-hidden="true">
-          {displayName.slice(0, 1).toUpperCase()}
-        </span>
+        {/* Drawn by CSS: as text it would be part of the visible label the name must contain. */}
+        <span
+          className={styles.initial}
+          data-initial={displayName.slice(0, 1).toUpperCase()}
+          aria-hidden="true"
+        />
         <span className={styles.name} aria-hidden="true">
           {displayName}
         </span>
