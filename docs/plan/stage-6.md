@@ -1,6 +1,7 @@
 # Етап 6. Тестування і fault tolerance
 
-- Статус: план, узгоджений 21 жовтня 2026. Етап розбито на три PR:
+- Статус: готово 21 жовтня 2026 у k3d ([звіт](../../perf/reports/stage-6.md)); AWS — у
+  підсумковій сесії етапу 8. Етап розбито на три PR:
   - **6.1 «Chaos у k3d»**, гілка `feature/stage-6.1-chaos`;
   - **6.2 «Pact»**, гілка `feature/stage-6.2-pact`;
   - **6.3 «Покриття і E2E»**, гілка `feature/stage-6.3-coverage-e2e`.
@@ -165,13 +166,25 @@ visible text` → `test(e2e): three browser flows with axe` → `ci: e2e job`.
 
 ## Завершення етапу
 
-- [ ] Звіт `perf/reports/stage-6.md` за прогонами в k3d: таблиця за сценаріями (задач, дублікатів
+- [x] Звіт `perf/reports/stage-6.md` за прогонами в k3d: таблиця за сценаріями (задач, дублікатів
       ‰, DLQ %, P95, перехоплених дублікатів, що виправлено), методика, графіки з Grafana.
-- [ ] Перевірка логів для Checkpoint 2 (VictoriaLogs у k3d): структуровані логи з `trace_id`,
+- [x] Перевірка логів для Checkpoint 2 (VictoriaLogs у k3d): структуровані логи з `trace_id`,
       кількість помилок за сервісами в спокої і під збоями, жодної помилки без контексту задачі.
-- [ ] Посилання на звіт в ADR-006; план, прогрес і README — статус «готово».
+- [x] Посилання на звіт в ADR-006; план, прогрес і README — статус «готово».
 
-**Коміти:** `docs: stage 6 report` → `docs: stage 6 done`.
+Підсумок: графіки — знімки дашборда «Overview» за вікном кожного прогону
+(`scripts/chaos-graphs.mjs`). У перших прогонах метрики мали діри, поки Tempo падав, тож
+сценарії 1, 2, 4, 5, 7 і 8 повторено: знову 0 загублених і 0 дублікатів. Перевірка логів
+(`scripts/chaos-logs.mjs`): у спокої помилок немає, кожна помилка під збоями має задачу, запит
+або компонент, кожен рядок запиту чи задачі — `trace_id`. Вона ж знайшла три прогалини, виправлені
+окремими комітами: `5xx` з рівнем `info`, помилку relay без події і DLQ без рядка `error`.
+Лишається Tempo, який у k3d не тримає 5 задач/с з лімітом 512Mi, — до навантаження етапу 8.
+
+**Коміти:** `fix(metadata): relay failures carry the event's trace and job` →
+`fix(observability): failed responses are logged as errors` → `feat(scripts): chaos log check and
+Grafana graphs` → `fix(worker-kit): a job that ends in dead is logged as an error` →
+`fix(scripts): a one-shot experiment is shaded for its own duration` →
+`docs: stage 6 report` → `docs: stage 6 done`.
 
 ## У підсумковій AWS-сесії (етап 8)
 
