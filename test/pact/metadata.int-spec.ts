@@ -1,19 +1,13 @@
 import { Verifier } from '@pact-foundation/pact';
+import { AssetDeletedV1, JobCreatedV1 } from '@pdp/contracts';
 import { type MetadataClient } from '@pdp/metadata-client';
-import { readdirSync } from 'node:fs';
-import path from 'node:path';
 import { type Pool } from 'pg';
 import { seedUser } from '../../apps/metadata/src/seed-user';
 import { createApps, type RunningApps } from '../support/apps';
 import { prepareDatabase } from '../support/helpers';
 import { type Infra, startInfra } from '../support/infra';
-import { API_KEY, CREDENTIALS, IDEMPOTENCY, metadataAt, PACTS_DIR } from './support/pact';
-
-/** Every consumer's contract with Metadata, as committed. */
-const pactsOf = (provider: string) =>
-  readdirSync(PACTS_DIR)
-    .filter((file) => file.endsWith(`-${provider}.json`))
-    .map((file) => path.join(PACTS_DIR, file));
+import { ASSET_DELETED, JOB_CREATED } from './support/messages';
+import { API_KEY, CREDENTIALS, IDEMPOTENCY, metadataAt, pactsOf } from './support/pact';
 
 describe('metadata honours the contracts of its consumers', () => {
   let infra: Infra;
@@ -109,6 +103,16 @@ describe('metadata honours the contracts of its consumers', () => {
     },
   });
 
+  /** The event as the outbox relay publishes it: the stored envelope under its subject. */
+  const lastEvent = async (subject: string) => {
+    const { rows } = await pool.query<{ payload: unknown }>(
+      'SELECT payload FROM outbox WHERE subject = $1 ORDER BY created_at DESC LIMIT 1',
+      [subject],
+    );
+    if (!rows[0]) throw new Error(`no ${subject} event in the outbox`);
+    return { __pactMessageMetadata: { subject }, message: rows[0].payload };
+  };
+
   it('verifies every interaction', async () => {
     await new Verifier({
       provider: 'metadata',
@@ -121,12 +125,21 @@ describe('metadata honours the contracts of its consumers', () => {
                    FROM pg_tables WHERE schemaname = 'public');
         END $$`);
       },
+      messageProviders: {
+        [JOB_CREATED]: () => lastEvent(JobCreatedV1.subject),
+        [ASSET_DELETED]: () => lastEvent(AssetDeletedV1.subject),
+      },
       stateHandlers: {
         'a user': () => aUser(),
         // DUB_SYSTEM_QUOTA_SECONDS is not set for the app under test.
         'a user, with no system-wide dub limit': () => aUser(),
         'a user with an uploaded image': anUploadedImage,
         'a queued image job': () => aQueuedImageJob(),
+        'a file the user deleted': async () => {
+          const state = await anUploadedImage();
+          await client.deleteAsset(state.assetId, state.userId);
+          return state;
+        },
         'a job created with an idempotency key': () => aQueuedImageJob(IDEMPOTENCY),
         'a dead image job': async () => {
           const state = await aRunningJob('image.resize');

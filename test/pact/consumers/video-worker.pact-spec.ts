@@ -1,14 +1,21 @@
-import { VideoFramesInputV1 } from '@pdp/contracts';
-import { describeJobRunner, describeProgress, type RunnerContract } from '../support/job-runner';
-import { EXAMPLE, pactBetween } from '../support/pact';
+import { VideoDubInputV1, VideoFramesInputV1, VideoTranscodeInputV1 } from '@pdp/contracts';
+import {
+  describeDispatches,
+  describeJobRunner,
+  describeProgress,
+  type RunnerContract,
+} from '../support/job-runner';
+import { DISPATCH_INPUTS } from '../support/messages';
+import { pactBetween } from '../support/pact';
 
 const pact = pactBetween('video-worker', 'metadata');
+const fromScheduler = pactBetween('video-worker', 'scheduler');
 
 const frames: RunnerContract = {
   type: 'video.frames',
   consumer: 'video-cpu',
   inputSchema: VideoFramesInputV1,
-  input: { sourceKey: `uploads/${EXAMPLE.userId}/a.mp4`, intervalSeconds: 2, maxFrames: 10 },
+  input: DISPATCH_INPUTS['video.frames'],
   output: {
     durationSeconds: 10,
     frames: [
@@ -20,4 +27,12 @@ const frames: RunnerContract = {
 describe('video-worker → metadata', () => {
   describeJobRunner(pact, frames);
   describeProgress(pact, frames);
+});
+
+describe('video-worker ← scheduler', () => {
+  describeDispatches(fromScheduler, [
+    { type: 'video.frames', inputSchema: VideoFramesInputV1 },
+    { type: 'video.transcode', inputSchema: VideoTranscodeInputV1 },
+    { type: 'video.dub', inputSchema: VideoDubInputV1 },
+  ]);
 });

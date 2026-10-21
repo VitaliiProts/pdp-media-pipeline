@@ -14,6 +14,7 @@ import {
   JobRunner,
   PermanentError,
 } from '@pdp/worker-kit';
+import { dispatchDescription, dispatchMessage, messageBytes } from './messages';
 import { errorBody, EXAMPLE, job, metadataAt, pathFromState, timestamp } from './pact';
 
 const { integer, like } = MatchersV3;
@@ -28,6 +29,14 @@ export interface RunnerContract {
 }
 
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
+const asked = (_id: string, body: TransitionRequest) =>
+  Promise.resolve({ applied: true, job: { status: body.to } } as TransitionResponse);
+const RUNNER_OPTIONS = {
+  workerId: 'pact',
+  retry: { baseMs: 1000, maxMs: 1000 },
+  progressIntervalMs: 0,
+  transitionRetry: { repeats: 0, delayMs: 1 },
+};
 const transitionsPath = pathFromState(
   '/internal/jobs/${jobId}/transitions',
   `/internal/jobs/${EXAMPLE.jobId}/transitions`,
@@ -51,8 +60,6 @@ function deliver(
   } = {},
 ) {
   const client = metadataAt(url);
-  const asked = (_id: string, body: TransitionRequest) =>
-    Promise.resolve({ applied: true, job: { status: body.to } } as TransitionResponse);
   let progressSent: Promise<void> = Promise.resolve();
   const runner = new JobRunner(
     {
@@ -60,12 +67,7 @@ function deliver(
         sendsFor.includes(body.to) ? client.transition(id, body) : asked(id, body),
       progress: (id, body: ProgressRequest) => (progressSent = client.reportProgress(id, body)),
     },
-    {
-      workerId: 'pact',
-      retry: { baseMs: 1000, maxMs: 1000 },
-      progressIntervalMs: 0,
-      transitionRetry: { repeats: 0, delayMs: 1 },
-    },
+    RUNNER_OPTIONS,
   ).register({
     type: contract.type,
     inputSchema: contract.inputSchema,
@@ -265,4 +267,35 @@ export function describeProgress(pact: PactV4, contract: RunnerContract): void {
           }),
         ).resolves.toEqual({ kind: 'ack' });
       }));
+}
+
+/** Every dispatch a worker takes off its consumers reaches the processor of its type. */
+export function describeDispatches(
+  pact: PactV4,
+  processors: Pick<RunnerContract, 'type' | 'inputSchema'>[],
+): void {
+  for (const { type, inputSchema } of processors) {
+    it(`takes a ${type} dispatch`, () => {
+      const { content, metadata } = dispatchMessage(type);
+      return pact
+        .addAsynchronousInteraction()
+        .expectsToReceive(dispatchDescription(type), (b) =>
+          b.withJSONContent(content).withMetadata(metadata),
+        )
+        .executeTest(async (message) => {
+          const process = jest.fn(() => Promise.resolve({}));
+          const runner = new JobRunner({ transition: asked }, RUNNER_OPTIONS).register({
+            type,
+            inputSchema,
+            process,
+          });
+          const result = await runner.handle(
+            { data: messageBytes(message.contents.content), deliveryCount: 1, consumer: 'pact' },
+            new AbortController().signal,
+          );
+          expect(result).toEqual({ kind: 'ack' });
+          expect(process).toHaveBeenCalledTimes(1);
+        });
+    });
+  }
 }

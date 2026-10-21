@@ -1,10 +1,17 @@
 import { MatchersV3, PactV4 } from '@pact-foundation/pact';
 import { MetadataClient } from '@pdp/metadata-client';
+import { readdirSync } from 'node:fs';
 import path from 'node:path';
 
 const { fromProviderState, integer, like, regex, uuid } = MatchersV3;
 
 export const PACTS_DIR = path.resolve(__dirname, '../../../pacts');
+
+/** Every consumer's contract with a provider, as committed. */
+export const pactsOf = (provider: string): string[] =>
+  readdirSync(PACTS_DIR)
+    .filter((file) => file.endsWith(`-${provider}.json`))
+    .map((file) => path.join(PACTS_DIR, file));
 
 export const pactBetween = (consumer: string, provider: string) =>
   new PactV4({ consumer, provider, dir: PACTS_DIR, logLevel: 'warn' });

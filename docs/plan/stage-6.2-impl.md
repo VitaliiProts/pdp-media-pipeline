@@ -79,10 +79,10 @@ Testcontainers, scheduler — без інфраструктури. Job `test` п
 
 ### 3. Повідомлення
 
-- [ ] `scheduler` ← `job.created`; `worker` ← `asset.deleted`: провайдер Metadata з outbox.
-- [ ] `worker`, `video-worker` ← dispatch за типами: провайдер scheduler
+- [x] `scheduler` ← `job.created`; `worker` ← `asset.deleted`: провайдер Metadata з outbox.
+- [x] `worker`, `video-worker` ← dispatch за типами: провайдер scheduler
       (`test/pact/scheduler.int-spec.ts`, без інфраструктури).
-- [ ] Коміт `test(pact): NATS message contracts`.
+- [x] Коміт `test(pact): NATS message contracts`.
 
 ### 4. CI і перевірка руками
 

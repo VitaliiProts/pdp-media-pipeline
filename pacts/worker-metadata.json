@@ -831,6 +831,92 @@
       "type": "Synchronous/HTTP"
     },
     {
+      "contents": {
+        "content": {
+          "eventId": "3f2e1d0c-9b8a-4c7d-8e6f-5a4b3c2d1e0f",
+          "occurredAt": "2026-10-21T12:00:00.000Z",
+          "payload": {
+            "assetId": "0b6f9c2e-3a41-4f7d-9e2b-8c5d1a7f3e20",
+            "key": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png",
+            "reason": "user",
+            "userId": "5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e"
+          },
+          "type": "asset.deleted",
+          "version": 1
+        },
+        "contentType": "application/json",
+        "encoded": false
+      },
+      "description": "an asset.deleted event of a file the user deleted",
+      "matchingRules": {
+        "body": {
+          "$.eventId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+              }
+            ]
+          },
+          "$.occurredAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+              }
+            ]
+          },
+          "$.payload.assetId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+              }
+            ]
+          },
+          "$.payload.key": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.payload.reason": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^(user|unused)$"
+              }
+            ]
+          },
+          "$.payload.userId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "subject": "events.asset.deleted.v1"
+      },
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a file the user deleted"
+        }
+      ],
+      "type": "Asynchronous/Messages"
+    },
+    {
       "description": "the start of another attempt of a finished image.resize job",
       "pending": false,
       "providerStates": [

@@ -1,6 +1,13 @@
 import { MatchersV3 } from '@pact-foundation/pact';
-import { ImageResizeInputV1 } from '@pdp/contracts';
-import { describeJobRunner } from '../support/job-runner';
+import { ImageResizeInputV1, WebhookDeliverInputV1 } from '@pdp/contracts';
+import { AssetPurgeHandler } from '../../../apps/worker/src/assets/asset-purge.handler';
+import { describeDispatches, describeJobRunner } from '../support/job-runner';
+import {
+  ASSET_DELETED,
+  assetDeletedMessage,
+  DISPATCH_INPUTS,
+  messageBytes,
+} from '../support/messages';
 import {
   errorBody,
   EXAMPLE,
@@ -15,13 +22,14 @@ import {
 const { eachLike, like } = MatchersV3;
 
 const pact = pactBetween('worker', 'metadata');
+const fromScheduler = pactBetween('worker', 'scheduler');
 
 describe('worker → metadata', () => {
   describeJobRunner(pact, {
     type: 'image.resize',
     consumer: 'worker-cpu',
     inputSchema: ImageResizeInputV1,
-    input: { sourceKey: EXAMPLE.sourceKey, presets: ['thumb'] },
+    input: DISPATCH_INPUTS['image.resize'],
     output: {
       results: [
         { preset: 'thumb', key: 'results/job/thumb.webp', width: 200, height: 133, bytes: 4096 },
@@ -64,6 +72,26 @@ describe('worker → metadata', () => {
   });
 
   describe('purge of a deleted file', () => {
+    it('purges the original of a deleted file', () =>
+      pact
+        .addAsynchronousInteraction()
+        .given('a file the user deleted')
+        .expectsToReceive(ASSET_DELETED, (b) =>
+          b.withJSONContent(assetDeletedMessage.content).withMetadata(assetDeletedMessage.metadata),
+        )
+        .executeTest(async (message) => {
+          const deleteObject = jest.fn(() => Promise.resolve());
+          const handler = new AssetPurgeHandler({
+            listJobIds: () => Promise.resolve({ ids: [], nextCursor: null }),
+            deleteObject,
+            deletePrefix: () => Promise.resolve(0),
+          });
+          await expect(handler.handle(messageBytes(message.contents.content))).resolves.toEqual({
+            kind: 'ack',
+          });
+          expect(deleteObject).toHaveBeenCalledWith(EXAMPLE.sourceKey);
+        }));
+
     it('lists the jobs of the file', () =>
       pact
         .addInteraction()
@@ -82,4 +110,11 @@ describe('worker → metadata', () => {
           expect(page.items.map((j) => j.id)).toEqual([EXAMPLE.jobId]);
         }));
   });
+});
+
+describe('worker ← scheduler', () => {
+  describeDispatches(fromScheduler, [
+    { type: 'image.resize', inputSchema: ImageResizeInputV1 },
+    { type: 'webhook.deliver', inputSchema: WebhookDeliverInputV1 },
+  ]);
 });

@@ -1,0 +1,182 @@
+{
+  "consumer": {
+    "name": "worker"
+  },
+  "interactions": [
+    {
+      "contents": {
+        "content": {
+          "attemptBase": 0,
+          "class": "cpu",
+          "dispatchedAt": "2026-10-21T12:00:00.000Z",
+          "input": {
+            "presets": [
+              "thumb"
+            ],
+            "sourceKey": "uploads/5d3c3a8e-0f43-4d5c-8b0e-6a1f2b3c4d5e/a.png"
+          },
+          "jobId": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+          "priority": 5,
+          "type": "image.resize",
+          "version": 1
+        },
+        "contentType": "application/json",
+        "encoded": false
+      },
+      "description": "a image.resize dispatch",
+      "matchingRules": {
+        "body": {
+          "$.attemptBase": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "integer"
+              }
+            ]
+          },
+          "$.dispatchedAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+              }
+            ]
+          },
+          "$.input": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.jobId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+              }
+            ]
+          },
+          "$.priority": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "integer"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "subject": "jobs.cpu.image.resize"
+      },
+      "pending": false,
+      "type": "Asynchronous/Messages"
+    },
+    {
+      "contents": {
+        "content": {
+          "attemptBase": 0,
+          "class": "io",
+          "dispatchedAt": "2026-10-21T12:00:00.000Z",
+          "input": {
+            "endpointId": "a2e4c6d8-1b3f-4a5c-8e7d-9f0a1b2c3d4e",
+            "messageId": "msg_2f6a1c9e",
+            "payload": {
+              "data": {
+                "attempts": 1,
+                "deadReason": null,
+                "finishedAt": "2026-10-21T12:00:00.000Z",
+                "jobId": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+                "jobType": "image.resize",
+                "lastError": null,
+                "output": {
+                  "results": []
+                },
+                "status": "succeeded"
+              },
+              "timestamp": "2026-10-21T12:00:00.000Z",
+              "type": "job.succeeded"
+            }
+          },
+          "jobId": "7c1e0a52-6b1d-4a55-9d0a-2f3a0c1b9e11",
+          "priority": 5,
+          "type": "webhook.deliver",
+          "version": 1
+        },
+        "contentType": "application/json",
+        "encoded": false
+      },
+      "description": "a webhook.deliver dispatch",
+      "matchingRules": {
+        "body": {
+          "$.attemptBase": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "integer"
+              }
+            ]
+          },
+          "$.dispatchedAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+              }
+            ]
+          },
+          "$.input": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.jobId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+              }
+            ]
+          },
+          "$.priority": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "integer"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "subject": "jobs.io.webhook.deliver"
+      },
+      "pending": false,
+      "type": "Asynchronous/Messages"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "17.1.4"
+    },
+    "pactRust": {
+      "ffi": "0.5.8",
+      "models": "1.3.16"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "scheduler"
+  }
+}
