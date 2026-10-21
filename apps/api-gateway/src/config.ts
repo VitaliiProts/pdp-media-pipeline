@@ -24,6 +24,8 @@ export const envSchema = baseEnvSchema.extend({
    * Unset, they point where the gateway itself goes: `S3_ENDPOINT` or AWS S3 of `S3_REGION`.
    */
   S3_PUBLIC_ENDPOINT: z.url().optional(),
+  /** For the one call a request waits on, the SDK's retries included. */
+  S3_TIMEOUT_MS: positiveInt().default(3000),
   API_KEY_CACHE_TTL_MS: z.coerce.number().int().min(0).default(60_000),
   /** Proxies in front of the gateway whose X-Forwarded-For is trusted for the client IP. */
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),

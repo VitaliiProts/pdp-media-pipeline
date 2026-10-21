@@ -1,4 +1,8 @@
 import { ConfigService } from '@nestjs/config';
+import { once } from 'node:events';
+import { createServer } from 'node:http';
+import { type AddressInfo, type Socket } from 'node:net';
+import { RetryLaterException } from '../common/retry-later';
 import { type Env } from '../config';
 import { PRESIGN_BUCKET_S, StorageService } from './storage.service';
 
@@ -58,6 +62,57 @@ describe('presigned GET links', () => {
       const url = await storage.presignGet('u/1/harbour', TTL_S);
       expect(validUntil(url)).toBeGreaterThanOrEqual(Date.parse(now) + TTL_S * 1000);
     }
+  });
+});
+
+describe('when storage is unreachable', () => {
+  const sockets = new Set<Socket>();
+  // Accepts connections and never answers, like a partitioned MinIO.
+  const silent = createServer().on('connection', (socket) => sockets.add(socket));
+  let silentUrl: string;
+  let closedUrl: string;
+
+  const storageAt = (endpoint: string) =>
+    new StorageService(
+      new ConfigService<Env, true>({
+        S3_BUCKET: 'media',
+        S3_REGION: 'us-east-1',
+        S3_FORCE_PATH_STYLE: true,
+        S3_ACCESS_KEY: 'key',
+        S3_SECRET_KEY: 'secret',
+        S3_ENDPOINT: endpoint,
+        S3_TIMEOUT_MS: 300,
+      }),
+    );
+
+  beforeAll(async () => {
+    silent.listen(0, '127.0.0.1');
+    await once(silent, 'listening');
+    silentUrl = `http://127.0.0.1:${(silent.address() as AddressInfo).port}`;
+    const closed = createServer().listen(0, '127.0.0.1');
+    await once(closed, 'listening');
+    closedUrl = `http://127.0.0.1:${(closed.address() as AddressInfo).port}`;
+    closed.close();
+  });
+
+  afterAll(() => {
+    for (const socket of sockets) socket.destroy();
+    silent.close();
+  });
+
+  it.each([
+    ['does not answer', () => silentUrl],
+    ['refuses the connection', () => closedUrl],
+  ])('asks to retry later when it %s', async (_, url) => {
+    const storage = storageAt(url());
+    const started = Date.now();
+
+    const err: unknown = await storage.headObject('uploads/u1/a.jpg').catch((e: unknown) => e);
+
+    storage.onApplicationShutdown();
+    expect(err).toBeInstanceOf(RetryLaterException);
+    expect((err as RetryLaterException).getStatus()).toBe(503);
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 });
 
