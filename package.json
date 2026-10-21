@@ -25,6 +25,7 @@
     "test": "pnpm build:libs && jest",
     "test:cov": "pnpm build:libs && jest --coverage",
     "test:int": "pnpm build:libs && jest -c jest.int.config.js",
+    "test:pact": "pnpm build:libs && rm -rf pacts && jest -c jest.pact.config.js",
     "test:web": "pnpm --filter @pdp/web test",
     "test:tools": "node --test 'perf/**/*.test.mjs' 'scripts/*.test.mjs'",
     "dev:web": "pnpm --filter @pdp/web dev"
@@ -39,6 +40,7 @@
     "@nestjs/core": "^11",
     "@nestjs/platform-express": "^11",
     "@opentelemetry/api": "^1.9.1",
+    "@pact-foundation/pact": "17.1.4",
     "@pdp/contracts": "workspace:^",
     "@pdp/metadata-client": "workspace:^",
     "@pdp/observability": "workspace:^",

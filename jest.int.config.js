@@ -1,4 +1,6 @@
 /** Integration tests: real Postgres, NATS and MinIO via Testcontainers. Needs Docker. */
+process.env.PACT_DO_NOT_TRACK ??= 'true';
+
 module.exports = {
   testEnvironment: 'node',
   rootDir: '.',

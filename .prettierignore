@@ -5,6 +5,7 @@ coverage
 deploy/helm/**/templates
 apps/*/drizzle
 coverage-int
+pacts
 .superpowers
 spikes/**/vendor
 spikes/**/assets
