@@ -46,7 +46,11 @@ function setup() {
   const process = jest.fn<Promise<JobOutput>, [JobContext, z.infer<typeof inputSchema>]>(() =>
     Promise.resolve({ done: true }),
   );
-  const runner = new JobRunner(deps, { workerId: 'w1', retry }).register({
+  const runner = new JobRunner(deps, {
+    workerId: 'w1',
+    retry,
+    transitionRetry: { repeats: 2, delayMs: 1 },
+  }).register({
     type: 'image.resize',
     inputSchema,
     process,
@@ -134,11 +138,49 @@ describe('JobRunner', () => {
     expect(process).not.toHaveBeenCalled();
   });
 
-  it('naks with jittered backoff when metadata is unavailable', async () => {
-    const { deps, process, run } = setup();
-    deps.transition.mockRejectedValueOnce(new MetadataError(0, undefined, 'timeout'));
+  it('naks with jittered backoff when metadata stays unavailable', async () => {
+    const { deps, process, run, targets } = setup();
+    deps.transition.mockRejectedValue(new MetadataError(0, undefined, 'timeout'));
     await expect(run(dispatch(), 2)).resolves.toEqual({ kind: 'nak', delayMs: 1000 });
+    expect(targets()).toEqual(['running@2', 'running@2', 'running@2']);
     expect(process).not.toHaveBeenCalled();
+  });
+
+  // A nak would come back as the next attempt and use one up, though the start may have
+  // been applied; Metadata takes the same (attempt, to) again as a no-op.
+  it('repeats a start that timed out with the same attempt', async () => {
+    const { deps, process, run, targets } = setup();
+    deps.transition.mockRejectedValueOnce(new MetadataError(0, undefined, 'timeout'));
+    await expect(run(dispatch(), 2)).resolves.toEqual({ kind: 'ack' });
+    expect(targets()).toEqual(['running@2', 'running@2', 'succeeded@2']);
+    expect(process).toHaveBeenCalledTimes(1);
+  });
+
+  it('repeats a success report that metadata failed to answer', async () => {
+    const { deps, process, run, targets } = setup();
+    deps.transition
+      .mockImplementationOnce(asRequested)
+      .mockRejectedValueOnce(new MetadataError(503, undefined, 'down'));
+    await expect(run(dispatch())).resolves.toEqual({ kind: 'ack' });
+    expect(targets()).toEqual(['running@1', 'succeeded@1', 'succeeded@1']);
+    expect(process).toHaveBeenCalledTimes(1);
+  });
+
+  it('repeats a retry report and still naks with the retry backoff', async () => {
+    const { deps, process, run, targets } = setup();
+    process.mockRejectedValueOnce(new Error('socket hang up'));
+    deps.transition
+      .mockImplementationOnce(asRequested)
+      .mockRejectedValueOnce(new MetadataError(0, undefined, 'timeout'));
+    await expect(run(dispatch(), 3)).resolves.toEqual({ kind: 'nak', delayMs: 2000 });
+    expect(targets()).toEqual(['running@3', 'scheduled@3', 'scheduled@3']);
+  });
+
+  it('does not repeat a transition metadata rejected', async () => {
+    const { deps, run, targets } = setup();
+    deps.transition.mockRejectedValueOnce(conflict('INVALID_TRANSITION'));
+    await expect(run(dispatch())).resolves.toMatchObject({ kind: 'term' });
+    expect(targets()).toEqual(['running@1']);
   });
 
   it('continues after a duplicate running transition', async () => {
@@ -236,10 +278,10 @@ describe('JobRunner', () => {
     await expect(run(dispatch())).resolves.toEqual({ kind: 'ack' });
   });
 
-  it('naks when metadata is down while reporting success', async () => {
+  it('naks when metadata stays down while reporting success', async () => {
     const { deps, run } = setup();
     deps.transition.mockImplementationOnce(asRequested);
-    deps.transition.mockRejectedValueOnce(new MetadataError(503, undefined, 'down'));
+    deps.transition.mockRejectedValue(new MetadataError(503, undefined, 'down'));
     expect((await run(dispatch())).kind).toBe('nak');
   });
 
