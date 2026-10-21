@@ -243,6 +243,15 @@ export class JobRunner {
     }
   }
 
+  private logDead(jobId: string, attempt: number, res: TransitionResponse, message: string): void {
+    const { job } = res;
+    // A redelivery of a job that is already dead gets `applied: false`.
+    if (!res.applied || job.status !== 'dead') return;
+    this.logger.error(
+      `job ${jobId} is dead (${job.deadReason ?? 'unknown'}) after attempt ${attempt}: ${message}`,
+    );
+  }
+
   private async onProcessingError(
     err: unknown,
     jobId: string,
@@ -259,13 +268,14 @@ export class JobRunner {
 
     try {
       if (permanent) {
-        await this.transition(jobId, {
+        const res = await this.transition(jobId, {
           to: 'dead',
           attempt,
           actor: this.actor,
           error: message,
           inbox,
         });
+        this.logDead(jobId, attempt, res, message);
         return ack();
       }
       const res = await this.transition(jobId, {
@@ -274,7 +284,10 @@ export class JobRunner {
         actor: this.actor,
         error: message,
       });
-      if (res.job.status === 'dead') return ack();
+      if (res.job.status === 'dead') {
+        this.logDead(jobId, attempt, res, message);
+        return ack();
+      }
       const delay = this.delayFor(err, retryDelay);
       this.logger.log(`job ${jobId} retries in ${delay}ms`);
       return nak(delay);

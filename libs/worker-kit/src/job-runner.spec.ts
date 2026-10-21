@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   type JobDispatchV1,
   type JobDto,
@@ -232,6 +233,42 @@ describe('JobRunner', () => {
       .mockImplementationOnce(() => withStatus('dead'));
     await expect(run(dispatch(), 5)).resolves.toEqual({ kind: 'ack' });
     expect(targets()).toEqual(['running@5', 'scheduled@5']);
+  });
+
+  it('logs a job that ends in dead as an error once, with the reason', async () => {
+    const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const dead = (deadReason: JobDto['deadReason'], applied = true) =>
+      Promise.resolve({ applied, job: { status: 'dead', deadReason } } as TransitionResponse);
+    const { deps, process, run } = setup();
+    const exhausted = dispatch();
+    const unreadable = dispatch();
+    process
+      .mockRejectedValueOnce(new Error('timed out'))
+      .mockRejectedValueOnce(new PermanentError('unreadable image'))
+      .mockRejectedValueOnce(new PermanentError('unreadable image'))
+      .mockRejectedValueOnce(new Error('socket hang up'));
+    deps.transition
+      .mockImplementationOnce(asRequested)
+      .mockImplementationOnce(() => dead('exhausted'))
+      .mockImplementationOnce(asRequested)
+      .mockImplementationOnce(() => dead('permanent'))
+      .mockImplementationOnce(asRequested)
+      .mockImplementationOnce(() => dead('permanent', false));
+
+    await run(exhausted, 5);
+    await run(unreadable);
+    await run(unreadable, 2);
+    await run(dispatch(), 2);
+
+    expect(errors).toHaveBeenCalledTimes(2);
+    expect(errors).toHaveBeenNthCalledWith(
+      1,
+      `job ${exhausted.jobId} is dead (exhausted) after attempt 5: timed out`,
+    );
+    expect(errors).toHaveBeenNthCalledWith(
+      2,
+      `job ${unreadable.jobId} is dead (permanent) after attempt 1: unreadable image`,
+    );
   });
 
   it('hands an attempt cut short by shutdown back as interrupted and naks at once', async () => {
