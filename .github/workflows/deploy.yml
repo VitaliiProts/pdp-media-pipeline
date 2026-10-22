@@ -39,8 +39,11 @@ jobs:
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    # The role trusts this environment, and the environment admits only main.
-    environment: aws
+    # The role trusts this environment, and the environment admits only main. Only `release`
+    # records a GitHub deployment: one per run, not one per job and image.
+    environment:
+      name: aws
+      deployment: false
     timeout-minutes: 5
     outputs:
       tags: ${{ steps.tags.outputs.tags }}
@@ -82,7 +85,9 @@ jobs:
     needs: plan
     if: needs.plan.outputs.build != '[]'
     runs-on: ubuntu-latest
-    environment: aws
+    environment:
+      name: aws
+      deployment: false
     timeout-minutes: 40
     strategy:
       matrix:
@@ -124,10 +129,16 @@ jobs:
     runs-on: ubuntu-latest
     environment: aws
     timeout-minutes: 25
+    # The tag and the GitHub release with the notes.
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.SHA }}
+          # The commits since the current release and the version tags, for the notes.
+          fetch-depth: 0
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
@@ -140,6 +151,7 @@ jobs:
       - name: Release
         env:
           PLAN_TAGS: ${{ needs.plan.outputs.tags }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAGS=$(jq -c 'map({(.app): .tag}) | add' <<<"$PLAN_TAGS")
           export TAGS

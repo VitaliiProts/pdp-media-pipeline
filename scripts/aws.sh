@@ -8,7 +8,8 @@
 #   scripts/aws.sh seed me   # create a user, print its API key
 #   scripts/aws.sh release   # record and deploy the app at HEAD with TAGS (CI after a push)
 #   scripts/aws.sh releases  # the last ten releases; rollback takes one of their ids
-#   scripts/aws.sh rollback [<id>]   # the release before the current one, or <id>
+#   scripts/aws.sh rollback [<id>] [frontend|backend]   # the release before the current, or
+#                            # <id>; only web, or only the other services, with the rest as is
 #   scripts/aws.sh repos     # add the Helm repositories of the cluster components
 #
 # TLS_ISSUER=letsencrypt-staging scripts/aws.sh up   while DNS-01 is being debugged.
@@ -359,7 +360,27 @@ publish() {
   local id
   id=$(jq -r .id <<<"$2")
   s3_put "$1/pdp.tgz" "releases/$id/pdp.tgz"
+  s3_put "$1/notes.md" "releases/$id/notes.md"
   s3_put - "releases/$id/manifest.json" <<<"$2"
+}
+
+# The services whose tag in $2 differs from $1, both {"<service>": "<tag>"}; $1 may be empty.
+changed_images() {
+  jq -r --argjson old "${1:-null}" \
+    'to_entries | map(select(($old // {})[.key] != .value) | .key) | join(" ")' <<<"$2"
+}
+
+# The GitHub release of a release that runs, so its notes sit next to the code. Without gh the
+# notes stay in S3 alone.
+github_release() {
+  local tag=$1 sha=$2 title=$3 notes=$4
+  shift 4
+  if ! command -v gh >/dev/null || ! gh auth status >/dev/null 2>&1; then
+    echo "warning: gh is missing or signed out, so no GitHub release $tag" >&2
+    return 0
+  fi
+  gh release create "$tag" --target "$sha" --title "$title" --notes-file "$notes" "$@" >/dev/null
+  echo "GitHub release $tag"
 }
 
 # CI after pushing the images, TAGS={"<service>": "<tag>"} of the commit: the platform and the
@@ -367,7 +388,7 @@ publish() {
 release() {
   identity
   releases_bucket
-  local tags=${TAGS:-} sha dir digest current manifest
+  local tags=${TAGS:-} sha dir digest current manifest id notes version
   [ -n "$tags" ] || tags=$(deployed_tags)
   # The services of ECR in their order, so the same tags always render the same chart.
   tags=$(jq -c --args '. as $t | $ARGS.positional | map({(.): $t[.]}) | add' \
@@ -389,21 +410,52 @@ release() {
   manifest=$(jq -n --arg sha "$sha" --argjson tags "$tags" --arg chart "$digest" \
     '{kind: "deploy", sha: $sha, tags: $tags, chart: $chart}' |
     stamp "$sha" "$(jq -r '.id // ""' <<<"$current")")
-  log "release $(jq -r .id <<<"$manifest")"
+  id=$(jq -r .id <<<"$manifest")
+  # The version follows the highest tag, which a clone made before it was released lacks.
+  git fetch -q --tags origin 2>/dev/null || true
+  # The commits since the current release: those no deploy went out with are in this one.
+  notes=$(node scripts/release-notes.mjs --from "$(jq -r '.sha // ""' <<<"$current")" \
+    --to "$sha" --release "$id" --images "$(changed_images "$(jq .tags <<<"$current")" "$tags")")
+  version=$(jq -r .version <<<"$notes")
+  jq -r .notes <<<"$notes" >"$dir/notes.md"
+  manifest=$(jq --arg version "$version" '. + {version: $version}' <<<"$manifest")
+  log "release $version ($id)"
   jq . <<<"$manifest"
+  cat "$dir/notes.md"
   publish "$dir" "$manifest"
   roll_out "$dir/pdp" "$manifest"
+  github_release "$version" "$sha" "$version" "$dir/notes.md" --latest
 }
 
-# Release $1, or the one before the current, again: its chart and its images, while ECR still
-# has them. Recorded as a new release of kind rollback, so the history stays in order; the next
-# push to main deploys the head again.
+# The services a partial rollback takes from the earlier release.
+scope_services() {
+  local svc
+  for svc in "${SERVICES[@]}"; do
+    case "$1" in
+      frontend) [ "$svc" = web ] && echo "$svc" ;;
+      backend) [ "$svc" != web ] && echo "$svc" ;;
+    esac
+  done
+}
+
+# Release <id>, or the one before the current, again, while ECR still has its images: all of it,
+# or only the images of the frontend or the backend over the current chart and the other images.
+# Recorded as a new release of kind rollback, so the history stays in order; the next push to
+# main deploys the head again.
 rollback() {
   identity
   releases_bucket
-  local current id target missing dir manifest
+  local arg id='' scope=all current target base tags dir digest what missing manifest new title
+  local from run images
+  for arg in "$@"; do
+    case "$arg" in
+      all | frontend | backend) scope=$arg ;;
+      '') ;;
+      *) id=$arg ;;
+    esac
+  done
   current=$(current_release)
-  id=${1:-$(jq -r '.previous // ""' <<<"$current")}
+  id=${id:-$(jq -r '.previous // ""' <<<"$current")}
   if [ -z "$id" ]; then
     echo "no release before the current one; scripts/aws.sh releases lists them" >&2
     return 1
@@ -413,25 +465,58 @@ rollback() {
     echo "no release $id; scripts/aws.sh releases lists them" >&2
     return 1
   fi
-  if [ "$(jq -r .chart <<<"$target")" = "$(jq -r .chart <<<"$current")" ]; then
-    echo "release $id has the chart and images of the current $(jq -r .id <<<"$current")"
+  if [ "$scope" = all ]; then
+    base=$target
+    tags=$(jq -c .tags <<<"$target")
+  elif [ -z "$current" ]; then
+    echo "a $scope rollback keeps the rest of the current release, and there is none yet" >&2
+    return 1
+  else
+    base=$current
+    # shellcheck disable=SC2046
+    tags=$(jq -c --argjson from "$(jq .tags <<<"$target")" \
+      '.tags as $t | reduce $ARGS.positional[] as $s ($t; .[$s] = $from[$s])' \
+      --args $(scope_services "$scope") <<<"$current")
+  fi
+  dir=$(mktemp -d)
+  release_chart "$(jq -r .id <<<"$base")" "$dir"
+  digest=$(chart_digest "$dir/pdp" "$tags")
+  what="release $id"
+  [ "$scope" = all ] || what="the $scope of $what"
+  if [ "$digest" = "$(jq -r .chart <<<"$current")" ]; then
+    echo "nothing to roll back: $what is what runs already"
     return 0
   fi
-  missing=$(missing_images "$(jq .tags <<<"$target")")
+  missing=$(missing_images "$tags")
   if [ -n "$missing" ]; then
     echo "ECR no longer has the images of release $id: ${missing% }; nothing changed" >&2
     return 1
   fi
   if [ -z "${GITHUB_ACTIONS:-}" ]; then
-    confirm "Roll back from $(jq -r '.id // "nothing"' <<<"$current") to $id?" || exit 1
+    confirm "Roll back to $what, now $(jq -r '.id // "nothing"' <<<"$current") runs?" || exit 1
   fi
-  dir=$(mktemp -d)
-  release_chart "$id" "$dir"
-  manifest=$(jq '. + {kind: "rollback", of: .id}' <<<"$target" |
-    stamp "$(jq -r .sha <<<"$target")" "$(jq -r '.id // ""' <<<"$current")")
-  log "rollback to $id as release $(jq -r .id <<<"$manifest")"
+  manifest=$(jq --arg of "$id" --arg scope "$scope" --argjson tags "$tags" --arg chart "$digest" \
+    '. + {kind: "rollback", of: $of, scope: $scope, tags: $tags, chart: $chart}' <<<"$base" |
+    stamp "$(jq -r .sha <<<"$base")" "$(jq -r '.id // ""' <<<"$current")")
+  new=$(jq -r .id <<<"$manifest")
+  log "rollback to $what as release $new"
+  title="Rollback to $(jq -r '.version // .id' <<<"$target")"
+  [ "$scope" = all ] || title="Rollback of the $scope to $(jq -r '.version // .id' <<<"$target")"
+  from=$(jq -r '.version // .id' <<<"$current")
+  run=$(jq -r '.run // ""' <<<"$manifest")
+  images=$(changed_images "$(jq .tags <<<"$current")" "$tags")
+  {
+    echo "$title, until the next push to main deploys the head again."
+    echo
+    echo "- From: ${from:-nothing}"
+    echo "- Images: ${images:-none changed}"
+    echo "- Release: \`$new\`, of \`$id\`"
+    [ -z "$run" ] || echo "- Run: $run"
+  } >"$dir/notes.md"
   publish "$dir" "$manifest"
   roll_out "$dir/pdp" "$manifest"
+  github_release "rollback-$new" "$(jq -r .sha <<<"$manifest")" "$title" "$dir/notes.md" \
+    --latest=false
 }
 
 # The last $1 releases, newest first; * marks the current one.
@@ -451,7 +536,8 @@ releases() {
     id=${id%/}
     printf '%s %s\t' "$([ "$id" = "$current" ] && echo '*' || echo ' ')" "$id"
     s3_get "${prefix}manifest.json" - |
-      jq -r '[.kind, .sha[:7], .by, (if .of then "of " + .of else "" end)] | join("\t")'
+      jq -r '[.version // "-", .kind, .sha[:7], .by, (if .of then "of " + .of else "" end),
+              (if (.scope // "all") != "all" then "(" + .scope + ")" else "" end)] | join("\t")'
   done
 }
 
@@ -649,6 +735,7 @@ case "${1:-}" in
     need aws
     need kubectl
     need jq
+    [ "$1" != release ] || need node
     ;;
 esac
 
@@ -664,9 +751,9 @@ case "${1:-}" in
   seed) seed "${2:-me}" ;;
   release) release ;;
   releases) releases ;;
-  rollback) rollback "${2:-}" ;;
+  rollback) rollback "${@:2}" ;;
   *)
-    sed -n '2,15p' "$0"
+    sed -n '2,16p' "$0"
     exit 1
     ;;
 esac

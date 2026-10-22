@@ -187,6 +187,33 @@ current.json                  # маніфест того, що працює і 
 Локально `rollback` питає підтвердження; `scripts/aws.sh releases` показує останні релізи й
 позначає поточний.
 
+### Частковий відкат (7.1c)
+
+Гілка `feature/stage-7.1c-partial-rollback`. Реліз, що змінив і фронтенд, і бекенд, можна
+відкотити лише в одній частині: `scripts/aws.sh rollback [<id>] frontend|backend`, у workflow —
+поле `scope` (`all`, `frontend`, `backend`). `frontend` — `web`, `backend` — решта сервісів.
+
+1. Основа — поточний реліз: його чарт і теги; теги обраних сервісів — з `<id>`.
+2. Дайджест рахується заново; збігся з поточним — «nothing to roll back».
+3. В ECR перевіряються теги нового релізу: образи інших сервісів з `<id>` не потрібні.
+4. Запис — `kind: rollback`, `of: <id>`, `scope: frontend | backend`; далі як у повному відкаті.
+
+Межі: повертається образ, а не чарт сервісу; версії, що опиняються поруч, мають бути сумісні
+(API `/v1` лише розширюється, тож старий фронтенд з новим бекендом — безпечний напрям).
+
+**Release notes.** `scripts/release-notes.mjs` збирає коміти `current.sha..HEAD` (conventional
+commits; PR — з merge-коміту, що їх приніс, або `(#N)` squash-мерджу) у нотатки в розкладці
+conventional-changelog і рахує semver від найвищого тега `v*`: breaking → major, `feat` →
+minor, решта → patch. `release` кладе їх у `releases/<id>/notes.md`, версію — у маніфест, і
+після того, як реліз запрацював, створює GitHub Release `vX.Y.Z` (Latest) на його коміт; для
+цього джоб `release` отримує `contents: write` і повну історію. Відкат — реліз `rollback-<id>`
+з `--latest=false`. Без `gh` (локально) нотатки лишаються лише в S3. GitHub Releases тут лише
+для читання людьми: відкат бере все з S3.
+
+GitHub створює deployment на кожен джоб з `environment`, тож один прогін `Deploy` давав до 9
+записів на сторінці deployments. `plan` і `images` тепер з `deployment: false` (роль довіряє
+`sub` з `environment:aws`, а він лишається); запис — лише від `release` і `Rollback`.
+
 **Наслідки:**
 
 - **Відкат тимчасовий:** наступний мердж у `main` знову деплоїть голову. Щоб відкат лишився,
