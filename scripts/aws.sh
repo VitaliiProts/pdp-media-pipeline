@@ -6,7 +6,9 @@
 #   scripts/aws.sh status    # what runs, what is left behind, what it costs
 #   scripts/aws.sh grafana   # Grafana on http://localhost:3000
 #   scripts/aws.sh seed me   # create a user, print its API key
-#   scripts/aws.sh release   # the app release only, with the tags in SSM (CI after a push)
+#   scripts/aws.sh release   # record and deploy the app at HEAD with TAGS (CI after a push)
+#   scripts/aws.sh releases  # the last ten releases; rollback takes one of their ids
+#   scripts/aws.sh rollback [<id>]   # the release before the current one, or <id>
 #   scripts/aws.sh repos     # add the Helm repositories of the cluster components
 #
 # TLS_ISSUER=letsencrypt-staging scripts/aws.sh up   while DNS-01 is being debugged.
@@ -97,34 +99,109 @@ repos() {
   helm repo update >/dev/null
 }
 
-# `--set <release>.image.tag=<tag>` for every release, from the tags CI wrote to SSM. By name:
-# the deploy role may not read the whole path, the secrets live under it.
-image_tags() {
-  local out name tag svc release missing='' names=()
+# The tags of the running release, {"<service>": "<tag>"}, from SSM. By name: the deploy role
+# may not read the whole path, the secrets live under it.
+deployed_tags() {
+  local out svc names=()
   for svc in "${SERVICES[@]}"; do
     names+=("/pdp/prod/deployed-tag/$svc")
   done
   # Checked here: errexit does not reach into a command substitution.
   out=$(aws ssm get-parameters --names "${names[@]}" \
     --query 'Parameters[].[Name,Value]' --output text) || return 1
-  if [ "$(printf '%s\n' "$out" | grep -c .)" -ne ${#SERVICES[@]} ]; then
-    echo "SSM has no tag for some of: ${SERVICES[*]}" >&2
-    return 1
-  fi
-  while read -r name tag; do
-    svc=${name##*/}
-    if [ "$tag" = none ]; then
-      missing="$missing $svc"
-      continue
-    fi
+  jq -Rn '[inputs | split("\t") | {key: (.[0] | split("/") | last), value: .[1]}] | from_entries' \
+    <<<"$out"
+}
+
+put_tags() {
+  local svc
+  for svc in "${SERVICES[@]}"; do
+    aws ssm put-parameter --name "/pdp/prod/deployed-tag/$svc" --overwrite \
+      --value "$(jq -r --arg s "$svc" '.[$s]' <<<"$1")" >/dev/null
+  done
+}
+
+# A tag for every service, or the names of those without one.
+check_tags() {
+  local missing
+  missing=$(jq -r --args '. as $t | $ARGS.positional[] | select(($t[.] // "none") == "none")' \
+    "${SERVICES[@]}" <<<"$1" | tr '\n' ' ')
+  [ -z "$missing" ] && return 0
+  echo "no image yet for: $missing(CI pushes them from main)" >&2
+  return 1
+}
+
+# `--set <release>.image.tag=<tag>` for every release of every service.
+set_flags() {
+  local svc tag release
+  while read -r svc tag; do
     for release in $(releases_of "$svc"); do
       printf -- '--set %s.image.tag=%s ' "$release" "$tag"
     done
-  done <<<"$out"
-  if [ -n "$missing" ]; then
-    echo "no image in ECR yet for:$missing (CI pushes them from main)" >&2
-    return 1
-  fi
+  done < <(jq -r 'to_entries[] | "\(.key) \(.value)"' <<<"$1")
+}
+
+# ECR expires old images (deploy/terraform/base/services.tf): a release is only as good as they.
+missing_images() {
+  local svc tag
+  for svc in "${SERVICES[@]}"; do
+    tag=$(jq -r --arg s "$svc" '.[$s]' <<<"$1")
+    aws ecr describe-images --repository-name "pdp/$svc" --image-ids imageTag="$tag" \
+      >/dev/null 2>&1 || printf '%s:%s ' "$svc" "$tag"
+  done
+}
+
+# Releases (docs/plan/stage-7.1.md): s3://<bucket>/releases/<id>/ holds manifest.json and
+# pdp.tgz, the umbrella chart as it was deployed; current.json is the manifest of the release
+# that runs, or that the next `up` deploys. Helm's own history goes with the cluster.
+BUCKET=''
+releases_bucket() { BUCKET=$(param releases-bucket); }
+s3_get() { aws s3 cp --only-show-errors "s3://$BUCKET/$1" "$2"; }
+s3_put() { aws s3 cp --only-show-errors "$1" "s3://$BUCKET/$2"; }
+# Empty when nothing was released yet.
+current_release() { aws s3 cp --only-show-errors "s3://$BUCKET/current.json" - 2>/dev/null || true; }
+
+# The umbrella chart of the working tree with its subcharts, as $1/pdp.tgz and unpacked in $1/pdp.
+package_chart() {
+  local chart
+  for chart in api-gateway metadata scheduler worker video-worker audio-separate web; do
+    helm dependency update --skip-refresh "deploy/helm/$chart" >/dev/null
+  done
+  helm dependency update --skip-refresh deploy/helm/pdp >/dev/null
+  helm package deploy/helm/pdp -d "$1" >/dev/null
+  mv "$1"/pdp-*.tgz "$1/pdp.tgz"
+  tar -xzf "$1/pdp.tgz" -C "$1"
+}
+
+release_chart() {
+  s3_get "releases/$1/pdp.tgz" "$2/pdp.tgz"
+  tar -xzf "$2/pdp.tgz" -C "$2"
+}
+
+# What Helm would apply, so a release that changes nothing is not deployed again.
+chart_digest() {
+  # shellcheck disable=SC2046
+  helm template pdp "$1" -n "$NS" -f "$1/values-prod.yaml" -f "$1/values-aws.yaml" \
+    $(set_flags "$2") | shasum -a 256 | cut -d' ' -f1
+}
+
+# A manifest from stdin with the fields of who made it: id, previous, by, at, run.
+stamp() {
+  local at sha=$1 previous=$2
+  at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  jq --arg id "${at//[-:]/}-${sha:0:7}" --arg previous "$previous" --arg at "$at" \
+    --arg by "${GITHUB_ACTOR:-${USER:-unknown}}" \
+    --arg run "${GITHUB_RUN_ID:+$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID}" \
+    'def opt: if . == "" then null else . end;
+     {id: $id} + del(.id) + {previous: ($previous | opt), at: $at, by: $by, run: ($run | opt)}'
+}
+
+# The manifest is the release: the chart and tags it names are what runs once it is current.
+make_current() {
+  local manifest=$1
+  s3_put - current.json <<<"$manifest"
+  put_tags "$(jq .tags <<<"$manifest")"
+  echo "current release: $(jq -r .id <<<"$manifest")"
 }
 
 cluster_state() {
@@ -257,36 +334,148 @@ platform() {
     -f deploy/helm/platform/values-aws.yaml --wait --timeout 10m
 }
 
-# A failed upgrade rolls back, so the cluster keeps serving the previous version.
+# The unpacked chart $1 with the tags $2. A failed upgrade rolls back, so the cluster keeps
+# serving the previous version.
 app() {
   log "app release"
-  local chart
-  for chart in api-gateway metadata scheduler worker video-worker audio-separate web; do
-    helm dependency update --skip-refresh "deploy/helm/$chart" >/dev/null
-  done
-  helm dependency update --skip-refresh deploy/helm/pdp >/dev/null
-  # shellcheck disable=SC2086
-  helm upgrade --install pdp deploy/helm/pdp -n "$NS" -f deploy/helm/pdp/values-prod.yaml \
-    -f deploy/helm/pdp/values-aws.yaml $1 --rollback-on-failure --timeout 15m
+  # shellcheck disable=SC2046
+  helm upgrade --install pdp "$1" -n "$NS" -f "$1/values-prod.yaml" -f "$1/values-aws.yaml" \
+    $(set_flags "$2") --rollback-on-failure --timeout 15m
 }
 
-# CI after pushing the images: the platform and the components stay as `up` left them.
+# The release $2 with its chart unpacked in $1. It becomes current only once it runs, so a
+# failed upgrade is tried again by the next deploy.
+roll_out() {
+  if [ "$(cluster_state)" = ACTIVE ]; then
+    kubeconfig
+    app "$1" "$(jq .tags <<<"$2")"
+  else
+    echo "the cluster is off; the next up deploys this release"
+  fi
+  make_current "$2"
+}
+
+publish() {
+  local id
+  id=$(jq -r .id <<<"$2")
+  s3_put "$1/pdp.tgz" "releases/$id/pdp.tgz"
+  s3_put - "releases/$id/manifest.json" <<<"$2"
+}
+
+# CI after pushing the images, TAGS={"<service>": "<tag>"} of the commit: the platform and the
+# components stay as `up` left them.
 release() {
   identity
-  local tags
-  tags=$(image_tags)
-  if [ "$(cluster_state)" != ACTIVE ]; then
-    echo "the cluster is off; the images are in ECR and the next up deploys them"
+  releases_bucket
+  local tags=${TAGS:-} sha dir digest current manifest
+  [ -n "$tags" ] || tags=$(deployed_tags)
+  # The services of ECR in their order, so the same tags always render the same chart.
+  tags=$(jq -c --args '. as $t | $ARGS.positional | map({(.): $t[.]}) | add' \
+    "${SERVICES[@]}" <<<"$tags")
+  check_tags "$tags"
+  if ! git diff --quiet HEAD -- deploy/helm; then
+    echo "deploy/helm has uncommitted changes, and a release is a commit" >&2
+    return 1
+  fi
+  sha=$(git rev-parse HEAD)
+  dir=$(mktemp -d)
+  package_chart "$dir"
+  digest=$(chart_digest "$dir/pdp" "$tags")
+  current=$(current_release)
+  if [ "$(jq -r .chart <<<"$current")" = "$digest" ]; then
+    echo "nothing to deploy: release $(jq -r .id <<<"$current") has the same chart and images"
     return 0
   fi
-  kubeconfig
-  app "$tags"
+  manifest=$(jq -n --arg sha "$sha" --argjson tags "$tags" --arg chart "$digest" \
+    '{kind: "deploy", sha: $sha, tags: $tags, chart: $chart}' |
+    stamp "$sha" "$(jq -r '.id // ""' <<<"$current")")
+  log "release $(jq -r .id <<<"$manifest")"
+  jq . <<<"$manifest"
+  publish "$dir" "$manifest"
+  roll_out "$dir/pdp" "$manifest"
+}
+
+# Release $1, or the one before the current, again: its chart and its images, while ECR still
+# has them. Recorded as a new release of kind rollback, so the history stays in order; the next
+# push to main deploys the head again.
+rollback() {
+  identity
+  releases_bucket
+  local current id target missing dir manifest
+  current=$(current_release)
+  id=${1:-$(jq -r '.previous // ""' <<<"$current")}
+  if [ -z "$id" ]; then
+    echo "no release before the current one; scripts/aws.sh releases lists them" >&2
+    return 1
+  fi
+  if ! target=$(aws s3 cp --only-show-errors "s3://$BUCKET/releases/$id/manifest.json" - \
+    2>/dev/null); then
+    echo "no release $id; scripts/aws.sh releases lists them" >&2
+    return 1
+  fi
+  if [ "$(jq -r .chart <<<"$target")" = "$(jq -r .chart <<<"$current")" ]; then
+    echo "release $id has the chart and images of the current $(jq -r .id <<<"$current")"
+    return 0
+  fi
+  missing=$(missing_images "$(jq .tags <<<"$target")")
+  if [ -n "$missing" ]; then
+    echo "ECR no longer has the images of release $id: ${missing% }; nothing changed" >&2
+    return 1
+  fi
+  if [ -z "${GITHUB_ACTIONS:-}" ]; then
+    confirm "Roll back from $(jq -r '.id // "nothing"' <<<"$current") to $id?" || exit 1
+  fi
+  dir=$(mktemp -d)
+  release_chart "$id" "$dir"
+  manifest=$(jq '. + {kind: "rollback", of: .id}' <<<"$target" |
+    stamp "$(jq -r .sha <<<"$target")" "$(jq -r '.id // ""' <<<"$current")")
+  log "rollback to $id as release $(jq -r .id <<<"$manifest")"
+  publish "$dir" "$manifest"
+  roll_out "$dir/pdp" "$manifest"
+}
+
+# The last $1 releases, newest first; * marks the current one.
+releases() {
+  identity
+  releases_bucket
+  local current prefixes prefix id
+  current=$(jq -r .id <<<"$(current_release)")
+  prefixes=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix releases/ --delimiter / \
+    --query 'CommonPrefixes[].Prefix' --output text)
+  if [ "$prefixes" = None ]; then
+    echo "no releases yet"
+    return 0
+  fi
+  for prefix in $(tr '\t' '\n' <<<"$prefixes" | sort -r | head -n "${1:-10}"); do
+    id=${prefix#releases/}
+    id=${id%/}
+    printf '%s %s\t' "$([ "$id" = "$current" ] && echo '*' || echo ' ')" "$id"
+    s3_get "${prefix}manifest.json" - |
+      jq -r '[.kind, .sha[:7], .by, (if .of then "of " + .of else "" end)] | join("\t")'
+  done
 }
 
 up() {
   identity
-  local tags
-  tags=$(image_tags)
+  local current tags missing dir
+  dir=$(mktemp -d)
+  # Missing until the base layer has it, and then until CI records the first release.
+  BUCKET=$(param releases-bucket 2>/dev/null) || true
+  current=$(current_release)
+  if [ -n "$current" ]; then
+    tags=$(jq .tags <<<"$current")
+    missing=$(missing_images "$tags")
+    if [ -n "$missing" ]; then
+      echo "ECR no longer has: ${missing% }; scripts/aws.sh rollback <id>, or a push to main" >&2
+      exit 1
+    fi
+    log "release $(jq -r .id <<<"$current")"
+    release_chart "$(jq -r .id <<<"$current")" "$dir"
+  else
+    tags=$(deployed_tags)
+    check_tags "$tags"
+    package_chart "$dir"
+  fi
   if [ "$(rds_state)" = stopped ]; then
     log "starting RDS"
     aws rds start-db-instance --db-instance-identifier "$RDS" >/dev/null
@@ -298,7 +487,7 @@ up() {
   components
   app_config
   platform
-  app "$tags"
+  app "$dir/pdp" "$tags"
   smoke_user
   log "certificate ($TLS_ISSUER)"
   kubectl -n traefik wait certificate/pdp-tls --for=condition=Ready --timeout=10m ||
@@ -407,10 +596,12 @@ urls() {
 
 status() {
   identity
-  local state rds stopped
+  local state rds stopped current
   state=$(cluster_state)
   rds=$(rds_state)
-  printf '%-8s %s\n' cluster "$state" rds "$rds"
+  BUCKET=$(param releases-bucket 2>/dev/null) || true
+  current=$(jq -r '"\(.id) (\(.kind))"' <<<"$(current_release)")
+  printf '%-8s %s\n' cluster "$state" rds "$rds" release "${current:-none}"
   if [ "$rds" = stopped ]; then
     # shellcheck disable=SC2016
     stopped=$(aws rds describe-events --source-type db-instance --source-identifier "$RDS" \
@@ -454,9 +645,10 @@ case "${1:-}" in
     need curl
     need jq
     ;;
-  status | grafana | seed | release)
+  status | grafana | seed | release | releases | rollback)
     need aws
     need kubectl
+    need jq
     ;;
 esac
 
@@ -471,8 +663,10 @@ case "${1:-}" in
   grafana) grafana ;;
   seed) seed "${2:-me}" ;;
   release) release ;;
+  releases) releases ;;
+  rollback) rollback "${2:-}" ;;
   *)
-    sed -n '2,13p' "$0"
+    sed -n '2,15p' "$0"
     exit 1
     ;;
 esac
