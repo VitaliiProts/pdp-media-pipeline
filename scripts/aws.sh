@@ -8,7 +8,8 @@
 #   scripts/aws.sh seed me   # create a user, print its API key
 #   scripts/aws.sh release   # record and deploy the app at HEAD with TAGS (CI after a push)
 #   scripts/aws.sh releases  # the last ten releases; rollback takes one of their ids
-#   scripts/aws.sh rollback [<id>]   # the release before the current one, or <id>
+#   scripts/aws.sh rollback [<id>] [frontend|backend]   # the release before the current, or
+#                            # <id>; only web, or only the other services, with the rest as is
 #   scripts/aws.sh repos     # add the Helm repositories of the cluster components
 #
 # TLS_ISSUER=letsencrypt-staging scripts/aws.sh up   while DNS-01 is being debugged.
@@ -395,15 +396,34 @@ release() {
   roll_out "$dir/pdp" "$manifest"
 }
 
-# Release $1, or the one before the current, again: its chart and its images, while ECR still
-# has them. Recorded as a new release of kind rollback, so the history stays in order; the next
-# push to main deploys the head again.
+# The services a partial rollback takes from the earlier release.
+scope_services() {
+  local svc
+  for svc in "${SERVICES[@]}"; do
+    case "$1" in
+      frontend) [ "$svc" = web ] && echo "$svc" ;;
+      backend) [ "$svc" != web ] && echo "$svc" ;;
+    esac
+  done
+}
+
+# Release <id>, or the one before the current, again, while ECR still has its images: all of it,
+# or only the images of the frontend or the backend over the current chart and the other images.
+# Recorded as a new release of kind rollback, so the history stays in order; the next push to
+# main deploys the head again.
 rollback() {
   identity
   releases_bucket
-  local current id target missing dir manifest
+  local arg id='' scope=all current target base tags dir digest what missing manifest
+  for arg in "$@"; do
+    case "$arg" in
+      all | frontend | backend) scope=$arg ;;
+      '') ;;
+      *) id=$arg ;;
+    esac
+  done
   current=$(current_release)
-  id=${1:-$(jq -r '.previous // ""' <<<"$current")}
+  id=${id:-$(jq -r '.previous // ""' <<<"$current")}
   if [ -z "$id" ]; then
     echo "no release before the current one; scripts/aws.sh releases lists them" >&2
     return 1
@@ -413,23 +433,40 @@ rollback() {
     echo "no release $id; scripts/aws.sh releases lists them" >&2
     return 1
   fi
-  if [ "$(jq -r .chart <<<"$target")" = "$(jq -r .chart <<<"$current")" ]; then
-    echo "release $id has the chart and images of the current $(jq -r .id <<<"$current")"
+  if [ "$scope" = all ]; then
+    base=$target
+    tags=$(jq -c .tags <<<"$target")
+  elif [ -z "$current" ]; then
+    echo "a $scope rollback keeps the rest of the current release, and there is none yet" >&2
+    return 1
+  else
+    base=$current
+    # shellcheck disable=SC2046
+    tags=$(jq -c --argjson from "$(jq .tags <<<"$target")" \
+      '.tags as $t | reduce $ARGS.positional[] as $s ($t; .[$s] = $from[$s])' \
+      --args $(scope_services "$scope") <<<"$current")
+  fi
+  dir=$(mktemp -d)
+  release_chart "$(jq -r .id <<<"$base")" "$dir"
+  digest=$(chart_digest "$dir/pdp" "$tags")
+  what="release $id"
+  [ "$scope" = all ] || what="the $scope of $what"
+  if [ "$digest" = "$(jq -r .chart <<<"$current")" ]; then
+    echo "nothing to roll back: $what is what runs already"
     return 0
   fi
-  missing=$(missing_images "$(jq .tags <<<"$target")")
+  missing=$(missing_images "$tags")
   if [ -n "$missing" ]; then
     echo "ECR no longer has the images of release $id: ${missing% }; nothing changed" >&2
     return 1
   fi
   if [ -z "${GITHUB_ACTIONS:-}" ]; then
-    confirm "Roll back from $(jq -r '.id // "nothing"' <<<"$current") to $id?" || exit 1
+    confirm "Roll back to $what, now $(jq -r '.id // "nothing"' <<<"$current") runs?" || exit 1
   fi
-  dir=$(mktemp -d)
-  release_chart "$id" "$dir"
-  manifest=$(jq '. + {kind: "rollback", of: .id}' <<<"$target" |
-    stamp "$(jq -r .sha <<<"$target")" "$(jq -r '.id // ""' <<<"$current")")
-  log "rollback to $id as release $(jq -r .id <<<"$manifest")"
+  manifest=$(jq --arg of "$id" --arg scope "$scope" --argjson tags "$tags" --arg chart "$digest" \
+    '. + {kind: "rollback", of: $of, scope: $scope, tags: $tags, chart: $chart}' <<<"$base" |
+    stamp "$(jq -r .sha <<<"$base")" "$(jq -r '.id // ""' <<<"$current")")
+  log "rollback to $what as release $(jq -r .id <<<"$manifest")"
   publish "$dir" "$manifest"
   roll_out "$dir/pdp" "$manifest"
 }
@@ -451,7 +488,8 @@ releases() {
     id=${id%/}
     printf '%s %s\t' "$([ "$id" = "$current" ] && echo '*' || echo ' ')" "$id"
     s3_get "${prefix}manifest.json" - |
-      jq -r '[.kind, .sha[:7], .by, (if .of then "of " + .of else "" end)] | join("\t")'
+      jq -r '[.kind, .sha[:7], .by, (if .of then "of " + .of else "" end),
+              (if (.scope // "all") != "all" then "(" + .scope + ")" else "" end)] | join("\t")'
   done
 }
 
@@ -664,9 +702,9 @@ case "${1:-}" in
   seed) seed "${2:-me}" ;;
   release) release ;;
   releases) releases ;;
-  rollback) rollback "${2:-}" ;;
+  rollback) rollback "${@:2}" ;;
   *)
-    sed -n '2,15p' "$0"
+    sed -n '2,16p' "$0"
     exit 1
     ;;
 esac

@@ -10,6 +10,11 @@ on:
         description: Release id, e.g. 20261022T143000Z-d36130c; empty for the one before the current
         required: false
         default: ''
+      scope:
+        description: What to roll back; frontend is web, backend the other services
+        type: choice
+        options: [all, frontend, backend]
+        default: all
 
 # The queue of Deploy: a rollback never runs halfway through a deploy, nor a deploy through it.
 concurrency:
@@ -41,7 +46,8 @@ jobs:
       - name: Rollback
         env:
           RELEASE: ${{ inputs.release }}
-        run: scripts/aws.sh rollback "$RELEASE"
+          SCOPE: ${{ inputs.scope }}
+        run: scripts/aws.sh rollback "$RELEASE" "$SCOPE"
       - name: Smoke test
         env:
           SMOKE_API_KEY: ${{ secrets.SMOKE_API_KEY }}
