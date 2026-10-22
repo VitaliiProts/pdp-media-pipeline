@@ -21,8 +21,9 @@ concurrency:
   group: deploy-aws
   cancel-in-progress: false
 
+# contents: write for the GitHub release of the rollback.
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 env:
@@ -47,6 +48,7 @@ jobs:
         env:
           RELEASE: ${{ inputs.release }}
           SCOPE: ${{ inputs.scope }}
+          GH_TOKEN: ${{ github.token }}
         run: scripts/aws.sh rollback "$RELEASE" "$SCOPE"
       - name: Smoke test
         env:

@@ -360,7 +360,27 @@ publish() {
   local id
   id=$(jq -r .id <<<"$2")
   s3_put "$1/pdp.tgz" "releases/$id/pdp.tgz"
+  s3_put "$1/notes.md" "releases/$id/notes.md"
   s3_put - "releases/$id/manifest.json" <<<"$2"
+}
+
+# The services whose tag in $2 differs from $1, both {"<service>": "<tag>"}; $1 may be empty.
+changed_images() {
+  jq -r --argjson old "${1:-null}" \
+    'to_entries | map(select(($old // {})[.key] != .value) | .key) | join(" ")' <<<"$2"
+}
+
+# The GitHub release of a release that runs, so its notes sit next to the code. Without gh the
+# notes stay in S3 alone.
+github_release() {
+  local tag=$1 sha=$2 title=$3 notes=$4
+  shift 4
+  if ! command -v gh >/dev/null || ! gh auth status >/dev/null 2>&1; then
+    echo "warning: gh is missing or signed out, so no GitHub release $tag" >&2
+    return 0
+  fi
+  gh release create "$tag" --target "$sha" --title "$title" --notes-file "$notes" "$@" >/dev/null
+  echo "GitHub release $tag"
 }
 
 # CI after pushing the images, TAGS={"<service>": "<tag>"} of the commit: the platform and the
@@ -368,7 +388,7 @@ publish() {
 release() {
   identity
   releases_bucket
-  local tags=${TAGS:-} sha dir digest current manifest
+  local tags=${TAGS:-} sha dir digest current manifest id notes version
   [ -n "$tags" ] || tags=$(deployed_tags)
   # The services of ECR in their order, so the same tags always render the same chart.
   tags=$(jq -c --args '. as $t | $ARGS.positional | map({(.): $t[.]}) | add' \
@@ -390,10 +410,21 @@ release() {
   manifest=$(jq -n --arg sha "$sha" --argjson tags "$tags" --arg chart "$digest" \
     '{kind: "deploy", sha: $sha, tags: $tags, chart: $chart}' |
     stamp "$sha" "$(jq -r '.id // ""' <<<"$current")")
-  log "release $(jq -r .id <<<"$manifest")"
+  id=$(jq -r .id <<<"$manifest")
+  # The version follows the highest tag, which a clone made before it was released lacks.
+  git fetch -q --tags origin 2>/dev/null || true
+  # The commits since the current release: those no deploy went out with are in this one.
+  notes=$(node scripts/release-notes.mjs --from "$(jq -r '.sha // ""' <<<"$current")" \
+    --to "$sha" --release "$id" --images "$(changed_images "$(jq .tags <<<"$current")" "$tags")")
+  version=$(jq -r .version <<<"$notes")
+  jq -r .notes <<<"$notes" >"$dir/notes.md"
+  manifest=$(jq --arg version "$version" '. + {version: $version}' <<<"$manifest")
+  log "release $version ($id)"
   jq . <<<"$manifest"
+  cat "$dir/notes.md"
   publish "$dir" "$manifest"
   roll_out "$dir/pdp" "$manifest"
+  github_release "$version" "$sha" "$version" "$dir/notes.md" --latest
 }
 
 # The services a partial rollback takes from the earlier release.
@@ -414,7 +445,8 @@ scope_services() {
 rollback() {
   identity
   releases_bucket
-  local arg id='' scope=all current target base tags dir digest what missing manifest
+  local arg id='' scope=all current target base tags dir digest what missing manifest new title
+  local from run images
   for arg in "$@"; do
     case "$arg" in
       all | frontend | backend) scope=$arg ;;
@@ -466,9 +498,25 @@ rollback() {
   manifest=$(jq --arg of "$id" --arg scope "$scope" --argjson tags "$tags" --arg chart "$digest" \
     '. + {kind: "rollback", of: $of, scope: $scope, tags: $tags, chart: $chart}' <<<"$base" |
     stamp "$(jq -r .sha <<<"$base")" "$(jq -r '.id // ""' <<<"$current")")
-  log "rollback to $what as release $(jq -r .id <<<"$manifest")"
+  new=$(jq -r .id <<<"$manifest")
+  log "rollback to $what as release $new"
+  title="Rollback to $(jq -r '.version // .id' <<<"$target")"
+  [ "$scope" = all ] || title="Rollback of the $scope to $(jq -r '.version // .id' <<<"$target")"
+  from=$(jq -r '.version // .id' <<<"$current")
+  run=$(jq -r '.run // ""' <<<"$manifest")
+  images=$(changed_images "$(jq .tags <<<"$current")" "$tags")
+  {
+    echo "$title, until the next push to main deploys the head again."
+    echo
+    echo "- From: ${from:-nothing}"
+    echo "- Images: ${images:-none changed}"
+    echo "- Release: \`$new\`, of \`$id\`"
+    [ -z "$run" ] || echo "- Run: $run"
+  } >"$dir/notes.md"
   publish "$dir" "$manifest"
   roll_out "$dir/pdp" "$manifest"
+  github_release "rollback-$new" "$(jq -r .sha <<<"$manifest")" "$title" "$dir/notes.md" \
+    --latest=false
 }
 
 # The last $1 releases, newest first; * marks the current one.
@@ -488,7 +536,7 @@ releases() {
     id=${id%/}
     printf '%s %s\t' "$([ "$id" = "$current" ] && echo '*' || echo ' ')" "$id"
     s3_get "${prefix}manifest.json" - |
-      jq -r '[.kind, .sha[:7], .by, (if .of then "of " + .of else "" end),
+      jq -r '[.version // "-", .kind, .sha[:7], .by, (if .of then "of " + .of else "" end),
               (if (.scope // "all") != "all" then "(" + .scope + ")" else "" end)] | join("\t")'
   done
 }
@@ -687,6 +735,7 @@ case "${1:-}" in
     need aws
     need kubectl
     need jq
+    [ "$1" != release ] || need node
     ;;
 esac
 
