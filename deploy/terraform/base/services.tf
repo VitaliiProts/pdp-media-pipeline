@@ -1,17 +1,18 @@
 # One entry per deployable image. A new service, or one moved to its own repository, is a line
 # here: its ECR repository, its deployed-tag parameter and its push rights follow.
-
+#
+# Tags are content hashes (scripts/image-tags.mjs): a new image only when its service changed.
+# A release can be rolled back while ECR still has all of its images (`aws.sh rollback` checks).
 locals {
   services = {
-    api-gateway  = { keep_images = 10 }
-    metadata     = { keep_images = 10 }
-    scheduler    = { keep_images = 10 }
-    worker       = { keep_images = 10 }
-    video-worker = { keep_images = 10 }
-    video-dub    = { keep_images = 10 }
-    web          = { keep_images = 10 }
-    # Tagged by the content of apps/audio-separate and rebuilt only when it changes; every
-    # build is ~2.3 GB of fresh layers.
+    api-gateway  = { keep_images = 30 }
+    metadata     = { keep_images = 30 }
+    scheduler    = { keep_images = 30 }
+    worker       = { keep_images = 30 }
+    video-worker = { keep_images = 30 }
+    video-dub    = { keep_images = 30 }
+    web          = { keep_images = 30 }
+    # Every build is ~2.3 GB of fresh layers.
     audio-separate = { keep_images = 3 }
   }
 }

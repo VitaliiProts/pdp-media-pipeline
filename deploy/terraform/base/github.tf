@@ -82,6 +82,19 @@ data "aws_iam_policy_document" "deploy" {
     ]
   }
 
+  # Releases are written, never deleted: a rollback needs the old ones.
+  statement {
+    sid       = "ListReleases"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.releases.arn]
+  }
+
+  statement {
+    sid       = "ReadWriteReleases"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["${aws_s3_bucket.releases.arn}/*"]
+  }
+
   # The secrets live under the same path; the deploy role never needs them.
   statement {
     sid     = "NoSecrets"
