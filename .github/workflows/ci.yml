@@ -262,6 +262,7 @@ jobs:
 
   # Only the images whose content tag changed; the matrix entries come from scripts/image-tags.mjs.
   docker:
+    name: docker (${{ matrix.app }})
     needs: changes
     if: needs.changes.outputs.images != '[]'
     runs-on: ubuntu-latest

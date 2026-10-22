@@ -5,6 +5,7 @@ locals {
     domain          = var.domain
     zone-id         = aws_route53_zone.main.zone_id
     media-bucket    = aws_s3_bucket.media.bucket
+    releases-bucket = aws_s3_bucket.releases.bucket
     ecr-registry    = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
     vpc-id          = module.vpc.vpc_id
     public-subnets  = join(",", module.vpc.public_subnets)
@@ -31,7 +32,8 @@ moved {
   to   = aws_ssm_parameter.base["zone-id"]
 }
 
-# Written by CI after each push to ECR; `aws.sh up` deploys these tags.
+# The tags of the current release (releases.tf), written by `aws.sh release` and `rollback` once
+# it runs. `aws.sh up` deploys them while no release is recorded yet.
 resource "aws_ssm_parameter" "deployed_tag" {
   for_each = local.services
 

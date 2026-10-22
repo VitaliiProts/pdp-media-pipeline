@@ -1,10 +1,11 @@
 name: Deploy
 
-# After a green CI on main: the images ECR does not have yet, the tags to SSM, and when the cluster
+# After a green CI on main: the images ECR does not have yet, a release in S3, and when the cluster
 # runs, the `pdp` release and scripts/smoke.sh against it (Stage 5b.3, docs/plan/stage-5b.md).
 # Tags are content hashes (scripts/image-tags.mjs, docs/plan/stage-7.1.md): an image whose inputs
 # did not change keeps its tag, is not rebuilt, and Helm does not roll its pods. With the cluster
-# off the run is still green: `scripts/aws.sh up` deploys the tags later.
+# off the run is still green: `scripts/aws.sh up` deploys the current release later. The Rollback
+# workflow deploys an earlier one.
 on:
   workflow_run:
     workflows: [CI]
@@ -77,6 +78,7 @@ jobs:
           echo "build=$build" >> "$GITHUB_OUTPUT"
 
   images:
+    name: images (${{ matrix.app }})
     needs: plan
     if: needs.plan.outputs.build != '[]'
     runs-on: ubuntu-latest
@@ -130,21 +132,18 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      # Only once every image is in ECR, so the tags in SSM always name a complete set.
-      - name: Deployed tags
-        env:
-          TAGS: ${{ needs.plan.outputs.tags }}
-        run: |
-          for app in $SERVICES; do
-            tag=$(jq -r --arg app "$app" '.[] | select(.app == $app) | .tag' <<<"$TAGS")
-            aws ssm put-parameter --name "/pdp/prod/deployed-tag/$app" --value "$tag" \
-              --overwrite >/dev/null
-            echo "$app: $tag"
-          done
       - uses: azure/setup-helm@v4
         with:
           version: v4.3.0
-      - run: scripts/aws.sh release
+      # Only once every image is in ECR. The release goes to S3 first; the tags in SSM and
+      # current.json move once it runs. Nothing to deploy when the chart renders as the current.
+      - name: Release
+        env:
+          PLAN_TAGS: ${{ needs.plan.outputs.tags }}
+        run: |
+          TAGS=$(jq -c 'map({(.app): .tag}) | add' <<<"$PLAN_TAGS")
+          export TAGS
+          scripts/aws.sh release
       - name: Smoke test
         env:
           SMOKE_API_KEY: ${{ secrets.SMOKE_API_KEY }}

@@ -1,0 +1,54 @@
+name: Rollback
+
+# An earlier release from S3 again: its chart and its images, if ECR still has them (Stage 7.1,
+# docs/plan/stage-7.1.md). `scripts/aws.sh releases` lists the ids; without one, the release
+# before the current. The next push to main deploys the head again.
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Release id, e.g. 20261022T143000Z-d36130c; empty for the one before the current
+        required: false
+        default: ''
+
+# The queue of Deploy: a rollback never runs halfway through a deploy, nor a deploy through it.
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: eu-central-1
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    # The role trusts this environment, and the environment admits only main.
+    environment: aws
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.3.0
+      - name: Rollback
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: scripts/aws.sh rollback "$RELEASE"
+      - name: Smoke test
+        env:
+          SMOKE_API_KEY: ${{ secrets.SMOKE_API_KEY }}
+        run: |
+          state=$(aws eks describe-cluster --name pdp --query cluster.status --output text 2>/dev/null || true)
+          if [ "$state" != ACTIVE ]; then
+            echo "the cluster is off, nothing to test"
+            exit 0
+          fi
+          scripts/smoke.sh https://api.pdp-media-pipeline.online
