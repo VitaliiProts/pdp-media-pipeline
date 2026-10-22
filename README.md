@@ -355,6 +355,14 @@ ECR, записує реліз у S3 і, якщо кластер запущен�
 `audio-separate`), і записується новим релізом `rollback`. Відкат тимчасовий: наступний мердж у
 `main` знову деплоїть голову, тож щоб він лишився, потрібен revert-коміт.
 
+**Версія й release notes** (`scripts/release-notes.mjs`). Кожен деплой — ще й GitHub Release з
+тегом `vX.Y.Z` на його коміт: нотатки зібрано з комітів після поточного релізу в розділи
+Features, Bug Fixes і згорнуті Other changes, з посиланнями на PR і коміти, і переліком
+образів, що змінились. Версія — від найвищого тега: `feat` піднімає minor, `!` або
+`BREAKING CHANGE:` — major, решта — patch. Ті самі нотатки — `releases/<id>/notes.md` у S3, а
+версія — поле `version` маніфесту. Відкат публікує короткий реліз `rollback-<id>`, не позначений
+як Latest. `node scripts/release-notes.mjs --from <sha>` показує нотатки наперед.
+
 Відкат лише фронтенду чи бекенду — поле `scope` у `Rollback` або
 `scripts/aws.sh rollback [<id>] frontend|backend`. `frontend` — це `web`, `backend` — решта
 сервісів. Береться поточний реліз, і лише в обраних сервісів теги замінюються тегами з `<id>`;
@@ -1359,6 +1367,8 @@ docker compose --profile dub --profile dub-separate up -d --build --wait`.
    `current.json` і теги в SSM без змін.
 6. `Rollback` зі `scope: frontend` на реліз з іншим тегом `web` → новий под лише `web`,
    `releases` показує `rollback of <id> (frontend)`; повторний запуск — «nothing to roll back».
+7. Після деплою з `feat`-комітом → у Releases новий `vX.Y.0` (Latest) з розділом Features і
+   посиланнями на PR; після відкату — `rollback-<id>`, Latest не змінився.
 
 ## Конфігурація Етапу 2
 

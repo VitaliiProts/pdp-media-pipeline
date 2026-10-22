@@ -201,6 +201,15 @@ current.json                  # маніфест того, що працює і 
 Межі: повертається образ, а не чарт сервісу; версії, що опиняються поруч, мають бути сумісні
 (API `/v1` лише розширюється, тож старий фронтенд з новим бекендом — безпечний напрям).
 
+**Release notes.** `scripts/release-notes.mjs` збирає коміти `current.sha..HEAD` (conventional
+commits; PR — з merge-коміту, що їх приніс, або `(#N)` squash-мерджу) у нотатки в розкладці
+conventional-changelog і рахує semver від найвищого тега `v*`: breaking → major, `feat` →
+minor, решта → patch. `release` кладе їх у `releases/<id>/notes.md`, версію — у маніфест, і
+після того, як реліз запрацював, створює GitHub Release `vX.Y.Z` (Latest) на його коміт; для
+цього джоб `release` отримує `contents: write` і повну історію. Відкат — реліз `rollback-<id>`
+з `--latest=false`. Без `gh` (локально) нотатки лишаються лише в S3. GitHub Releases тут лише
+для читання людьми: відкат бере все з S3.
+
 GitHub створює deployment на кожен джоб з `environment`, тож один прогін `Deploy` давав до 9
 записів на сторінці deployments. `plan` і `images` тепер з `deployment: false` (роль довіряє
 `sub` з `environment:aws`, а він лишається); запис — лише від `release` і `Rollback`.
