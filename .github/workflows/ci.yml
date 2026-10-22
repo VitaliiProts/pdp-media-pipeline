@@ -1,5 +1,7 @@
 name: CI
 
+# Only the jobs a change needs (docs/plan/stage-7.1.md): `changes` picks them, `ci-ok` is the one
+# check that sums them up, whichever ran.
 on:
   push:
     branches: [main]
@@ -13,33 +15,64 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  # The images whose content tag changed and a flag per area, against the merge base with the
+  # target branch, or with the previous main on a push. Without a base everything runs.
+  changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      images: ${{ steps.select.outputs.images }}
+      node: ${{ steps.select.outputs.node }}
+      python: ${{ steps.select.outputs.python }}
+      helm: ${{ steps.select.outputs.helm }}
+      terraform: ${{ steps.select.outputs.terraform }}
+      alerts: ${{ steps.select.outputs.alerts }}
+      audit: ${{ steps.select.outputs.audit }}
+      e2e: ${{ steps.select.outputs.e2e }}
+      actions: ${{ steps.select.outputs.actions }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - id: select
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-changes.mjs --base "$BASE" >> "$GITHUB_OUTPUT"
+
+  # Prettier checks Markdown and YAML too, so it runs on every change: a badly formatted file
+  # would otherwise fail the next pull request that touches code.
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm format:check
+
+  verify:
+    needs: changes
+    if: needs.changes.outputs.node == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
       - run: pnpm build
       - run: pnpm lint
-      - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm depcruise
 
-  # Coverage is reported, not enforced.
   test:
+    needs: changes
+    if: needs.changes.outputs.node == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: pnpm test:cov
       - run: pnpm test:web:cov
       - run: pnpm test:tools
@@ -54,6 +87,7 @@ jobs:
       - name: Coverage summary
         if: always() && hashFiles('coverage/coverage-summary.json') != ''
         run: |
+          # shellcheck disable=SC2016 # a JS template literal, not shell
           node -e '
             const t = require("./coverage/coverage-summary.json").total;
             const row = (k) => `| ${k} | ${t[k].pct}% | ${t[k].covered}/${t[k].total} |`;
@@ -71,19 +105,18 @@ jobs:
 
   # Testcontainers: Postgres, NATS, Redis and MinIO on the runner's Docker.
   integration:
+    needs: changes
+    if: needs.changes.outputs.node == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: pnpm test:int --coverage
       - name: Coverage summary
         if: always() && hashFiles('coverage-int/coverage-summary.json') != ''
         run: |
+          # shellcheck disable=SC2016 # a JS template literal, not shell
           node -e '
             const t = require("./coverage-int/coverage-summary.json").total;
             const row = (k) => `| ${k} | ${t[k].pct}% | ${t[k].covered}/${t[k].total} |`;
@@ -97,18 +130,16 @@ jobs:
           path: coverage-int/
           if-no-files-found: ignore
 
-  # Unit and integration runs together, with the Web UI for the areas that span both.
+  # Unit and integration runs together, with the Web UI for the areas that span both. The
+  # thresholds are on the whole run, which is why the Node jobs never run for a part of it.
   coverage:
-    needs: [test, integration]
+    needs: [changes, test, integration]
+    if: needs.changes.outputs.node == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       # Paths in the reports are absolute, and the same on every runner of this workflow.
       - uses: actions/download-artifact@v4
         with:
@@ -127,7 +158,10 @@ jobs:
 
   # The Python service without its ML stack: models are faked, S3 is moto.
   audio-separate:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: apps/audio-separate
@@ -146,13 +180,15 @@ jobs:
   # Report only: findings show up in the job summary and as warnings, the job never fails.
   # Blocking on CRITICAL is enabled in Stage 7.
   audit:
+    needs: changes
+    if: needs.changes.outputs.audit == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup
         with:
-          node-version-file: .nvmrc
+          install: 'false'
       - name: pnpm audit (report only)
         run: |
           set +e
@@ -165,7 +201,10 @@ jobs:
 
   # helm lint, then kubeconform on the rendered platform and pdp (dev and prod) manifests.
   helm:
+    needs: changes
+    if: needs.changes.outputs.helm == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
@@ -173,7 +212,10 @@ jobs:
 
   # Formatting and validation only, without a backend or AWS credentials.
   terraform:
+    needs: changes
+    if: needs.changes.outputs.terraform == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -198,34 +240,36 @@ jobs:
           fi
 
   alert-rules:
+    needs: changes
+    if: needs.changes.outputs.alerts == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - run: |
           docker run --rm -v "$PWD/deploy/observability/vmalert:/vmalert:ro" \
             victoriametrics/vmalert-tool:v1.154.0 unittest --files=/vmalert/tests/alerts.test.yml
 
-  docker:
+  # The workflows themselves: expressions, job references, shell in `run` (shellcheck).
+  actionlint:
+    needs: changes
+    if: needs.changes.outputs.actions == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.7 -color
+
+  # Only the images whose content tag changed; the matrix entries come from scripts/image-tags.mjs.
+  docker:
+    needs: changes
+    if: needs.changes.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        app:
-          [
-            api-gateway,
-            metadata,
-            scheduler,
-            worker,
-            video-worker,
-            webhook-receiver,
-            web,
-            audio-separate,
-          ]
-        include:
-          # The Debian dub image of the video worker (ADR-016).
-          - app: video-dub
-            dockerfile: video-worker
-            target: dub
+        include: ${{ fromJSON(needs.changes.outputs.images) }}
     steps:
       # The runner has ~14 GB free; the build cache, the tarball for `load` and the loaded image
       # of audio-separate (~6 GB unpacked) or video-dub take more. Unused toolchains free ~30 GB.
@@ -241,7 +285,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/${{ matrix.dockerfile || matrix.app }}/Dockerfile
+          file: apps/${{ matrix.dockerfile }}/Dockerfile
           target: ${{ matrix.target }}
           push: false
           load: true
@@ -266,16 +310,13 @@ jobs:
   # Three browser flows against the compose stack. The images come from the same Dockerfiles and
   # cache scopes as the `docker` job, so its layers are reused rather than built twice.
   e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: pnpm exec playwright install --with-deps chromium
       - uses: docker/setup-buildx-action@v3
       - uses: docker/bake-action@v6
@@ -296,3 +337,35 @@ jobs:
             e2e/test-results/
             compose.log
           if-no-files-found: ignore
+
+  # The one check to require: green when every job that ran passed, a skipped job included.
+  ci-ok:
+    if: always()
+    needs:
+      - changes
+      - format
+      - verify
+      - test
+      - integration
+      - coverage
+      - audio-separate
+      - audit
+      - helm
+      - terraform
+      - alert-rules
+      - actionlint
+      - docker
+      - e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          failed=$(jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled")
+            | "\(.key): \(.value.result)"' <<<"$NEEDS")
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          if [ -n "$failed" ]; then
+            echo "::error title=CI::$(echo "$failed" | paste -sd ', ' -)"
+            exit 1
+          fi
