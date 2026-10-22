@@ -1,8 +1,10 @@
 name: Deploy
 
-# After a green CI on main: the images to ECR, their tags to SSM, and when the cluster runs,
-# the `pdp` release and scripts/smoke.sh against it (Stage 5b.3, docs/plan/stage-5b.md). With
-# the cluster off the run is still green: `scripts/aws.sh up` deploys the tags later.
+# After a green CI on main: the images ECR does not have yet, the tags to SSM, and when the cluster
+# runs, the `pdp` release and scripts/smoke.sh against it (Stage 5b.3, docs/plan/stage-5b.md).
+# Tags are content hashes (scripts/image-tags.mjs, docs/plan/stage-7.1.md): an image whose inputs
+# did not change keeps its tag, is not rebuilt, and Helm does not roll its pods. With the cluster
+# off the run is still green: `scripts/aws.sh up` deploys the tags later.
 on:
   workflow_run:
     workflows: [CI]
@@ -23,9 +25,12 @@ env:
   AWS_REGION: eu-central-1
   # The commit CI verified, not whatever main points to by now.
   SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  # The ECR repositories (deploy/terraform/base/services.tf); webhook-receiver is local only.
+  SERVICES: api-gateway metadata scheduler worker video-worker video-dub web audio-separate
 
 jobs:
-  images:
+  # The tag of every service at SHA, and the images ECR does not have under that tag yet.
+  plan:
     # Pushes only: a pull request from a fork may come from a branch named main too.
     if: >-
       github.event_name == 'workflow_dispatch' ||
@@ -35,13 +40,51 @@ jobs:
     runs-on: ubuntu-latest
     # The role trusts this environment, and the environment admits only main.
     environment: aws
+    timeout-minutes: 5
+    outputs:
+      tags: ${{ steps.tags.outputs.tags }}
+      build: ${{ steps.missing.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - id: tags
+        run: echo "tags=$(node scripts/image-tags.mjs --matrix)" >> "$GITHUB_OUTPUT"
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      # Tags are immutable: an image ECR has under its tag is exactly the one this commit builds.
+      - id: missing
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          build='[]'
+          for app in $SERVICES; do
+            entry=$(jq -c --arg app "$app" '.[] | select(.app == $app)' <<<"$TAGS")
+            tag=$(jq -r .tag <<<"$entry")
+            if aws ecr describe-images --repository-name "pdp/$app" \
+              --image-ids "imageTag=$tag" >/dev/null 2>&1; then
+              echo "pdp/$app:$tag is already in ECR"
+            else
+              echo "pdp/$app:$tag is to be built"
+              build=$(jq -c --argjson entry "$entry" '. + [$entry]' <<<"$build")
+            fi
+          done
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
+  images:
+    needs: plan
+    if: needs.plan.outputs.build != '[]'
+    runs-on: ubuntu-latest
+    environment: aws
+    timeout-minutes: 40
     strategy:
       matrix:
-        app: [api-gateway, metadata, scheduler, worker, video-worker, web, audio-separate]
-        include:
-          - app: video-dub
-            dockerfile: video-worker
-            target: dub
+        include: ${{ fromJSON(needs.plan.outputs.build) }}
     steps:
       - name: Free disk space
         if: matrix.app == 'audio-separate' || matrix.app == 'video-dub'
@@ -52,49 +95,33 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.SHA }}
-      # audio-separate is tagged by the content of its directory, so a commit that leaves it
-      # alone pushes nothing: every build is ~2.3 GB of new layers.
-      - name: Tag
-        id: tag
-        run: |
-          if [ '${{ matrix.app }}' = audio-separate ]; then
-            echo "tag=$(git rev-parse HEAD:apps/audio-separate)" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=$SHA" >> "$GITHUB_OUTPUT"
-          fi
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
-      # Tags are immutable: a rerun of the same commit finds its images already there.
-      - name: Already in ECR
-        id: present
-        run: |
-          if aws ecr describe-images --repository-name 'pdp/${{ matrix.app }}' \
-            --image-ids 'imageTag=${{ steps.tag.outputs.tag }}' >/dev/null 2>&1; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "pdp/${{ matrix.app }}:${{ steps.tag.outputs.tag }} is already in ECR"
-          fi
-      - if: steps.present.outputs.present != 'true'
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
       # The layer cache CI wrote on main; no provenance index, so ECR holds plain images.
-      - if: steps.present.outputs.present != 'true'
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/${{ matrix.dockerfile || matrix.app }}/Dockerfile
+          file: apps/${{ matrix.dockerfile }}/Dockerfile
           target: ${{ matrix.target }}
           push: true
           provenance: false
-          tags: ${{ steps.ecr.outputs.registry }}/pdp/${{ matrix.app }}:${{ steps.tag.outputs.tag }}
+          tags: ${{ steps.ecr.outputs.registry }}/pdp/${{ matrix.app }}:${{ matrix.tag }}
           cache-from: type=gha,scope=${{ matrix.app }}
 
   release:
-    needs: images
+    needs: [plan, images]
+    # `images` is skipped when ECR has every image already.
+    if: >-
+      always() && needs.plan.result == 'success' &&
+      (needs.images.result == 'success' || needs.images.result == 'skipped')
     runs-on: ubuntu-latest
     environment: aws
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -105,13 +132,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       # Only once every image is in ECR, so the tags in SSM always name a complete set.
       - name: Deployed tags
+        env:
+          TAGS: ${{ needs.plan.outputs.tags }}
         run: |
-          for app in api-gateway metadata scheduler worker video-worker video-dub web; do
-            aws ssm put-parameter --name "/pdp/prod/deployed-tag/$app" --value "$SHA" \
+          for app in $SERVICES; do
+            tag=$(jq -r --arg app "$app" '.[] | select(.app == $app) | .tag' <<<"$TAGS")
+            aws ssm put-parameter --name "/pdp/prod/deployed-tag/$app" --value "$tag" \
               --overwrite >/dev/null
+            echo "$app: $tag"
           done
-          aws ssm put-parameter --name /pdp/prod/deployed-tag/audio-separate \
-            --value "$(git rev-parse HEAD:apps/audio-separate)" --overwrite >/dev/null
       - uses: azure/setup-helm@v4
         with:
           version: v4.3.0
