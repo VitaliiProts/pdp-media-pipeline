@@ -39,8 +39,11 @@ jobs:
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    # The role trusts this environment, and the environment admits only main.
-    environment: aws
+    # The role trusts this environment, and the environment admits only main. Only `release`
+    # records a GitHub deployment: one per run, not one per job and image.
+    environment:
+      name: aws
+      deployment: false
     timeout-minutes: 5
     outputs:
       tags: ${{ steps.tags.outputs.tags }}
@@ -82,7 +85,9 @@ jobs:
     needs: plan
     if: needs.plan.outputs.build != '[]'
     runs-on: ubuntu-latest
-    environment: aws
+    environment:
+      name: aws
+      deployment: false
     timeout-minutes: 40
     strategy:
       matrix:
